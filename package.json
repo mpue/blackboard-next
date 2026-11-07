@@ -1,0 +1,43 @@
+{
+  "name": "blackboard-next",
+  "private": true,
+  "version": "3.0.0",
+  "description": "BlackBoard Circuit Designer – portable rebuild (web, PWA, Tauri desktop)",
+  "license": "GPL-2.0-only",
+  "type": "module",
+  "scripts": {
+    "library": "node scripts/build-library.ts",
+    "dev": "npm run library && vite",
+    "build": "npm run library && tsc --noEmit -p . && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-fs": "^2.7.1",
+    "eecircuit-engine": "^1.9.0",
+    "fflate": "^0.8.3",
+    "immer": "^11.2.9",
+    "lucide-react": "^1.70.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "uplot": "^1.6.32",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0"
+  }
+}

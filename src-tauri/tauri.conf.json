@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BlackBoard",
+  "version": "3.0.0",
+  "identifier": "de.pueski.blackboard",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "BlackBoard Circuit Designer",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 600,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Perfboard, stripboard and schematic designer",
+    "longDescription": "BlackBoard Circuit Designer – perfboards, stripboards and schematics with NGSpice simulation.",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "fileAssociations": [
+      {
+        "ext": ["bb"],
+        "name": "BlackBoard board",
+        "description": "BlackBoard board or schematic",
+        "mimeType": "application/x-blackboard",
+        "role": "Editor"
+      }
+    ]
+  }
+}
