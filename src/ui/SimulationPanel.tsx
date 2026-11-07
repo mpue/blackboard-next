@@ -238,7 +238,7 @@ export function SimulationPanel() {
               setUic(v);
               setNetlist((n) => (v ? n.replace(/^(\.tran\b(?:(?!\buic\b).)*)$/gim, '$1 uic') : n.replace(/^(\.tran\b.*?)\s+uic\s*$/gim, '$1')));
             }}
-            label="UIC (Start bei 0 V)"
+            label={t('sim.uic')}
           />
         </div>
         <div className="ml-auto flex items-center gap-1">
@@ -310,7 +310,7 @@ export function SimulationPanel() {
                 <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">{t('sim.traces')}</div>
                 <label className="mb-1 flex items-center gap-2 text-[11px] text-muted">
                   <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
-                  intern (x…, #branch)
+                  {t('sim.internal')}
                 </label>
                 {parsed.traces.filter((tr) => internal || visible.has(tr.name) || !/[.#]/.test(tr.name)).map((tr) => (
                   <label key={tr.name} className="flex cursor-pointer items-center gap-2 py-0.5 text-[11.5px]">

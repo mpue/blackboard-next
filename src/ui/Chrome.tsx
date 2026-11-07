@@ -128,7 +128,7 @@ export function StatusBar() {
               <option value={RASTER}>1/1 (2.54 mm)</option>
               <option value={RASTER / 2}>1/2</option>
               <option value={RASTER / 4}>1/4</option>
-              <option value={1}>frei</option>
+              <option value={1}>{t('status.free')}</option>
             </select>
           </label>
           <button className="whitespace-nowrap tabular-nums hover:text-fg" onClick={() => runCommand(commands.actual)} title={t('view.actual')}>

@@ -333,7 +333,7 @@ function SymbolFields({ item }: { item: SymbolItem }) {
             value={item.model?.name ?? ''}
             options={[
               { value: '', label: t('props.modelNone') },
-              ...(item.model && !typeModels.some((m) => m.name === item.model!.name) ? [{ value: item.model.name, label: `${item.model.name} (eingebettet)` }] : []),
+              ...(item.model && !typeModels.some((m) => m.name === item.model!.name) ? [{ value: item.model.name, label: `${item.model.name} (${t('props.modelEmbedded')})` }] : []),
               ...typeModels.map((m) => ({ value: m.name, label: m.name })),
             ]}
             onChange={(v) =>
