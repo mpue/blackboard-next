@@ -12,6 +12,10 @@ code base runs on every platform:
 Nothing has to be installed on the target machine. No Java, no ngspice.exe and no
 admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**.
 
+![Perfboard editing](docs/board.webp)
+
+![Schematic with NGSpice simulation](docs/simulation.webp)
+
 ## What it can do
 
 - Perfboards (holes), stripboards (copper stripes), blank boards and schematics
@@ -49,6 +53,10 @@ npm test           # import/export of all sample boards, netlists, ngspice runs
 npm run build      # typecheck + production build into dist/
 npm run preview    # serve dist/ on http://localhost:4173
 ```
+
+`npm run dev -- --host` makes the dev server reachable from other devices in the
+network. Over plain http on a LAN address the browser does not allow installing the
+app for offline use, and "save" falls back to downloading the file.
 
 ### Desktop app (Tauri)
 
