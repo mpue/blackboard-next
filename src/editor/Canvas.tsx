@@ -7,6 +7,7 @@ import {
   endGesture,
   fitToView,
   gestureUpdate,
+  magnetAttachments,
   select,
   setTool,
   setView,
@@ -35,14 +36,15 @@ import { ItemView, type RenderFlags } from '../render/ItemView.tsx';
 import { editableLayer, makePlacedItem } from './placement.ts';
 import { netAt, type Net } from '../spice/connectivity.ts';
 import { ContextMenu, type ContextMenuState } from './ContextMenu.tsx';
+import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import { takeDragPayload } from './dragPayload.ts';
 import { useT } from '../i18n/i18n.ts';
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; panX: number; panY: number }
   | { kind: 'marquee'; start: Pt; cur: Pt; mode: 'replace' | 'add' }
-  | { kind: 'move'; start: Pt; anchor: Pt; started: boolean; sx: number; sy: number; ids: Set<string> }
-  | { kind: 'endpoint'; id: string; which: 1 | 2; started: boolean }
+  | { kind: 'move'; start: Pt; anchor: Pt; started: boolean; sx: number; sy: number; ids: Set<string>; attached: Attachment[] }
+  | { kind: 'endpoint'; id: string; which: 1 | 2; started: boolean; attached: Attachment[] }
   | { kind: 'resize'; id: string; fixed: Pt }
   | { kind: 'shape'; shape: 'box' | 'ellipse'; start: Pt; cur: Pt }
   | { kind: 'measure'; start: Pt; cur: Pt };
@@ -264,12 +266,12 @@ export function Canvas() {
           if (it && isTwoPoint(it)) {
             if (Math.hypot(raw.x - it.x1, raw.y - it.y1) <= tol) {
               beginGesture();
-              drag.current = { kind: 'endpoint', id: it.id, which: 1, started: false };
+              drag.current = { kind: 'endpoint', id: it.id, which: 1, started: false, attached: endAttachments(d.doc, it.id, 1) };
               return;
             }
             if (Math.hypot(raw.x - it.x2, raw.y - it.y2) <= tol) {
               beginGesture();
-              drag.current = { kind: 'endpoint', id: it.id, which: 2, started: false };
+              drag.current = { kind: 'endpoint', id: it.id, which: 2, started: false, attached: endAttachments(d.doc, it.id, 2) };
               return;
             }
           }
@@ -301,7 +303,7 @@ export function Canvas() {
             ids = [hit.id];
           }
           if (ids.includes(hit.id)) {
-            drag.current = { kind: 'move', start: raw, anchor: anchorOf(hit, d.doc), started: false, sx: e.clientX, sy: e.clientY, ids: new Set(ids) };
+            drag.current = { kind: 'move', start: raw, anchor: anchorOf(hit, d.doc), started: false, sx: e.clientX, sy: e.clientY, ids: new Set(ids), attached: [] };
           }
         } else {
           drag.current = { kind: 'marquee', start: raw, cur: raw, mode: additive ? 'add' : 'replace' };
@@ -437,6 +439,7 @@ export function Canvas() {
             if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < 4) return;
             g.started = true;
             beginGesture();
+            g.attached = magnetAttachments(d.doc, g.ids);
           }
           let dx = raw.x - g.start.x;
           let dy = raw.y - g.start.y;
@@ -451,6 +454,7 @@ export function Canvas() {
           }
           gestureUpdate((doc) => {
             for (const it of doc.items) if (g.ids.has(it.id)) translateItem(it as Item, dx, dy);
+            applyAttachments(doc as Doc, g.attached);
           });
           return;
         }
@@ -470,6 +474,7 @@ export function Canvas() {
               tp.x2 = q.x;
               tp.y2 = q.y;
             }
+            applyAttachments(doc as Doc, g.attached);
           });
           return;
         }
@@ -761,6 +766,12 @@ export function Canvas() {
       {menu && <ContextMenu state={menu} onClose={() => setMenu(null)} />}
     </div>
   );
+}
+
+/** Wires (or resistor/diode leads) meeting the end of the wire whose handle is dragged. */
+function endAttachments(doc: Doc, id: string, end: 1 | 2): Attachment[] {
+  if (!useStore.getState().settings.magnetic) return [];
+  return collectAttachments(doc, new Set([id]), [{ itemId: id, kind: 'end', end }]);
 }
 
 function rectAttrs(r: Rect) {

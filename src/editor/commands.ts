@@ -15,6 +15,7 @@ import {
   FilePlus2,
   FileCode2,
   FolderOpen,
+  Grid2x2Check,
   Grid3x3,
   Hand,
   Magnet,
@@ -59,17 +60,15 @@ import {
   selectAllLines,
   setSimulationOpen,
   setTool,
+  nudgeSelection,
   toggleMirror,
   undo,
-  updateItems,
   updateSettings,
   useStore,
   zoomAt,
   type Tool,
 } from '../store/store.ts';
 import type { I18nKey } from '../i18n/i18n.ts';
-import type { Item } from '../model/types.ts';
-import { translateItem } from '../model/ops.ts';
 import { exportBom, exportNetlist, exportPng, exportSvg, openFromDisk, printActive, saveActive } from './fileActions.ts';
 import { breakSymbols } from './symbolActions.ts';
 
@@ -93,7 +92,7 @@ function zoomCenter(f: number) {
   zoomAt(f, { x: (r?.width ?? 800) / 2, y: (r?.height ?? 600) / 2 });
 }
 
-function toggle(key: 'grid' | 'snap' | 'showNames' | 'showValues' | 'showPins' | 'useLayerColor' | 'leftPanel' | 'rightPanel') {
+function toggle(key: 'grid' | 'snap' | 'magnetic' | 'showNames' | 'showValues' | 'showPins' | 'useLayerColor' | 'leftPanel' | 'rightPanel') {
   return () => updateSettings({ [key]: !useStore.getState().settings[key] });
 }
 
@@ -158,7 +157,8 @@ export const commands = {
     enabled: hasDoc,
   },
   grid: { id: 'grid', label: 'view.grid', icon: Grid3x3, shortcut: 'G', run: toggle('grid'), checked: () => useStore.getState().settings.grid },
-  snap: { id: 'snap', label: 'view.snap', icon: Magnet, shortcut: 'S', run: toggle('snap'), checked: () => useStore.getState().settings.snap },
+  snap: { id: 'snap', label: 'view.snap', icon: Grid2x2Check, shortcut: 'S', run: toggle('snap'), checked: () => useStore.getState().settings.snap },
+  magnet: { id: 'magnet', label: 'view.magnet', icon: Magnet, shortcut: 'Shift+M', run: toggle('magnetic'), checked: () => useStore.getState().settings.magnetic },
   mirror: { id: 'mirror', label: 'view.mirror', icon: FlipHorizontal2, shortcut: 'L', run: toggleMirror, enabled: hasDoc, checked: () => !!activeDoc()?.mirror },
   names: { id: 'names', label: 'view.names', shortcut: 'N', run: toggle('showNames'), checked: () => useStore.getState().settings.showNames },
   values: { id: 'values', label: 'view.values', run: toggle('showValues'), checked: () => useStore.getState().settings.showValues },
@@ -236,6 +236,7 @@ const bindings: KeyBinding[] = [
   B('1', c.actual),
   B('g', c.grid),
   B('s', c.snap),
+  B('m', c.magnet, { shift: true }),
   B('l', c.mirror),
   B('n', c.names),
   B('p', c.pins),
@@ -272,8 +273,7 @@ export function handleShortcut(e: KeyboardEvent): boolean {
     const step = e.altKey ? 1 : snap ? snapStep : 4;
     const dx = key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0;
     const dy = key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0;
-    const ds = activeDoc();
-    if (ds) updateItems(ds.selection, (it) => translateItem(it as Item, dx, dy));
+    nudgeSelection(dx, dy);
     return true;
   }
   return false;

@@ -28,6 +28,7 @@ function useMenus(): { title: I18nKey; items: MenuEntry[] }[] {
         'sep',
         c.grid,
         c.snap,
+        c.magnet,
         c.mirror,
         'sep',
         c.names,
@@ -165,7 +166,7 @@ export function TopBar() {
         <div className="mx-1 h-5 w-px bg-line" />
         {[commands.zoomOut, commands.zoomIn, commands.fit].map(quick)}
         <div className="mx-1 h-5 w-px bg-line" />
-        {[commands.grid, commands.snap, commands.mirror].map(quick)}
+        {[commands.grid, commands.snap, commands.magnet, commands.mirror].map(quick)}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <IconButton icon={Languages} className="max-sm:hidden" label={t('view.language')} onClick={() => updateSettings({ lang: lang === 'de' ? 'en' : 'de' })} />

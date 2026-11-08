@@ -27,6 +27,8 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
 - Select (box selection; drag right to left to select everything it crosses), move,
   rotate, flip, z-order, copy/paste, duplicate, unlimited undo/redo, snap to grid
   (1/1, 1/2, 1/4), magnetic pins, arrow keys to nudge
+- Magnetic mode (Shift+M): wire ends attached to pins, wire junctions and T junctions
+  follow when parts or wires are moved, rotated, flipped or nudged
 - Connection check: highlights the net of a wire or pin, including the copper
   stripes of stripboards and stripe breaks
 - Measure tool (mm and grid units)

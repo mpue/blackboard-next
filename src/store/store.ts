@@ -4,7 +4,8 @@ import type { BoardType, Doc, EdgeType, Item, Layer, PartDef, ShapeStyle, SpiceM
 import { isBoardLayer, RASTER } from '../model/types.ts';
 import { defaultLayers } from '../io/legacy.ts';
 import { uid } from '../model/id.ts';
-import { cloneItems, flipItem, rotateItem, selectionBounds } from '../model/ops.ts';
+import { cloneItems, flipItem, rotateItem, selectionBounds, translateItem } from '../model/ops.ts';
+import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import type { Pt } from '../geometry/geom.ts';
 
 export type Tool = 'select' | 'pan' | 'wire' | 'box' | 'ellipse' | 'text' | 'measure' | 'resistor' | 'diode' | 'check' | 'place';
@@ -40,6 +41,8 @@ export interface Settings {
   snap: boolean;
   /** snap raster in board units (16 = 0.1") */
   snapStep: number;
+  /** wire ends follow the pins and junctions they touch while editing */
+  magnetic: boolean;
   showNames: boolean;
   showValues: boolean;
   showPins: boolean;
@@ -120,6 +123,7 @@ export const useStore = create<State>()(() => ({
     grid: true,
     snap: true,
     snapStep: RASTER,
+    magnetic: false,
     showNames: true,
     showValues: true,
     showPins: false,
@@ -385,9 +389,27 @@ export function rotateSelection(deg: number) {
   if (!r) return;
   const center = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
   const snap = get().settings.snap;
+  const ids = new Set(ds.selection);
+  const attached = magnetAttachments(ds.doc, ids);
   commit((d) => {
-    const ids = new Set(ds.selection);
     for (const it of d.items) if (ids.has(it.id)) rotateItem(d as Doc, it as Item, deg, center, snap);
+    applyAttachments(d as Doc, attached);
+  });
+}
+
+/** Wire ends that have to follow an edit of `ids` (empty unless magnetic mode is on). */
+export function magnetAttachments(doc: Doc, ids: Set<string>): Attachment[] {
+  return get().settings.magnetic ? collectAttachments(doc, ids) : [];
+}
+
+export function nudgeSelection(dx: number, dy: number) {
+  const ds = activeDoc();
+  if (!ds || !ds.selection.length) return;
+  const ids = new Set(ds.selection);
+  const attached = magnetAttachments(ds.doc, ids);
+  commit((d) => {
+    for (const it of d.items) if (ids.has(it.id)) translateItem(it as Item, dx, dy);
+    applyAttachments(d as Doc, attached);
   });
 }
 
@@ -397,9 +419,11 @@ export function flipSelection(horizontal: boolean) {
   const r = selectionBounds(ds.doc, selectedItems(ds));
   if (!r) return;
   const center = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+  const ids = new Set(ds.selection);
+  const attached = magnetAttachments(ds.doc, ids);
   commit((d) => {
-    const ids = new Set(ds.selection);
     for (const it of d.items) if (ids.has(it.id)) flipItem(it as Item, horizontal, center);
+    applyAttachments(d as Doc, attached);
   });
 }
 

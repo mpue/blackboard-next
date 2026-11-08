@@ -1,6 +1,6 @@
 // Tool rail, document tabs, status bar and toasts.
 
-import { Plus, X, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
+import { Plus, X, CheckCircle2, AlertTriangle, Info, Magnet } from 'lucide-react';
 import { commands, runCommand, type Command } from '../editor/commands.ts';
 import { activeDoc, isDirty, openDialog, setActive, updateSettings, useStore } from '../store/store.ts';
 import { useCursor } from '../store/cursor.ts';
@@ -113,6 +113,7 @@ export function StatusBar() {
   const ds = useStore((s) => activeDoc(s));
   const tool = useStore((s) => s.tool);
   const snapStep = useStore((s) => s.settings.snapStep);
+  const magnetic = useStore((s) => s.settings.magnetic);
   return (
     <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-panel px-3 text-[11.5px] text-muted">
       <span className="truncate max-md:hidden">{t(HINTS[tool] ?? 'hint.select')}</span>
@@ -120,6 +121,11 @@ export function StatusBar() {
       {ds && (
         <>
           <CursorReadout />
+          {magnetic && (
+            <button className="flex items-center gap-1 whitespace-nowrap font-medium text-accent" onClick={() => runCommand(commands.magnet)} title={t('view.magnet')}>
+              <Magnet size={12} /> {t('status.magnet')}
+            </button>
+          )}
           <span className="whitespace-nowrap max-sm:hidden">{t('status.items', { count: ds.doc.items.length })}</span>
           <span className={cx('whitespace-nowrap max-sm:hidden', ds.mirror && 'font-semibold text-red-500')}>{ds.mirror ? t('status.solderSide') : t('status.partsSide')}</span>
           <label className="flex items-center gap-1 whitespace-nowrap">

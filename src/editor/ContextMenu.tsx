@@ -29,7 +29,7 @@ export function ContextMenu({ state, onClose }: { state: ContextMenuState; onClo
         [c.front, c.back],
         [c.makeSymbol, c.breakSymbol],
       ]
-    : [[c.paste, c.selectAll], [c.wire, c.text], [c.fit, c.grid, c.snap, c.mirror]];
+    : [[c.paste, c.selectAll], [c.wire, c.text], [c.fit, c.grid, c.snap, c.magnet, c.mirror]];
   const parent = ref.current?.parentElement;
   const maxX = (parent?.clientWidth ?? 9999) - 240;
   const maxY = (parent?.clientHeight ?? 9999) - 420;
