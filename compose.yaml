@@ -1,0 +1,11 @@
+# docker compose up -d --build   (run from blackboard-next/)
+services:
+  blackboard:
+    build:
+      context: ..
+      dockerfile: blackboard-next/Dockerfile
+    image: blackboard-next:latest
+    restart: unless-stopped
+    # only reachable from the host; publish it through the reverse proxy
+    ports:
+      - "127.0.0.1:8080:8080"

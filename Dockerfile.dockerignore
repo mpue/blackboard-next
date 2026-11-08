@@ -1,0 +1,14 @@
+# Build context is the repository root; only the web app and the library go in.
+*
+!blackboard-next/
+!parts/
+!symbols/
+!models/
+!samples/
+blackboard-next/node_modules/
+blackboard-next/dist/
+blackboard-next/public/library/
+blackboard-next/public/samples/
+blackboard-next/src-tauri/
+blackboard-next/build-assets/
+blackboard-next/docs/

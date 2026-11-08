@@ -58,6 +58,42 @@ npm run preview    # serve dist/ on http://localhost:4173
 network. Over plain http on a LAN address the browser does not allow installing the
 app for offline use, and "save" falls back to downloading the file.
 
+### Docker
+
+The image builds the app and serves it with nginx (unprivileged, port 8080). The
+build needs the library in the repository root, so the build context is the root:
+
+```bash
+docker build -f blackboard-next/Dockerfile -t blackboard-next .   # in the repository root
+docker run -d -p 8080:8080 blackboard-next
+```
+
+or, from `blackboard-next/`, `docker compose up -d --build` (publishes on
+`127.0.0.1:8080` for a reverse proxy on the same host).
+
+The app only uses relative URLs, so it also runs below a path prefix. Example for
+Caddy serving it at `https://example.org/blackboard/`:
+
+```caddy
+example.org {
+	redir /blackboard /blackboard/ 308
+	handle_path /blackboard/* {
+		encode zstd gzip
+		reverse_proxy 127.0.0.1:8080
+	}
+	# … the rest of the site
+}
+```
+
+`handle_path` strips the prefix before proxying. Hashed assets are cached for a
+year, `index.html` and the service worker are always revalidated, so a new image
+reaches users on their next visit.
+
+`scripts/deploy.sh` builds the image, copies it to a server over SSH and restarts
+the container there (`DEPLOY_HOST`, default `root@pueski.de`; `DEPLOY_PORT`, default
+`8210`; `DEPLOY_DIR`, default `/opt/blackboard`). The live instance runs at
+https://pueski.de/blackboard/.
+
 ### Desktop app (Tauri)
 
 Additionally requires Rust (`rustup`) and the
