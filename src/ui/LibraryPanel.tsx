@@ -7,6 +7,7 @@ import type { PartDef, SpiceModel, SymbolDef } from '../model/types.ts';
 import { ShapeView } from '../render/shapes.tsx';
 import { inflate, shapeBounds, unionRect, type Rect } from '../geometry/geom.ts';
 import { saveUserSymbols } from '../platform/persist.ts';
+import { INSTRUMENT_DEFS } from '../spice/instruments.ts';
 import { cx, IconButton } from './primitives.tsx';
 
 type Tab = 'parts' | 'symbols' | 'models';
@@ -179,13 +180,13 @@ export function SymbolThumb({ def, className }: { def: SymbolDef; className?: st
   );
 }
 
-const CATEGORY_ORDER = ['User', 'Passive', 'Semiconductors', 'Active', 'Digital', 'Sources', 'Switches', 'Connectors', 'Optoelectronics', 'Microcontrollers', 'Acoustic', 'Misc'];
+const CATEGORY_ORDER = ['Instruments', 'User', 'Passive', 'Semiconductors', 'Active', 'Digital', 'Sources', 'Switches', 'Connectors', 'Optoelectronics', 'Microcontrollers', 'Acoustic', 'Misc'];
 
 const SymbolsList = memo(function SymbolsList({ symbols, user, q }: { symbols: SymbolDef[]; user: SymbolDef[]; q: string }) {
   const t = useT();
   const groups = useMemo(() => {
     const m = new Map<string, SymbolDef[]>();
-    for (const s of [...user.map((u) => ({ ...u, category: 'User' })), ...symbols]) {
+    for (const s of [...Object.values(INSTRUMENT_DEFS), ...user.map((u) => ({ ...u, category: 'User' })), ...symbols]) {
       if (q && !`${s.name} ${s.value} ${s.category} ${s.spiceType ?? ''} ${s.filename ?? ''}`.toLowerCase().includes(q)) continue;
       m.set(s.category, [...(m.get(s.category) ?? []), s]);
     }
@@ -200,7 +201,7 @@ const SymbolsList = memo(function SymbolsList({ symbols, user, q }: { symbols: S
   return (
     <>
       {groups.map(([cat, list]) => (
-        <Group key={cat} title={t(`cat.${cat}` as I18nKey)} count={list.length} defaultOpen={!!q || cat === 'User'}>
+        <Group key={cat} title={t(`cat.${cat}` as I18nKey)} count={list.length} defaultOpen={!!q || cat === 'User' || cat === 'Instruments'}>
           {list.map((s, i) => {
             const def = cat === 'User' ? user.find((u) => u.filename === s.filename) ?? s : s;
             return (

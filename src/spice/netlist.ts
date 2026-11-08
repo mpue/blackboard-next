@@ -3,6 +3,7 @@
 import type { Doc, SpiceModel, SymbolItem } from '../model/types.ts';
 import { computeConnectivity, pinKey } from './connectivity.ts';
 import { parseEng } from '../model/ops.ts';
+import { dmmMode, earthedPinIndex, fgenSettings, fgenSource, instrumentOf, type Probes } from './instruments.ts';
 
 export interface NetlistResult {
   netlist: string;
@@ -12,6 +13,8 @@ export interface NetlistResult {
   /** vectors requested with "plot ..." control texts */
   plots: string[];
   defaultAnalysisAdded: boolean;
+  /** where oscilloscopes and multimeters are connected */
+  probes: Probes;
 }
 
 export type NetlistWarning = {
@@ -129,6 +132,8 @@ export function toAscii(s: string): string {
 export interface NetlistOptions {
   /** start transient analyses from zero (".tran … uic"), so oscillators start reliably */
   uic?: boolean;
+  /** replaces the analyses of the schematic (used by the instrument bench) */
+  analysis?: string;
 }
 
 export function withUic(directive: string): string {
@@ -136,18 +141,25 @@ export function withUic(directive: string): string {
 }
 
 export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = [], opts: NetlistOptions = {}): NetlistResult {
-  const res: NetlistResult = { netlist: '', errors: [], warnings: [], plots: [], defaultAnalysisAdded: false };
+  const res: NetlistResult = { netlist: '', errors: [], warnings: [], plots: [], defaultAnalysisAdded: false, probes: { nodes: {}, currents: {} } };
   const symbols = doc.items.filter((i): i is SymbolItem => i.kind === 'symbol');
   const conn = computeConnectivity(doc);
 
   // net numbering: ground nets become node 0
   const groundNets = new Set<number>();
   for (const s of symbols) {
-    if (!isGround(s)) continue;
-    s.pins.forEach((_, i) => {
-      const n = conn.netOfPin.get(pinKey(s.id, i));
+    if (isGround(s)) {
+      s.pins.forEach((_, i) => {
+        const n = conn.netOfPin.get(pinKey(s.id, i));
+        if (n !== undefined) groundNets.add(n);
+      });
+    }
+    // bench instruments are earthed like their real counterparts
+    const earthed = earthedPinIndex(s);
+    if (earthed !== undefined) {
+      const n = conn.netOfPin.get(pinKey(s.id, earthed));
       if (n !== undefined) groundNets.add(n);
-    });
+    }
   }
   const devices = symbols.filter((s) => s.spiceType && PREFIX[s.spiceType]);
   if (!devices.length) res.errors.push({ key: 'noSymbols' });
@@ -264,7 +276,8 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           res.warnings.push({ key: 'source', name: s.name });
           continue;
         }
-        lines.push(`${elementName(s, 'V', used)} ${node(s, plus)} ${node(s, minus)} ${voltageSource(s)}`);
+        const spec = instrumentOf(s) === 'fgen' ? fgenSource(fgenSettings(s)) : voltageSource(s);
+        lines.push(`${elementName(s, 'V', used)} ${node(s, plus)} ${node(s, minus)} ${spec}`);
         break;
       }
       case 'SUBCIRCUIT': {
@@ -281,6 +294,23 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     if (unconnected) res.warnings.push({ key: 'unconnected', name: s.name });
   }
 
+  // probes: oscilloscopes and voltmeters only read nodes, ammeters are 0 V sources in series
+  for (const s of symbols) {
+    const kind = instrumentOf(s);
+    if (kind !== 'scope' && kind !== 'dmm') continue;
+    const nodes: Record<number, string> = {};
+    s.pins.forEach((p, i) => {
+      if (conn.netOfPin.get(pinKey(s.id, i)) !== undefined) nodes[p.num] = node(s, i);
+    });
+    res.probes.nodes[s.id] = nodes;
+    const mode = kind === 'dmm' ? dmmMode(s) : undefined;
+    if ((mode === 'ADC' || mode === 'AAC') && nodes[1] !== undefined && nodes[2] !== undefined) {
+      const name = elementName(s, 'V', used);
+      lines.push(`${name} ${nodes[1]} ${nodes[2]} DC 0`);
+      res.probes.currents[s.id] = `i(${name.toLowerCase()})`;
+    }
+  }
+
   const directives: string[] = [];
   for (const it of doc.items) {
     if (it.kind !== 'text') continue;
@@ -293,7 +323,12 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
       }
     }
   }
-  const hasAnalysis = directives.some((d) => /^\.(tran|ac|dc|op|noise|disto|tf|sens|pz)\b/i.test(d));
+  const ANALYSIS = /^\.(tran|ac|dc|op|noise|disto|tf|sens|pz)\b/i;
+  if (opts.analysis) {
+    for (let i = directives.length - 1; i >= 0; i--) if (ANALYSIS.test(directives[i])) directives.splice(i, 1);
+    directives.push(opts.analysis);
+  }
+  const hasAnalysis = directives.some((d) => ANALYSIS.test(d));
   if (!hasAnalysis) {
     directives.push('.tran 10u 10m');
     res.defaultAnalysisAdded = true;

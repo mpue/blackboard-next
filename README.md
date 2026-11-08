@@ -14,6 +14,8 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
 
 ![Perfboard editing](docs/board.webp)
 
+![Instrument bench](docs/bench.webp)
+
 ![Schematic with NGSpice simulation](docs/simulation.webp)
 
 ## What it can do
@@ -34,6 +36,13 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
 - Measure tool (mm and grid units)
 - Symbol editor: combine shapes into a symbol (wire ends marked with a dot become
   pins), edit pins, break symbols apart, keep your own symbol library
+- Instrument bench (Simulation → Bench): oscilloscope, multimeter and function
+  generator are symbols (library category *Instruments*) that are wired like real
+  instruments. Generator COM and scope GND are earthed, the multimeter floats; in the
+  ammeter modes it is inserted in series. Front panels with knobs (drag, wheel, arrow
+  keys), seven segment displays and a phosphor screen; live mode re-simulates after every
+  edit, the transient window follows the scope time base. A ready-made demo is on the
+  welcome screen and in *File → Samples*
 - SPICE netlist generation (resistors, capacitors, inductors, diodes, BJTs, MOSFETs,
   DC/sine/pulse sources, subcircuits); simulation with plots (one chart per unit,
   values under the cursor, zoom by dragging, CSV export)

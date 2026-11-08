@@ -11,6 +11,8 @@ import { formatEng } from '../model/ops.ts';
 import { download } from '../platform/files.ts';
 import { Button, Check, IconButton, cx } from './primitives.tsx';
 import { useIsDark } from './theme.ts';
+import { Workbench } from './instruments/Workbench.tsx';
+import { docHasInstruments } from '../store/sim.ts';
 
 // validated categorical palette (fixed order, never cycled), light and dark steps
 const SERIES_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
@@ -120,8 +122,9 @@ export function SimulationPanel() {
   const [visible, setVisible] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<'result' | 'log'>('result');
   const [internal, setInternal] = useState(false);
-  const [height, setHeight] = useState(() => Math.round(window.innerHeight * 0.42));
+  const [height, setHeight] = useState(() => (docHasInstruments() ? Math.min(window.innerHeight - 180, 640) : Math.round(window.innerHeight * 0.42)));
   const firstRun = useRef(true);
+  const [mode, setMode] = useState<'bench' | 'analysis'>(() => (docHasInstruments() ? 'bench' : 'analysis'));
 
   const regenerate = (): { netlist: string; plots: string[] } => {
     if (!ds) return { netlist: '', plots: [] };
@@ -172,11 +175,11 @@ export function SimulationPanel() {
   // build the netlist (and run once) when the panel opens or the document changes
   useEffect(() => {
     const r = regenerate();
-    if (firstRun.current && r.netlist) {
+    if (firstRun.current && r.netlist && mode === 'analysis') {
       firstRun.current = false;
       void run(r.netlist, r.plots);
     }
-  }, [ds?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ds?.id, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const colors = useMemo(() => {
     const m = new Map<string, string>();
@@ -224,7 +227,24 @@ export function SimulationPanel() {
       />
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
         <h2 className="text-[12.5px] font-semibold">{t('sim.title')}</h2>
-        <span className="text-[11px] text-muted">NGSpice · WebAssembly</span>
+        <span className="text-[11px] text-muted max-lg:hidden">NGSpice · WebAssembly</span>
+        <div className="ml-2 flex rounded-lg bg-panel-2 p-0.5" role="tablist">
+          {(['bench', 'analysis'] as const).map((m) => (
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => {
+                setMode(m);
+                if (m === 'bench') setHeight((h) => Math.max(h, Math.min(window.innerHeight - 180, 640)));
+              }}
+              className={cx('h-7 rounded-md px-3 text-[12px] font-medium', mode === m ? 'bg-panel text-fg shadow-sm' : 'text-muted hover:text-fg')}
+            >
+              {t(m === 'bench' ? 'inst.bench' : 'sim.analysis')}
+            </button>
+          ))}
+        </div>
+        {mode === 'analysis' && (
         <div className="ml-3 flex items-center gap-2">
           <Button variant="primary" icon={status === 'running' ? Loader2 : Play} disabled={status === 'running' || !netlist} onClick={() => void run()} className={cx(status === 'running' && '[&_svg]:animate-spin')}>
             {status === 'running' ? t('sim.running') : t('sim.run')}
@@ -241,11 +261,15 @@ export function SimulationPanel() {
             label={t('sim.uic')}
           />
         </div>
+        )}
         <div className="ml-auto flex items-center gap-1">
-          {parsed && <IconButton icon={Download} label="CSV" onClick={exportCsv} />}
+          {parsed && mode === 'analysis' && <IconButton icon={Download} label="CSV" onClick={exportCsv} />}
           <IconButton icon={X} label={t('sim.close')} onClick={() => setSimulationOpen(false)} />
         </div>
       </header>
+      {mode === 'bench' ? (
+        <Workbench />
+      ) : (
       <div className="flex min-h-0 flex-1">
         <div className="flex w-[38%] min-w-[260px] max-w-[520px] flex-col border-r border-line">
           <div className="flex h-7 items-center px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">{t('sim.netlist')}</div>
@@ -324,6 +348,7 @@ export function SimulationPanel() {
           )}
         </div>
       </div>
+      )}
     </section>
   );
 }

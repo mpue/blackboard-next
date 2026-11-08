@@ -36,6 +36,7 @@ import { ItemView, type RenderFlags } from '../render/ItemView.tsx';
 import { editableLayer, makePlacedItem } from './placement.ts';
 import { netAt, type Net } from '../spice/connectivity.ts';
 import { ContextMenu, type ContextMenuState } from './ContextMenu.tsx';
+import { InstrumentOverlays } from './InstrumentOverlays.tsx';
 import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import { takeDragPayload } from './dragPayload.ts';
 import { useT } from '../i18n/i18n.ts';
@@ -693,6 +694,8 @@ export function Canvas() {
                 </g>
               );
             })}
+
+            <InstrumentOverlays doc={doc} docId={ds.id} />
 
             {/* overlays */}
             <g className="bb-overlay" pointerEvents="none">

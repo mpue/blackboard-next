@@ -208,10 +208,10 @@ export function formatEng(v: number, unit = ''): string {
     [1e-9, 'n'],
     [1e-12, 'p'],
   ];
-  const a = Math.abs(v);
+  // round first, so 999.99 becomes "1k" instead of "1000"
+  const a = Math.abs(parseFloat(v.toPrecision(3)));
   const [f, s] = steps.find(([f]) => a >= f) ?? steps[steps.length - 1];
-  const n = v / f;
-  return `${parseFloat(n.toPrecision(3))}${s}${unit}`;
+  return `${parseFloat((v / f).toPrecision(3))}${s}${unit}`;
 }
 
 export function formatOhm(v: number): string {

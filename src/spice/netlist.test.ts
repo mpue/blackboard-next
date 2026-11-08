@@ -92,3 +92,13 @@ describe('ngspice (wasm)', () => {
     120_000,
   );
 });
+
+describe('engineering format', () => {
+  it('rounds before choosing the prefix', async () => {
+    const { formatEng } = await import('../model/ops.ts');
+    expect(formatEng(999.996, 'Hz')).toBe('1kHz');
+    expect(formatEng(0.0009999, 'V')).toBe('1mV');
+    expect(formatEng(4730, 'Hz')).toBe('4.73kHz');
+    expect(formatEng(-0.5, 'V')).toBe('-500mV');
+  });
+});

@@ -159,3 +159,28 @@ input[type='checkbox'] {
     overflow: visible;
   }
 }
+
+/* oscilloscope beam: the bright trace is redrawn from left to right */
+@keyframes bb-sweep {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 1;
+  }
+  55% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.35;
+  }
+}
+.bb-sweep {
+  animation: bb-sweep 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-sweep {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}

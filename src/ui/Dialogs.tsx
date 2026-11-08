@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus } from 'lucide-react';
-import { activeDoc, newDocument, openDialog, updateDoc, useStore } from '../store/store.ts';
+import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity } from 'lucide-react';
+import { activeDoc, newDocument, openDialog, openDoc, setSimulationOpen, updateDoc, useStore } from '../store/store.ts';
 import type { BoardType } from '../model/types.ts';
 import { MM_PER_UNIT, RASTER } from '../model/types.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
@@ -11,6 +11,14 @@ import { openViaInput } from '../platform/files.ts';
 import { dataUrl } from '../io/bbfile.ts';
 import { Button, Check, Dialog, Field, Kbd, NumberInput, Select, cx } from './primitives.tsx';
 import { Logo } from './Logo.tsx';
+import { buildBenchDemo } from '../spice/benchDemo.ts';
+
+/** Opens the generated instrument bench demo with the bench panel. */
+export function openBenchDemo() {
+  const s = useStore.getState();
+  openDoc(buildBenchDemo(s.library.symbols, s.settings.lang), s.settings.lang === 'de' ? 'messplatz-demo.bb' : 'bench-demo.bb', undefined, false);
+  setSimulationOpen(true);
+}
 
 export function Dialogs() {
   const dialog = useStore((s) => s.dialog);
@@ -106,6 +114,19 @@ function SamplesDialog({ onClose }: { onClose: () => void }) {
   }, []);
   return (
     <Dialog title={t('samples.title')} onClose={onClose} width={560}>
+      <button
+        className="mb-4 flex w-full items-center gap-3 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2.5 text-left hover:border-accent"
+        onClick={() => {
+          openBenchDemo();
+          onClose();
+        }}
+      >
+        <Activity size={18} className="text-accent" />
+        <span className="flex-1">
+          <span className="block text-[12.5px] font-medium">{t('demo.title')}</span>
+          <span className="block text-[11.5px] text-muted">{t('demo.text')}</span>
+        </span>
+      </button>
       {!samples ? (
         <p className="text-muted">…</p>
       ) : (
@@ -316,6 +337,18 @@ export function Welcome() {
           {card(Workflow, 'welcome.newSchematic', () => newDocument('SCHEMATICS', 65 * RASTER, 41 * RASTER), 'bg-sky-500/15 text-sky-600 dark:text-sky-400')}
           {card(FolderOpen, 'welcome.open', () => void openFromDisk(), 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300')}
         </div>
+        <button
+          onClick={openBenchDemo}
+          className="mt-2.5 flex w-full items-center gap-3 rounded-xl border border-accent/40 bg-gradient-to-r from-accent-soft to-panel p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent hover:shadow-md"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent text-white dark:text-slate-950">
+            <Activity size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-[13px] font-medium">{t('demo.title')}</span>
+            <span className="block text-[12px] text-muted">{t('demo.text')}</span>
+          </span>
+        </button>
         <div className="mt-3 flex items-center justify-between">
           <Button variant="ghost" icon={Library} onClick={() => openDialog({ kind: 'samples' })}>
             {t('welcome.samples')}
