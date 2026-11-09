@@ -1,16 +1,17 @@
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
-import type { BoardType, Doc, EdgeType, Item, Layer, PartDef, ShapeStyle, SpiceModel, SymbolDef } from '../model/types.ts';
+import type { BoardType, Doc, EdgeType, FootprintDef, Item, Layer, PartDef, PcbSettings, ShapeStyle, SpiceModel, SymbolDef } from '../model/types.ts';
 import { isBoardLayer, RASTER } from '../model/types.ts';
 import { defaultLayers } from '../io/legacy.ts';
+import { createPcbDoc } from '../pcb/defaults.ts';
 import { uid } from '../model/id.ts';
 import { cloneItems, flipItem, rotateItem, selectionBounds, translateItem } from '../model/ops.ts';
 import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import type { Pt } from '../geometry/geom.ts';
 
-export type Tool = 'select' | 'pan' | 'wire' | 'box' | 'ellipse' | 'text' | 'measure' | 'resistor' | 'diode' | 'check' | 'place';
+export type Tool = 'select' | 'pan' | 'wire' | 'box' | 'ellipse' | 'text' | 'measure' | 'resistor' | 'diode' | 'check' | 'place' | 'track' | 'via' | 'zone';
 
-export type Placement = { kind: 'part'; ref: string } | { kind: 'symbol'; def: SymbolDef };
+export type Placement = { kind: 'part'; ref: string } | { kind: 'symbol'; def: SymbolDef } | { kind: 'footprint'; def: FootprintDef };
 
 export interface View {
   zoom: number;
@@ -51,6 +52,9 @@ export interface Settings {
   lang: 'de' | 'en';
   leftPanel: boolean;
   rightPanel: boolean;
+  /** PCBs: manufactured look (solder mask, HASL pads) instead of layer colours */
+  pcbRealistic: boolean;
+  showRatsnest: boolean;
 }
 
 export interface DrawStyle {
@@ -89,7 +93,15 @@ interface State {
   clipboardParts: Record<string, PartDef>;
   toasts: Toast[];
   simulationOpen: boolean;
-  dialog: null | { kind: 'newBoard' } | { kind: 'about' } | { kind: 'shortcuts' } | { kind: 'samples' } | { kind: 'boardProps' } | { kind: 'symbolFromSelection' };
+  dialog:
+    | null
+    | { kind: 'newBoard' }
+    | { kind: 'about' }
+    | { kind: 'shortcuts' }
+    | { kind: 'samples' }
+    | { kind: 'boardProps' }
+    | { kind: 'symbolFromSelection' }
+    | { kind: 'pcbRules' };
 }
 
 const SETTINGS_KEY = 'blackboard.settings.v1';
@@ -132,6 +144,8 @@ export const useStore = create<State>()(() => ({
     lang: defaultLang(),
     leftPanel: true,
     rightPanel: true,
+    pcbRealistic: false,
+    showRatsnest: true,
   }),
   drawStyle: loadJson<DrawStyle>(STYLE_KEY, {
     color: '#1d4ed8',
@@ -209,6 +223,7 @@ export function cancelGesture() {
 // ---- documents -------------------------------------------------------------------------
 
 export function createDoc(type: BoardType, width: number, height: number): Doc {
+  if (type === 'PCB') return createPcbDoc(width, height);
   return { width, height, type, layers: defaultLayers(type), items: [], parts: {} };
 }
 
@@ -238,8 +253,8 @@ export function openDoc(doc: Doc, fileName: string, handle?: unknown, saved = tr
 }
 
 export function newDocument(type: BoardType, width: number, height: number) {
-  const n = get().docs.filter((d) => d.fileName.startsWith(type === 'SCHEMATICS' ? 'schaltplan' : 'platine')).length + 1;
-  const base = type === 'SCHEMATICS' ? 'schaltplan' : 'platine';
+  const base = type === 'SCHEMATICS' ? 'schaltplan' : type === 'PCB' ? 'leiterplatte' : 'platine';
+  const n = get().docs.filter((d) => d.fileName.startsWith(base)).length + 1;
   openDoc(createDoc(type, width, height), `${base}${n > 1 ? n : ''}.bb`, undefined, false);
 }
 
@@ -397,9 +412,9 @@ export function rotateSelection(deg: number) {
   });
 }
 
-/** Wire ends that have to follow an edit of `ids` (empty unless magnetic mode is on). */
+/** Wire ends that have to follow an edit of `ids` (magnetic mode; tracks on PCBs always follow). */
 export function magnetAttachments(doc: Doc, ids: Set<string>): Attachment[] {
-  return get().settings.magnetic ? collectAttachments(doc, ids) : [];
+  return get().settings.magnetic || doc.type === 'PCB' ? collectAttachments(doc, ids) : [];
 }
 
 export function nudgeSelection(dx: number, dy: number) {
@@ -423,6 +438,12 @@ export function flipSelection(horizontal: boolean) {
   const attached = magnetAttachments(ds.doc, ids);
   commit((d) => {
     for (const it of d.items) if (ids.has(it.id)) flipItem(it as Item, horizontal, center);
+    // flipped footprints change sides: move them onto that side's copper layer
+    for (const it of d.items) {
+      if (!ids.has(it.id) || it.kind !== 'footprint') continue;
+      const layer = d.layers.find((l) => l.role === (it.side === 'top' ? 'top-copper' : 'bottom-copper'));
+      if (layer) it.layer = layer.id;
+    }
     applyAttachments(d as Doc, attached);
   });
 }
@@ -452,7 +473,20 @@ export function reorderSelection(where: 'front' | 'back' | 'forward' | 'backward
 export function moveSelectionToLayer(layerId: string) {
   const ds = activeDoc();
   if (!ds) return;
+  const role = ds.doc.layers.find((l) => l.id === layerId)?.role;
+  const copper = role === 'top-copper' || role === 'bottom-copper';
   updateItems(ds.selection, (it) => {
+    // copper items only move between copper layers; footprints change sides
+    if (it.kind === 'via') return;
+    if ((it.kind === 'track' || it.kind === 'zone') && !copper) return;
+    if (it.kind === 'footprint') {
+      if (!copper) return;
+      const side = role === 'top-copper' ? 'top' : 'bottom';
+      if (side !== it.side) {
+        it.side = side;
+        it.rotation = -it.rotation;
+      }
+    }
     it.layer = layerId;
   });
 }
@@ -514,7 +548,8 @@ export function addLayer(name: string) {
 
 export function deleteLayer(id: string) {
   const ds = activeDoc();
-  if (!ds || ds.doc.layers.length <= 1) return;
+  // physical PCB layers (copper, silk, outline) carry the board itself
+  if (!ds || ds.doc.layers.length <= 1 || ds.doc.layers.find((l) => l.id === id)?.role) return;
   commit((d) => {
     d.layers = d.layers.filter((l) => l.id !== id);
     d.items = d.items.filter((i) => i.layer !== id);
@@ -542,6 +577,13 @@ export function moveLayer(id: string, dir: -1 | 1) {
     const j = i + dir;
     if (i < 0 || j < 0 || j >= d.layers.length) return;
     [d.layers[i], d.layers[j]] = [d.layers[j], d.layers[i]];
+  });
+}
+
+export function updatePcbSettings(patch: Partial<PcbSettings>) {
+  commit((d) => {
+    if (!d.pcb) return;
+    Object.assign(d.pcb, patch);
   });
 }
 

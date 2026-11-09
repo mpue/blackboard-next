@@ -15,6 +15,10 @@ export interface NetlistResult {
   defaultAnalysisAdded: boolean;
   /** where oscilloscopes and multimeters are connected */
   probes: Probes;
+  /** SPICE node of every connectivity net index ("0" = ground) */
+  nodeOfNet: Map<number, string>;
+  /** emitted elements: symbol, SPICE element name and its terminals in SPICE order (symbol pin index + node) */
+  elements: { symbolId: string; name: string; type: NonNullable<SymbolItem['spiceType']>; pins: { index: number; node: string }[] }[];
 }
 
 export type NetlistWarning = {
@@ -136,12 +140,48 @@ export interface NetlistOptions {
   analysis?: string;
 }
 
+// ---- interactive parts ----------------------------------------------------------------------
+
+const SWITCH_RE = /schalter|taster|switch|button|reed/i;
+
+/**
+ * Switch symbols (no SPICE type): "toggle" = on/off with two pins,
+ * "changeover" = common pin 1 connected to pin 2 or 3.
+ */
+export function switchOf(s: SymbolItem): 'toggle' | 'changeover' | undefined {
+  if (s.spiceType || !SWITCH_RE.test(`${s.symbolName} ${s.filename ?? ''}`)) return undefined;
+  if (s.pins.length === 2) return 'toggle';
+  if (s.pins.length === 3 && s.pins.some((p) => p.num === 1) && s.pins.some((p) => p.num === 2) && s.pins.some((p) => p.num === 3)) return 'changeover';
+  return undefined;
+}
+
+export const switchClosed = (s: SymbolItem) => s.properties?.closed === 'true';
+/** pin a changeover switch connects pin 1 to */
+export const switchThrow = (s: SymbolItem) => (s.properties?.throw === '3' ? 3 : 2);
+
+/** Wiper position of a potentiometer, 0 = at pin 1, 1 = at pin 3. */
+export function potPosition(s: SymbolItem): number {
+  const v = parseFloat(s.properties?.wiper ?? '');
+  return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5;
+}
+
+export const isPot = (s: SymbolItem) => s.spiceType === 'RESISTOR' && s.pins.length === 3;
+
 export function withUic(directive: string): string {
   return /^\.tran\b/i.test(directive) && !/\buic\b/i.test(directive) ? `${directive} uic` : directive;
 }
 
 export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = [], opts: NetlistOptions = {}): NetlistResult {
-  const res: NetlistResult = { netlist: '', errors: [], warnings: [], plots: [], defaultAnalysisAdded: false, probes: { nodes: {}, currents: {} } };
+  const res: NetlistResult = {
+    netlist: '',
+    errors: [],
+    warnings: [],
+    plots: [],
+    defaultAnalysisAdded: false,
+    probes: { nodes: {}, currents: {} },
+    nodeOfNet: new Map(),
+    elements: [],
+  };
   const symbols = doc.items.filter((i): i is SymbolItem => i.kind === 'symbol');
   const conn = computeConnectivity(doc);
 
@@ -177,9 +217,16 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
       if (n !== undefined && !nodeOfNet.has(n)) nodeOfNet.set(n, String(next++));
     }
   }
+  // unconnected pins get a node of their own, the same one every time it is asked for
+  const floating = new Map<string, string>();
   const node = (s: SymbolItem, pinIndex: number): string => {
     const n = conn.netOfPin.get(pinKey(s.id, pinIndex));
-    if (n === undefined) return String(next++);
+    if (n === undefined) {
+      const key = pinKey(s.id, pinIndex);
+      let f = floating.get(key);
+      if (!f) floating.set(key, (f = String(next++)));
+      return f;
+    }
     if (groundNets.has(n)) return '0';
     let id = nodeOfNet.get(n);
     if (!id) {
@@ -209,6 +256,9 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     return name;
   };
 
+  const emitted = (s: SymbolItem, name: string, pins: number[]) => {
+    res.elements.push({ symbolId: s.id, name, type: s.spiceType!, pins: pins.map((index) => ({ index, node: node(s, index) })) });
+  };
   for (const s of devices) {
     const type = s.spiceType!;
     const prefix = PREFIX[type]!;
@@ -217,6 +267,25 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
       case 'RESISTOR':
       case 'CAPACITOR':
       case 'INDUCTOR': {
+        // potentiometer: pins 1 and 3 are the ends, pin 2 the wiper
+        const wiper = type === 'RESISTOR' && s.pins.length === 3 ? byNum(s, 2) : -1;
+        if (wiper >= 0 && byNum(s, 1) >= 0 && byNum(s, 3) >= 0) {
+          const total = parseFloat(spiceValue(s.value, 'R') ?? '');
+          if (!Number.isFinite(total)) {
+            res.warnings.push({ key: 'value', name: s.name, value: s.value });
+            continue;
+          }
+          const pos = potPosition(s);
+          const base = elementName(s, prefix, used);
+          const nameB = elementName({ ...s, name: `${base}_B` }, prefix, used);
+          const ra = Math.max(1e-3, total * pos);
+          const rb = Math.max(1e-3, total * (1 - pos));
+          lines.push(`${base} ${node(s, byNum(s, 1))} ${node(s, wiper)} ${parseFloat(ra.toPrecision(6))}`);
+          lines.push(`${nameB} ${node(s, wiper)} ${node(s, byNum(s, 3))} ${parseFloat(rb.toPrecision(6))}`);
+          emitted(s, base, [byNum(s, 1), wiper]);
+          emitted(s, nameB, [wiper, byNum(s, 3)]);
+          break;
+        }
         const a = byNum(s, 1);
         const b = byNum(s, 2);
         if (a < 0 || b < 0) {
@@ -229,7 +298,9 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           res.warnings.push({ key: 'value', name: s.name, value: s.value });
           continue;
         }
-        lines.push(`${elementName(s, prefix, used)} ${node(s, a)} ${node(s, b)} ${value}`);
+        const name = elementName(s, prefix, used);
+        lines.push(`${name} ${node(s, a)} ${node(s, b)} ${value}`);
+        emitted(s, name, [a, b]);
         break;
       }
       case 'DIODE': {
@@ -240,7 +311,9 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           res.warnings.push({ key: 'diode', name: s.name });
           continue;
         }
-        lines.push(`${elementName(s, 'D', used)} ${node(s, a)} ${node(s, k)} ${model}`);
+        const name = elementName(s, 'D', used);
+        lines.push(`${name} ${node(s, a)} ${node(s, k)} ${model}`);
+        emitted(s, name, [a, k]);
         break;
       }
       case 'NPN':
@@ -253,7 +326,9 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           res.warnings.push({ key: 'bjt', name: s.name });
           continue;
         }
-        lines.push(`${elementName(s, 'Q', used)} ${node(s, c)} ${node(s, b)} ${node(s, e)} ${model}`);
+        const name = elementName(s, 'Q', used);
+        lines.push(`${name} ${node(s, c)} ${node(s, b)} ${node(s, e)} ${model}`);
+        emitted(s, name, [c, b, e]);
         break;
       }
       case 'MOSFET': {
@@ -266,7 +341,9 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           res.warnings.push({ key: 'mosfet', name: s.name });
           continue;
         }
-        lines.push(`${elementName(s, 'M', used)} ${node(s, d)} ${node(s, g)} ${node(s, src)} ${node(s, bulk >= 0 ? bulk : src)} ${model}`);
+        const name = elementName(s, 'M', used);
+        lines.push(`${name} ${node(s, d)} ${node(s, g)} ${node(s, src)} ${node(s, bulk >= 0 ? bulk : src)} ${model}`);
+        emitted(s, name, bulk >= 0 ? [d, g, src, bulk] : [d, g, src]);
         break;
       }
       case 'VOLTAGE_SOURCE': {
@@ -277,7 +354,9 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           continue;
         }
         const spec = instrumentOf(s) === 'fgen' ? fgenSource(fgenSettings(s)) : voltageSource(s);
-        lines.push(`${elementName(s, 'V', used)} ${node(s, plus)} ${node(s, minus)} ${spec}`);
+        const name = elementName(s, 'V', used);
+        lines.push(`${name} ${node(s, plus)} ${node(s, minus)} ${spec}`);
+        emitted(s, name, [plus, minus]);
         break;
       }
       case 'SUBCIRCUIT': {
@@ -287,11 +366,25 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           continue;
         }
         const pins = s.pins.map((p, i) => ({ p, i })).sort((x, y) => x.p.num - y.p.num);
-        lines.push(`${elementName(s, 'X', used)} ${pins.map(({ i }) => node(s, i)).join(' ')} ${model}`);
+        const name = elementName(s, 'X', used);
+        lines.push(`${name} ${pins.map(({ i }) => node(s, i)).join(' ')} ${model}`);
+        emitted(s, name, pins.map(({ i }) => i));
         break;
       }
     }
     if (unconnected) res.warnings.push({ key: 'unconnected', name: s.name });
+  }
+
+  // switches and push buttons are resistors: almost nothing when closed, almost infinite when open
+  for (const s of symbols) {
+    const sw = switchOf(s);
+    if (!sw) continue;
+    const common = byNum(s, 1);
+    const to = sw === 'toggle' ? byNum(s, 2) : byNum(s, switchThrow(s));
+    if (common < 0 || to < 0) continue;
+    const name = elementName(s, 'R', used);
+    lines.push(`${name} ${node(s, common)} ${node(s, to)} ${sw === 'toggle' && !switchClosed(s) ? '1e9' : '0.01'}`);
+    res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [common, to].map((index) => ({ index, node: node(s, index) })) });
   }
 
   // probes: oscilloscopes and voltmeters only read nodes, ammeters are 0 V sources in series
@@ -334,6 +427,8 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     res.defaultAnalysisAdded = true;
   }
 
+  res.nodeOfNet = new Map(nodeOfNet);
+  for (const n of groundNets) res.nodeOfNet.set(n, '0');
   res.netlist = toAscii([
     `* ${title} - BlackBoard`,
     ...[...models.values()],

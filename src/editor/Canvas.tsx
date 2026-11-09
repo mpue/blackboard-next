@@ -9,15 +9,18 @@ import {
   gestureUpdate,
   magnetAttachments,
   select,
+  setCurrentLayer,
   setTool,
+  toast,
   setView,
+  updateItems,
   useStore,
   zoomAt,
   type DocState,
 } from '../store/store.ts';
 import { useCursor } from '../store/cursor.ts';
-import type { Doc, Item, LineItem, PartDef } from '../model/types.ts';
-import { isBoardLayer, isTwoPoint, MM_PER_UNIT, RASTER } from '../model/types.ts';
+import type { Doc, Item, LineItem, PartDef, SymbolItem, TrackItem, ViaItem, ZoneItem } from '../model/types.ts';
+import { isBoardLayer, isSchematicDoc, isTwoPoint, MM_PER_UNIT, RASTER } from '../model/types.ts';
 import { uid } from '../model/id.ts';
 import { nextDesignator, partLookup, translateItem } from '../model/ops.ts';
 import {
@@ -40,11 +43,25 @@ import { InstrumentOverlays } from './InstrumentOverlays.tsx';
 import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import { takeDragPayload } from './dragPayload.ts';
 import { useT } from '../i18n/i18n.ts';
+import { PcbView } from '../render/PcbView.tsx';
+import { copperAt, posture, routingLayer, trackWidthFor } from '../pcb/route.ts';
+import { copperSideOfLayer } from '../pcb/geometry.ts';
+import { copperLayerFor } from '../pcb/place.ts';
+import { defaultRules } from '../pcb/defaults.ts';
+import { mm } from '../pcb/units.ts';
+import { netKeys, usePcbDerived, type PcbDerived } from './pcbDerived.ts';
+import { useZoneFills } from './zoneFills.ts';
+import { useDrc } from '../ui/drcState.ts';
+import { usePcbStats } from '../ui/PcbStatus.tsx';
+import { LiveOverlay } from './LiveOverlay.tsx';
+import { useLive } from '../store/live.ts';
+import { switchOf } from '../spice/netlist.ts';
+import { netAt as pcbNetAt } from '../pcb/connectivity.ts';
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; panX: number; panY: number }
   | { kind: 'marquee'; start: Pt; cur: Pt; mode: 'replace' | 'add' }
-  | { kind: 'move'; start: Pt; anchor: Pt; started: boolean; sx: number; sy: number; ids: Set<string>; attached: Attachment[] }
+  | { kind: 'move'; start: Pt; anchor: Pt; started: boolean; sx: number; sy: number; ids: Set<string>; attached: Attachment[]; toggle?: string; momentary?: boolean }
   | { kind: 'endpoint'; id: string; which: 1 | 2; started: boolean; attached: Attachment[] }
   | { kind: 'resize'; id: string; fixed: Pt }
   | { kind: 'shape'; shape: 'box' | 'ellipse'; start: Pt; cur: Pt }
@@ -58,6 +75,20 @@ interface Preview {
   ghost?: Item;
   net?: Net;
   snapPin?: Pt;
+  /** track being routed */
+  route?: { pts: Pt[]; width: number; layer: string };
+  /** copper zone being drawn */
+  zone?: Pt[];
+  /** net highlighted with the check tool on PCBs */
+  pcbNet?: string;
+}
+
+interface RouteState {
+  from: Pt;
+  layer: string;
+  width: number;
+  net?: string;
+  diagonalFirst: boolean;
 }
 
 const HANDLE_PX = 9;
@@ -66,6 +97,7 @@ function anchorOf(it: Item, doc: Doc): Pt {
   const pins = itemPins(it, partLookup(doc));
   if (pins.length) return pins[0];
   if (isTwoPoint(it)) return { x: it.x1, y: it.y1 };
+  if (it.kind === 'zone') return it.points[0] ?? { x: 0, y: 0 };
   return { x: it.x, y: it.y };
 }
 
@@ -81,6 +113,9 @@ export function Canvas() {
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const chainStart = useRef<Pt | null>(null);
+  const route = useRef<RouteState | null>(null);
+  const zonePts = useRef<Pt[] | null>(null);
+  const lastCursor = useRef<Pt>({ x: 0, y: 0 });
   const pointers = useRef(new Map<number, Pt>());
   const pinch = useRef<{ dist: number; mid: Pt } | null>(null);
   const [preview, setPreview] = useState<Preview>({});
@@ -88,6 +123,13 @@ export function Canvas() {
   const [spaceDown, setSpaceDown] = useState(false);
 
   const libByFile = useMemo(() => new Map(libraryParts.map((p) => [p.file, p])), [libraryParts]);
+  const zoneFills = useZoneFills(ds?.doc);
+  const pcb = usePcbDerived(ds?.doc, zoneFills.fills);
+  const drcRes = useDrc((st) => (ds ? st.results[ds.id] : undefined));
+  const drcFocus = useDrc((st) => st.focused);
+  const pcbRef = useRef<PcbDerived | undefined>(undefined);
+  pcbRef.current = pcb;
+  useEffect(() => usePcbStats.setState({ unrouted: pcb?.rats.length ?? 0 }), [pcb]);
   const lookup = useCallback((ref: string): PartDef | undefined => ds?.doc.parts[ref] ?? libByFile.get(ref), [ds?.doc.parts, libByFile]);
 
   // ---- size / fit ------------------------------------------------------------------------
@@ -119,6 +161,8 @@ export function Canvas() {
   // reset transient tool state when tool or document changes
   useEffect(() => {
     chainStart.current = null;
+    route.current = null;
+    zonePts.current = null;
     drag.current = null;
     setPreview({});
     useCursor.setState({ measure: null });
@@ -175,6 +219,90 @@ export function Canvas() {
     return undefined;
   }, []);
 
+  // ---- PCB routing -----------------------------------------------------------------------------
+  const routeTarget = useCallback(
+    (d: DocState, raw: Pt, side?: 'top' | 'bottom') => {
+      const hit = copperAt(d.doc, raw, 4 / d.view.zoom, side);
+      return { hit, at: hit?.anchor ?? snapPt(raw) };
+    },
+    [snapPt],
+  );
+
+  const showRoute = useCallback((r: RouteState, to: Pt) => {
+    setPreview({ route: { pts: posture(r.from, to, r.diagonalFirst), width: r.width, layer: r.layer } });
+  }, []);
+
+  /** Adds the tracks of the current posture up to `to` (one undo step). */
+  const commitRoute = useCallback((to: Pt, net?: string) => {
+    const r = route.current;
+    if (!r) return;
+    const pts = posture(r.from, to, r.diagonalFirst);
+    const n = r.net ?? net;
+    const tracks: TrackItem[] = [];
+    for (let i = 1; i < pts.length; i++) {
+      if (Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y) < 1e-6) continue;
+      tracks.push({ id: uid(), kind: 'track', layer: r.layer, x1: pts[i - 1].x, y1: pts[i - 1].y, x2: pts[i].x, y2: pts[i].y, width: r.width, ...(n ? { net: n } : {}) });
+    }
+    if (tracks.length) addItems(tracks, undefined, false);
+    r.from = to;
+    if (!r.net && n) r.net = n;
+  }, []);
+
+  /** "V" while routing: via at the cursor, continue on the other copper layer. */
+  const viaAndSwitchLayer = useCallback(() => {
+    const d = activeDoc();
+    const r = route.current;
+    if (!d || !r) return;
+    const rules = d.doc.pcb?.rules ?? defaultRules();
+    if (rules.copperLayers === 1) return;
+    const side = copperSideOfLayer(d.doc, r.layer);
+    const { hit, at } = routeTarget(d, lastCursor.current, side);
+    commitRoute(at, hit?.net);
+    if (hit?.kind !== 'via' && !(hit?.kind === 'pad' && hit.sides.length === 2)) {
+      const via: ViaItem = { id: uid(), kind: 'via', layer: copperLayerFor(d.doc, 'top'), x: at.x, y: at.y, diameter: rules.viaDiameter, drill: rules.viaDrill, ...(r.net ? { net: r.net } : {}) };
+      addItems([via], undefined, false);
+    }
+    r.layer = copperLayerFor(d.doc, side === 'top' ? 'bottom' : 'top');
+    setCurrentLayer(r.layer);
+    showRoute(r, at);
+  }, [routeTarget, commitRoute, showRoute]);
+
+  const finishZone = useCallback(() => {
+    const d = activeDoc();
+    const pts = zonePts.current;
+    zonePts.current = null;
+    setPreview({});
+    if (!d || !pts || pts.length < 3) return;
+    const layer = routingLayer(d.doc, d.currentLayer);
+    if (!layer) return;
+    const nets = new Set(d.doc.items.flatMap((i) => (i.kind === 'footprint' ? Object.values(i.nets) : [])));
+    const net = copperAt(d.doc, pts[0], 1)?.net ?? (nets.has('GND') ? 'GND' : ([...nets].sort()[0] ?? ''));
+    const zone: ZoneItem = { id: uid(), kind: 'zone', layer, points: pts, net };
+    addItems([zone]);
+  }, []);
+
+  // routing keys must win over the global shortcuts ("v" = select tool)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!route.current || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
+      if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        viaAndSwitchLayer();
+      } else if (e.key === '/') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        route.current.diagonalFirst = !route.current.diagonalFirst;
+        const d = activeDoc();
+        if (d) showRoute(route.current, routeTarget(d, lastCursor.current, copperSideOfLayer(d.doc, route.current.layer)).at);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [viaAndSwitchLayer, showRoute, routeTarget]);
+
   // ---- wheel zoom (native listener: must not be passive) -------------------------------------
   useEffect(() => {
     const svg = svgRef.current;
@@ -213,6 +341,8 @@ export function Canvas() {
           drag.current = null;
         }
         chainStart.current = null;
+        route.current = null;
+        zonePts.current = null;
         setPreview({});
         setMenu(null);
         const s = useStore.getState();
@@ -304,7 +434,28 @@ export function Canvas() {
             ids = [hit.id];
           }
           if (ids.includes(hit.id)) {
-            drag.current = { kind: 'move', start: raw, anchor: anchorOf(hit, d.doc), started: false, sx: e.clientX, sy: e.clientY, ids: new Set(ids), attached: [] };
+            // live values: a click operates switches, push buttons close while held
+            const sw = useLive.getState().on && isSchematicDoc(d.doc) && hit.kind === 'symbol' && !additive ? switchOf(hit) : undefined;
+            const momentary = sw === 'toggle' && hit.kind === 'symbol' && /taster|button|push/i.test(hit.symbolName);
+            if (momentary) {
+              beginGesture();
+              gestureUpdate((doc) => {
+                const it = doc.items.find((i) => i.id === hit.id);
+                if (it?.kind === 'symbol') it.properties = { ...(it.properties ?? {}), closed: 'true' };
+              });
+            }
+            drag.current = {
+              kind: 'move',
+              start: raw,
+              anchor: anchorOf(hit, d.doc),
+              started: false,
+              sx: e.clientX,
+              sy: e.clientY,
+              ids: new Set(ids),
+              attached: [],
+              toggle: sw && !momentary ? hit.id : undefined,
+              momentary,
+            };
           }
         } else {
           drag.current = { kind: 'marquee', start: raw, cur: raw, mode: additive ? 'add' : 'replace' };
@@ -330,17 +481,21 @@ export function Canvas() {
         let end = pt;
         if (e.shiftKey) end = constrain(start, pt);
         if (s.tool === 'wire') {
-          const color = s.settings.useLayerColor ? d.doc.layers.find((l) => l.id === layer)?.color ?? s.drawStyle.color : s.drawStyle.color;
+          // on PCBs drawings belong to silkscreen or outline, never to copper
+          const pcbSide = d.doc.type === 'PCB' ? copperSideOfLayer(d.doc, layer) : undefined;
+          const lineLayer = pcbSide ? (d.doc.layers.find((l) => l.role === `${pcbSide}-silk`)?.id ?? layer) : layer;
+          const pcbLayerColor = d.doc.type === 'PCB' ? d.doc.layers.find((l) => l.id === lineLayer)?.color : undefined;
+          const color = pcbLayerColor ?? (s.settings.useLayerColor ? (d.doc.layers.find((l) => l.id === layer)?.color ?? s.drawStyle.color) : s.drawStyle.color);
           const line: LineItem = {
             id: uid(),
             kind: 'line',
-            layer,
+            layer: lineLayer,
             x1: start.x,
             y1: start.y,
             x2: end.x,
             y2: end.y,
             color,
-            thickness: s.drawStyle.thickness,
+            thickness: d.doc.type === 'PCB' ? mm(0.2) : s.drawStyle.thickness,
             startType: s.drawStyle.startType,
             endType: s.drawStyle.endType,
           };
@@ -391,13 +546,63 @@ export function Canvas() {
         return;
       }
       case 'check': {
+        if (d.doc.type === 'PCB') {
+          setPreview({ pcbNet: pcbRef.current ? pcbNetAt(d.doc, raw, undefined, pcbRef.current.conn) : undefined });
+          return;
+        }
         const net = netAt(d.doc, raw, 4 / d.view.zoom);
         setPreview({ net });
         return;
       }
+      case 'track': {
+        const r = route.current;
+        if (!r) {
+          const lay = routingLayer(d.doc, d.currentLayer);
+          if (!lay) return;
+          const side = copperSideOfLayer(d.doc, lay);
+          const hit = copperAt(d.doc, raw, 4 / d.view.zoom);
+          // a pad that only exists on the other side decides the layer
+          const startLayer = hit && side && !hit.sides.includes(side) ? copperLayerFor(d.doc, hit.sides[0]) : lay;
+          const from = hit?.anchor ?? p;
+          route.current = { from, layer: startLayer, width: trackWidthFor(d.doc, hit?.net), net: hit?.net, diagonalFirst: false };
+          if (startLayer !== d.currentLayer) setCurrentLayer(startLayer);
+          showRoute(route.current, from);
+          return;
+        }
+        const { hit, at } = routeTarget(d, raw, copperSideOfLayer(d.doc, r.layer));
+        // like in KiCad a track never ends on copper of another net
+        if (hit && r.net && hit.net && hit.net !== r.net) {
+          toast(t('pcb.otherNet', { net: hit.net }), 'error');
+          return;
+        }
+        commitRoute(at, hit?.net);
+        if (hit) {
+          // reached copper: the track is done
+          route.current = null;
+          setPreview({});
+        } else showRoute(r, at);
+        return;
+      }
+      case 'via': {
+        const rules = d.doc.pcb?.rules ?? defaultRules();
+        const hit = copperAt(d.doc, raw, 4 / d.view.zoom);
+        if (hit?.kind === 'via' || rules.copperLayers === 1) return;
+        const at = hit?.anchor ?? p;
+        const via: ViaItem = { id: uid(), kind: 'via', layer: copperLayerFor(d.doc, 'top'), x: at.x, y: at.y, diameter: rules.viaDiameter, drill: rules.viaDrill, ...(hit?.net ? { net: hit.net } : {}) };
+        addItems([via]);
+        return;
+      }
+      case 'zone': {
+        const pts = zonePts.current ?? [];
+        const last = pts[pts.length - 1];
+        if (last && Math.hypot(last.x - p.x, last.y - p.y) < 1e-6) return;
+        zonePts.current = [...pts, p];
+        setPreview({ zone: zonePts.current });
+        return;
+      }
       case 'place': {
         if (!s.placement || !layer) return;
-        const item = makePlacedItem(d.doc, s.placement, raw, layer, s.settings.snap, lookup);
+        const item = makePlacedItem(d.doc, s.placement, raw, layer, s.settings.snap, lookup, s.settings.snapStep);
         if (!item) return;
         const parts = item.kind === 'part' && !d.doc.parts[item.ref] ? { [item.ref]: lookup(item.ref)! } : undefined;
         addItems([item], parts);
@@ -436,6 +641,7 @@ export function Canvas() {
           setPreview({ marquee: { ...normRect(g.start.x, g.start.y, raw.x, raw.y), crossing: raw.x < g.start.x } });
           return;
         case 'move': {
+          if (g.momentary) return;
           if (!g.started) {
             if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < 4) return;
             g.started = true;
@@ -506,6 +712,22 @@ export function Canvas() {
     }
 
     // hover previews
+    lastCursor.current = raw;
+    if (s.tool === 'track' && route.current) {
+      const r = route.current;
+      showRoute(r, routeTarget(d, raw, copperSideOfLayer(d.doc, r.layer)).at);
+      return;
+    }
+    if (s.tool === 'zone' && zonePts.current) {
+      setPreview({ zone: [...zonePts.current, p] });
+      return;
+    }
+    if (s.tool === 'track' || s.tool === 'via') {
+      const hit = copperAt(d.doc, raw, 4 / d.view.zoom);
+      const pin = hit?.anchor;
+      setPreview((pv) => (pv.snapPin?.x === pin?.x && pv.snapPin?.y === pin?.y ? pv : { ...pv, snapPin: pin }));
+      return;
+    }
     if ((s.tool === 'wire' || s.tool === 'resistor' || s.tool === 'diode') && chainStart.current) {
       const pin = nearPin(raw, d);
       const to = e.shiftKey ? constrain(chainStart.current, pin ?? p) : (pin ?? p);
@@ -515,7 +737,7 @@ export function Canvas() {
       setPreview((pv) => (pv.snapPin === pin ? pv : { ...pv, snapPin: pin }));
     } else if (s.tool === 'place' && s.placement) {
       const layer = editableLayer(d.doc, d.currentLayer) ?? d.currentLayer;
-      setPreview({ ghost: makePlacedItem(d.doc, s.placement, raw, layer, s.settings.snap, lookup) });
+      setPreview({ ghost: makePlacedItem(d.doc, s.placement, raw, layer, s.settings.snap, lookup, s.settings.snapStep) });
     }
   };
 
@@ -551,7 +773,9 @@ export function Canvas() {
         return;
       }
       case 'move':
-        if (g.started) endGesture();
+        if (g.momentary) cancelGesture();
+        else if (g.started) endGesture();
+        else if (g.toggle) toggleSwitch(g.toggle);
         return;
       case 'endpoint':
       case 'resize':
@@ -576,7 +800,17 @@ export function Canvas() {
 
   const onDoubleClick = (e: React.MouseEvent) => {
     const d = activeDoc();
-    if (!d || useStore.getState().tool !== 'select') return;
+    const tl = useStore.getState().tool;
+    if (tl === 'track' && route.current) {
+      route.current = null;
+      setPreview({});
+      return;
+    }
+    if (tl === 'zone') {
+      finishZone();
+      return;
+    }
+    if (!d || tl !== 'select') return;
     const hit = hitTest(d, toWorld(e.clientX, e.clientY));
     if (hit) window.dispatchEvent(new CustomEvent('bb:focus-props', { detail: hit.kind === 'text' ? 'text' : 'name' }));
   };
@@ -586,8 +820,13 @@ export function Canvas() {
     const d = activeDoc();
     if (!d) return;
     const s = useStore.getState();
-    if (chainStart.current || s.tool === 'place') {
+    if (s.tool === 'zone' && zonePts.current) {
+      finishZone();
+      return;
+    }
+    if (chainStart.current || route.current || s.tool === 'place') {
       chainStart.current = null;
+      route.current = null;
       setPreview({});
       if (s.tool === 'place') setTool('select');
       return;
@@ -637,6 +876,7 @@ export function Canvas() {
   const cursor =
     tool === 'pan' || spaceDown ? (drag.current?.kind === 'pan' ? 'grabbing' : 'grab') : tool === 'select' ? 'default' : tool === 'check' ? 'help' : 'crosshair';
   const netWires = new Set(preview.net?.wires);
+  const routeNet = route.current?.net;
 
   return (
     <div
@@ -662,7 +902,22 @@ export function Canvas() {
         <g transform={`translate(${view.panX} ${view.panY}) scale(${z})`}>
           <rect x={-2} y={-2} width={doc.width + 4} height={doc.height + 4} rx={3} className="bb-board-shadow" />
           <g transform={mirrorT}>
-            {[...doc.layers].reverse().map((layer) => {
+            {doc.type === 'PCB' ? (
+              <PcbView
+                doc={doc}
+                idPrefix={ds.id}
+                mirror={ds.mirror}
+                opts={{
+                  ...flags,
+                  realistic: settings.pcbRealistic,
+                  activeLayer: ds.currentLayer,
+                  highlight: netKeys(pcb, preview.pcbNet ?? (tool === 'track' ? routeNet : undefined)),
+                  zoom: z,
+                  grid: settings.grid ? pcbGrid(settings.snapStep, z) : undefined,
+                  zoneFills: zoneFills.paths,
+                }}
+              />
+            ) : [...doc.layers].reverse().map((layer) => {
               if (!layer.visible) return null;
               const items = byLayer.get(layer.id) ?? [];
               const bottom = layer.name.toLowerCase() === 'bottom';
@@ -696,6 +951,7 @@ export function Canvas() {
             })}
 
             <InstrumentOverlays doc={doc} docId={ds.id} />
+            {doc.type !== 'PCB' && <LiveOverlay doc={doc} docId={ds.id} z={z} showLabels={settings.showValues} />}
 
             {/* overlays */}
             <g className="bb-overlay" pointerEvents="none">
@@ -704,6 +960,52 @@ export function Canvas() {
                   .filter((i): i is LineItem => i.kind === 'line' && netWires.has(i.id))
                   .map((l) => <line key={l.id} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#22c55e" strokeOpacity={0.75} strokeWidth={l.thickness + 6 / z} strokeLinecap="round" />)}
               {preview.net?.pins.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={6 / z + 2} fill="#22c55e" fillOpacity={0.8} />)}
+
+              {pcb && settings.showRatsnest && !settings.pcbRealistic && (
+                <g>
+                  {pcb.rats.map((r, i) => (
+                    <line key={i} x1={r.a.x} y1={r.a.y} x2={r.b.x} y2={r.b.y} stroke="#9fd6ff" strokeOpacity={0.85} strokeWidth={1 / z} />
+                  ))}
+                </g>
+              )}
+              {drcRes && doc.type === 'PCB' && (
+                <g>
+                  {drcRes.violations.map((v) => {
+                    const r = (v.id === drcFocus ? 9 : 6) / z;
+                    const c = v.severity === 'error' ? '#ef4444' : '#f59e0b';
+                    return (
+                      <g key={v.id}>
+                        <circle cx={v.at.x} cy={v.at.y} r={r} fill={c} fillOpacity={0.25} stroke={c} strokeWidth={1.5 / z} />
+                        <path d={`M${v.at.x - r * 0.5} ${v.at.y - r * 0.5}L${v.at.x + r * 0.5} ${v.at.y + r * 0.5}M${v.at.x + r * 0.5} ${v.at.y - r * 0.5}L${v.at.x - r * 0.5} ${v.at.y + r * 0.5}`} stroke={c} strokeWidth={1.5 / z} />
+                      </g>
+                    );
+                  })}
+                </g>
+              )}
+              {preview.route && (
+                <g>
+                  <polyline
+                    points={preview.route.pts.map((q) => `${q.x},${q.y}`).join(' ')}
+                    fill="none"
+                    stroke={doc.layers.find((l) => l.id === preview.route!.layer)?.color ?? '#d6453d'}
+                    strokeOpacity={0.8}
+                    strokeWidth={preview.route.width}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <polyline points={preview.route.pts.map((q) => `${q.x},${q.y}`).join(' ')} fill="none" stroke="#ffffff" strokeOpacity={0.6} strokeWidth={1 / z} />
+                </g>
+              )}
+              {preview.zone && (
+                <polygon
+                  points={preview.zone.map((q) => `${q.x},${q.y}`).join(' ')}
+                  fill="var(--bb-accent)"
+                  fillOpacity={0.12}
+                  stroke="var(--bb-accent)"
+                  strokeWidth={1.5 / z}
+                  strokeDasharray={`${4 / z} ${3 / z}`}
+                />
+              )}
 
               {doc.items
                 .filter((i) => selected.has(i.id))
@@ -773,7 +1075,7 @@ export function Canvas() {
 
 /** Wires (or resistor/diode leads) meeting the end of the wire whose handle is dragged. */
 function endAttachments(doc: Doc, id: string, end: 1 | 2): Attachment[] {
-  if (!useStore.getState().settings.magnetic) return [];
+  if (!useStore.getState().settings.magnetic && doc.type !== 'PCB') return [];
   return collectAttachments(doc, new Set([id]), [{ itemId: id, kind: 'end', end }]);
 }
 
@@ -797,7 +1099,7 @@ function SelectionOverlay({ item, z, single, lookup }: { item: Item; z: number; 
   if (isTwoPoint(item)) {
     return (
       <g>
-        <line x1={item.x1} y1={item.y1} x2={item.x2} y2={item.y2} stroke="var(--bb-accent)" strokeOpacity={0.45} strokeWidth={(item.kind === 'line' ? item.thickness : 10) + 4 / z} strokeLinecap="round" />
+        <line x1={item.x1} y1={item.y1} x2={item.x2} y2={item.y2} stroke="var(--bb-accent)" strokeOpacity={0.45} strokeWidth={(item.kind === 'line' ? item.thickness : item.kind === 'track' ? item.width : 10) + 4 / z} strokeLinecap="round" />
         {single &&
           [
             [item.x1, item.y1],
@@ -844,4 +1146,23 @@ function MeasureOverlay({ a, b, z, mirrored }: { a: Pt; b: Pt; z: number; mirror
       </g>
     </g>
   );
+}
+
+/** Grid dots of the snap raster, coarsened until they are at least 8 px apart. */
+function pcbGrid(step: number, zoom: number): number {
+  let g = step;
+  while (g * zoom < 8) g *= 2;
+  return g;
+}
+
+/** Live values: flips a switch (toggle) or its throw (changeover). */
+function toggleSwitch(id: string) {
+  updateItems([id], (it) => {
+    if (it.kind !== 'symbol') return;
+    const kind = switchOf(it as SymbolItem);
+    const p = { ...(it.properties ?? {}) };
+    if (kind === 'toggle') p.closed = p.closed === 'true' ? 'false' : 'true';
+    else p.throw = p.throw === '3' ? '2' : '3';
+    it.properties = p;
+  });
 }

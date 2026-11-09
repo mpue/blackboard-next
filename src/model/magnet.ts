@@ -5,7 +5,7 @@
 // Attachments are recorded on the document before an edit and re-applied to
 // the edited document, so every kind of edit works the same way.
 
-import type { Doc, Item, LineItem } from './types.ts';
+import type { Doc, Item, LineItem, TrackItem } from './types.ts';
 import { isTwoPoint } from './types.ts';
 import { distToSegment, itemPins, type Pt } from '../geometry/geom.ts';
 import { partLookup } from './ops.ts';
@@ -28,7 +28,7 @@ const TOL = 3;
 const endPt = (l: { x1: number; y1: number; x2: number; y2: number }, end: 1 | 2): Pt => (end === 1 ? { x: l.x1, y: l.y1 } : { x: l.x2, y: l.y2 });
 
 function anchorsOf(doc: Doc, it: Item): { anchor: Anchor; at: Pt }[] {
-  if (it.kind === 'line') {
+  if (it.kind === 'line' || it.kind === 'track') {
     return [
       { anchor: { itemId: it.id, kind: 'end', end: 1 }, at: endPt(it, 1) },
       { anchor: { itemId: it.id, kind: 'end', end: 2 }, at: endPt(it, 2) },
@@ -54,7 +54,7 @@ export function anchorPosition(doc: Doc, a: Anchor): Pt | undefined {
 export function collectAttachments(doc: Doc, editing: Set<string>, onlyAnchors?: Anchor[]): Attachment[] {
   const editable = new Set(doc.layers.filter((l) => l.visible && !l.locked).map((l) => l.id));
   const points: { anchor: Anchor; at: Pt }[] = [];
-  const segments: LineItem[] = [];
+  const segments: (LineItem | TrackItem)[] = [];
   if (onlyAnchors) {
     for (const a of onlyAnchors) {
       const at = anchorPosition(doc, a);
@@ -64,12 +64,12 @@ export function collectAttachments(doc: Doc, editing: Set<string>, onlyAnchors?:
     for (const it of doc.items) {
       if (!editing.has(it.id)) continue;
       points.push(...anchorsOf(doc, it));
-      if (it.kind === 'line') segments.push(it);
+      if (it.kind === 'line' || it.kind === 'track') segments.push(it);
     }
   }
   const result: Attachment[] = [];
   for (const w of doc.items) {
-    if (w.kind !== 'line' || editing.has(w.id) || !editable.has(w.layer)) continue;
+    if ((w.kind !== 'line' && w.kind !== 'track') || editing.has(w.id) || !editable.has(w.layer)) continue;
     for (const end of [1, 2] as const) {
       const p = endPt(w, end);
       const hit = points.find((pt) => Math.hypot(pt.at.x - p.x, pt.at.y - p.y) <= TOL);
@@ -94,7 +94,7 @@ export function applyAttachments(doc: Doc, attachments: Attachment[]): void {
   for (const a of attachments) {
     const at = anchorPosition(doc, a.anchor);
     const w = doc.items.find((i) => i.id === a.lineId);
-    if (!at || !w || w.kind !== 'line') continue;
+    if (!at || !w || (w.kind !== 'line' && w.kind !== 'track')) continue;
     if (a.end === 1) {
       w.x1 = at.x;
       w.y1 = at.y;

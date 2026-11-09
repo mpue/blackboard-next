@@ -1,4 +1,5 @@
-import type { Item, PartDef, Pin, SymbolItem, SymbolShape, TextGeom } from '../model/types.ts';
+import type { FootprintItem, Item, PartDef, Pin, SymbolItem, SymbolShape, TextGeom } from '../model/types.ts';
+import { copperShapeBounds, footprintToWorld, padShapeWorld, pointGap, worldToFootprint } from '../pcb/geometry.ts';
 
 export interface Pt {
   x: number;
@@ -178,7 +179,28 @@ export function itemBounds(item: Item, part: PartLookup): Rect {
     }
     case 'symbol':
       return rectOfPoints(cornersOf(symbolLocalBounds(item)).map((p) => symbolToWorld(item, p)));
+    case 'footprint':
+      return footprintBounds(item);
+    case 'track':
+      return inflate(normRect(item.x1, item.y1, item.x2, item.y2), item.width / 2);
+    case 'via':
+      return { x: item.x - item.diameter / 2, y: item.y - item.diameter / 2, w: item.diameter, h: item.diameter };
+    case 'zone':
+      return rectOfPoints(item.points);
   }
+}
+
+/** Courtyard and pads of a placed footprint. */
+export function footprintBounds(fp: FootprintItem): Rect {
+  let r: Rect | undefined = rectOfPoints(cornersOf(fp.footprint.courtyard).map((p) => footprintToWorld(fp, p)));
+  for (const pad of fp.footprint.pads) r = unionRect(r, copperShapeBounds(padShapeWorld(fp, pad)));
+  return r;
+}
+
+function nearPolyline(p: Pt, pts: Pt[], closed: boolean, tol: number): boolean {
+  const n = closed ? pts.length : pts.length - 1;
+  for (let i = 0; i < n; i++) if (distToSegment(p, pts[i], pts[(i + 1) % pts.length]) <= tol) return true;
+  return false;
 }
 
 /** Precise hit test; `tol` is in board units. */
@@ -213,6 +235,15 @@ export function hitItem(item: Item, p: Pt, part: PartLookup, tol: number): boole
       const l = worldToSymbol(item, p);
       return rectContainsPt(inflate({ x: 0, y: 0, w: item.width, h: item.height }, tol + 2), l);
     }
+    case 'footprint':
+      return rectContainsPt(inflate(item.footprint.courtyard, tol), worldToFootprint(item, p)) || item.footprint.pads.some((pad) => pointGap(p, padShapeWorld(item, pad)) <= tol);
+    case 'track':
+      return distToSegment(p, { x: item.x1, y: item.y1 }, { x: item.x2, y: item.y2 }) <= item.width / 2 + tol;
+    case 'via':
+      return Math.hypot(p.x - item.x, p.y - item.y) <= item.diameter / 2 + tol;
+    case 'zone':
+      // zones usually cover everything else, so they are picked at their outline only
+      return nearPolyline(p, item.points, true, tol + 2);
   }
 }
 
@@ -235,6 +266,11 @@ export function itemPins(item: Item, part: PartLookup): WorldPin[] {
         { x: item.x1, y: item.y1, itemId: item.id, pin: { num: 1, x: 0, y: 0, name: item.kind === 'diode' ? 'A' : '1' } },
         { x: item.x2, y: item.y2, itemId: item.id, pin: { num: 2, x: 0, y: 0, name: item.kind === 'diode' ? 'K' : '2' } },
       ];
+    case 'footprint':
+      // pads act as pins: tracks snap to them and follow them in magnetic mode
+      return item.footprint.pads.map((pad, i) => ({ ...footprintToWorld(item, pad), itemId: item.id, pin: { num: i + 1, x: pad.x, y: pad.y, name: pad.num } }));
+    case 'via':
+      return [{ x: item.x, y: item.y, itemId: item.id, pin: { num: 1, x: 0, y: 0 } }];
     default:
       return [];
   }

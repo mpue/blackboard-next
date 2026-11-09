@@ -44,6 +44,17 @@ import {
   FlaskConical,
   Zap,
   Sheet,
+  Route,
+  CircleDot,
+  SquareDashed,
+  ShieldCheck,
+  Factory,
+  Cpu,
+  RefreshCw,
+  ScanEye,
+  Cable,
+  SlidersHorizontal,
+  Gauge,
 } from 'lucide-react';
 import {
   activeDoc,
@@ -69,8 +80,12 @@ import {
   type Tool,
 } from '../store/store.ts';
 import type { I18nKey } from '../i18n/i18n.ts';
+import { isSchematicDoc } from '../model/types.ts';
 import { exportBom, exportNetlist, exportPng, exportSvg, openFromDisk, printActive, saveActive } from './fileActions.ts';
 import { breakSymbols } from './symbolActions.ts';
+import { createPcbFromSchematic, exportEtching, exportFabrication, updatePcbFromSchematic } from './pcbActions.ts';
+import { setDrcOpen } from '../ui/drcState.ts';
+import { setLiveValues, useLive } from '../store/live.ts';
 
 export interface Command {
   id: string;
@@ -85,6 +100,11 @@ export interface Command {
 
 const hasDoc = () => !!activeDoc();
 const hasSel = () => (activeDoc()?.selection.length ?? 0) > 0;
+const isPcb = () => activeDoc()?.doc.type === 'PCB';
+const isSchematic = () => {
+  const d = activeDoc()?.doc;
+  return !!d && isSchematicDoc(d);
+};
 
 function zoomCenter(f: number) {
   const el = document.querySelector('.bb-canvas');
@@ -92,12 +112,12 @@ function zoomCenter(f: number) {
   zoomAt(f, { x: (r?.width ?? 800) / 2, y: (r?.height ?? 600) / 2 });
 }
 
-function toggle(key: 'grid' | 'snap' | 'magnetic' | 'showNames' | 'showValues' | 'showPins' | 'useLayerColor' | 'leftPanel' | 'rightPanel') {
+function toggle(key: 'grid' | 'snap' | 'magnetic' | 'showNames' | 'showValues' | 'showPins' | 'useLayerColor' | 'leftPanel' | 'rightPanel' | 'pcbRealistic' | 'showRatsnest') {
   return () => updateSettings({ [key]: !useStore.getState().settings[key] });
 }
 
-function tool(id: Tool, label: I18nKey, icon: LucideIcon, shortcut: string): Command {
-  return { id: `tool.${id}`, label, icon, shortcut, run: () => setTool(id), enabled: hasDoc, checked: () => useStore.getState().tool === id };
+function tool(id: Tool, label: I18nKey, icon: LucideIcon, shortcut: string, enabled: () => boolean = hasDoc): Command {
+  return { id: `tool.${id}`, label, icon, shortcut, run: () => setTool(id), enabled, checked: () => useStore.getState().tool === id };
 }
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -169,6 +189,15 @@ export const commands = {
 
   boardProps: { id: 'boardProps', label: 'board.properties', run: () => openDialog({ kind: 'boardProps' }), enabled: hasDoc },
   simulate: { id: 'simulate', label: 'board.simulate', icon: Activity, shortcut: 'F5', run: () => setSimulationOpen(true), enabled: hasDoc },
+  live: {
+    id: 'live',
+    label: 'live.toggle',
+    icon: Gauge,
+    shortcut: 'Shift+L',
+    run: () => setLiveValues(!useLive.getState().on),
+    enabled: isSchematic,
+    checked: () => useLive.getState().on,
+  },
 
   select: tool('select', 'tool.select', MousePointer2, 'V'),
   pan: tool('pan', 'tool.pan', Hand, 'H'),
@@ -180,6 +209,18 @@ export const commands = {
   resistor: tool('resistor', 'tool.resistor', Waves, 'O'),
   diode: tool('diode', 'tool.diode', Zap, 'D'),
   check: tool('check', 'tool.check', Crosshair, 'K'),
+  track: tool('track', 'tool.track', Route, 'W', isPcb),
+  via: tool('via', 'tool.via', CircleDot, 'Shift+V', isPcb),
+  zone: tool('zone', 'tool.zone', SquareDashed, 'Z', isPcb),
+
+  createPcb: { id: 'createPcb', label: 'pcb.create', icon: Cpu, run: createPcbFromSchematic, enabled: isSchematic },
+  updatePcb: { id: 'updatePcb', label: 'pcb.update', icon: RefreshCw, run: updatePcbFromSchematic, enabled: isPcb },
+  drc: { id: 'drc', label: 'pcb.drc', icon: ShieldCheck, shortcut: 'Shift+D', run: () => setDrcOpen(true), enabled: isPcb },
+  exportGerber: { id: 'exportGerber', label: 'pcb.exportGerber', icon: Factory, run: () => void exportFabrication(), enabled: isPcb },
+  exportEtching: { id: 'exportEtching', label: 'pcb.exportEtching', icon: Printer, run: () => void exportEtching(), enabled: isPcb },
+  pcbRules: { id: 'pcbRules', label: 'pcb.rules', icon: SlidersHorizontal, run: () => openDialog({ kind: 'pcbRules' }), enabled: isPcb },
+  realistic: { id: 'realistic', label: 'pcb.realistic', icon: ScanEye, shortcut: 'Shift+3', run: toggle('pcbRealistic'), checked: () => useStore.getState().settings.pcbRealistic },
+  ratsnest: { id: 'ratsnest', label: 'pcb.ratsnest', icon: Cable, run: toggle('showRatsnest'), checked: () => useStore.getState().settings.showRatsnest },
 
   shortcuts: { id: 'shortcuts', label: 'help.shortcuts', shortcut: '?', run: () => openDialog({ kind: 'shortcuts' }) },
   about: { id: 'about', label: 'help.about', icon: FlaskConical, run: () => openDialog({ kind: 'about' }) },
@@ -198,7 +239,8 @@ export function runCommand(c: Command) {
 
 // ---- keyboard --------------------------------------------------------------------------------
 
-type KeyBinding = { key: string; mod?: boolean; shift?: boolean; alt?: boolean; cmd: Command };
+/** `pcb`: only on PCBs (checked before the general bindings), `pcb: false`: never on PCBs */
+type KeyBinding = { key: string; mod?: boolean; shift?: boolean; alt?: boolean; pcb?: boolean; cmd: Command };
 
 const B = (key: string, cmd: Command, o: Omit<KeyBinding, 'key' | 'cmd'> = {}): KeyBinding => ({ key, cmd, ...o });
 const c = commands;
@@ -241,6 +283,7 @@ const bindings: KeyBinding[] = [
   B('n', c.names),
   B('p', c.pins),
   B('f5', c.simulate),
+  B('l', c.live, { shift: true }),
   B('v', c.select),
   B('h', c.pan),
   B('w', c.wire),
@@ -251,6 +294,12 @@ const bindings: KeyBinding[] = [
   B('o', c.resistor),
   B('d', c.diode),
   B('k', c.check),
+  B('w', c.track, { pcb: true }),
+  B('v', c.via, { pcb: true, shift: true }),
+  B('z', c.zone, { pcb: true }),
+  B('d', c.drc, { pcb: true, shift: true }),
+  B('#', c.realistic, { pcb: true, shift: true }),
+  B('§', c.realistic, { pcb: true, shift: true }),
   B('?', c.shortcuts, { shift: true }),
 ];
 
@@ -260,7 +309,9 @@ export function handleShortcut(e: KeyboardEvent): boolean {
   if (useStore.getState().dialog) return false;
   const key = e.key.toLowerCase();
   const mod = e.ctrlKey || e.metaKey;
-  const b = bindings.find((x) => x.key === key && !!x.mod === mod && (x.key === '?' || !!x.shift === e.shiftKey) && !e.altKey);
+  const pcb = isPcb();
+  const matches = (x: KeyBinding) => x.key === key && !!x.mod === mod && (x.key === '?' || !!x.shift === e.shiftKey) && !e.altKey;
+  const b = (pcb ? bindings.find((x) => x.pcb && matches(x)) : undefined) ?? bindings.find((x) => x.pcb === undefined && matches(x));
   if (b) {
     e.preventDefault();
     runCommand(b.cmd);

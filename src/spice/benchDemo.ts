@@ -108,7 +108,7 @@ export function buildBenchDemo(library: SymbolDef[], lang: 'de' | 'en'): Doc {
     ),
   );
 
-  const maxX = Math.max(...items.map((i) => ('x2' in i ? Math.max(i.x1, i.x2) : 'width' in i ? i.x + i.width : i.x + 600)));
+  const maxX = Math.max(...items.map((i) => ('x2' in i ? Math.max(i.x1, i.x2) : 'width' in i ? i.x + i.width : 'x' in i ? i.x + 600 : 0)));
   return {
     width: Math.ceil((Math.max(maxX, scope.x + scope.width) + 96) / 16) * 16,
     height: Math.ceil((rail + 96) / 16) * 16,

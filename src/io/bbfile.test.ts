@@ -65,4 +65,61 @@ describe('legacy .bb archives', () => {
     expect(again.missingParts).toEqual([]);
     expect(again.doc.items.length).toBe(doc.items.length);
   });
+
+  it('keeps PCB data in an extension that legacy readers ignore', async () => {
+    const { createPcbDoc } = await import('../pcb/defaults.ts');
+    const { fetchBytes } = await import('./bbfile.ts');
+    const { unzipSync, strFromU8 } = await import('fflate');
+    const doc = createPcbDoc(400, 300);
+    const fp = {
+      id: 'fp1',
+      kind: 'footprint' as const,
+      layer: 'L1',
+      x: 32,
+      y: 48,
+      rotation: 90,
+      side: 'top' as const,
+      name: 'R1',
+      value: '1k',
+      nets: { '1': 'GND', '2': 'N1' },
+      footprint: {
+        id: 'TEST',
+        name: 'TEST',
+        description: '',
+        category: 'Resistors',
+        pads: [
+          { num: '1', x: 0, y: 0, shape: 'rect' as const, w: 10, h: 10, drill: 5 },
+          { num: '2', x: 64, y: 0, shape: 'circle' as const, w: 10, h: 10, drill: 5 },
+        ],
+        silk: [],
+        courtyard: { x: -8, y: -8, w: 80, h: 16 },
+      },
+    };
+    doc.items.push(
+      { id: 't0', kind: 'text', layer: 'L0', x: 10, y: 10, text: 'Hello', font: 'Arial', fontSize: 12, rotation: 0, textType: 'TEXT', color: '#ffffff' },
+      fp,
+      { id: 'tr', kind: 'track', layer: 'L2', x1: 32, y1: 48, x2: 100, y2: 48, width: 2, net: 'GND' },
+      { id: 'l0', kind: 'line', layer: 'L4', x1: 0, y1: 0, x2: 20, y2: 0, color: '#000000', thickness: 1, startType: 'STRAIGHT', endType: 'STRAIGHT' },
+      { id: 'v1', kind: 'via', layer: 'L1', x: 100, y: 48, diameter: 5, drill: 2.5, net: 'GND' },
+      { id: 'z1', kind: 'zone', layer: 'L2', points: [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 300 }], net: 'GND' },
+    );
+    const zipped = await writeBoardArchive(doc, 'board.bb', fetchBytes);
+    const entries = unzipSync(zipped);
+    // the BoardBean stays a legacy board
+    expect(strFromU8(entries['board.bb.xml'])).toContain('<type>BLANK</type>');
+    const again = readBoardArchive(zipped, 'board.bb', noLibrary).doc;
+    expect(again.type).toBe('PCB');
+    expect(again.pcb).toEqual(doc.pcb);
+    expect(again.layers.map((l) => l.role)).toEqual(doc.layers.map((l) => l.role));
+    expect(again.items.map((i) => i.kind)).toEqual(['text', 'footprint', 'track', 'line', 'via', 'zone']);
+    const fp2 = again.items[1];
+    expect(fp2.kind === 'footprint' && fp2.nets).toEqual({ '1': 'GND', '2': 'N1' });
+    expect(again.items[2].layer).toBe(again.layers[2].id);
+    // without the extension (BlackBoard 1.x/2.x view) only the legacy items remain
+    delete entries['bbnext/document.json'];
+    const { zipSync } = await import('fflate');
+    const legacy = readBoardArchive(zipSync(entries), 'board.bb', noLibrary).doc;
+    expect(legacy.type).toBe('BLANK');
+    expect(legacy.items.map((i) => i.kind)).toEqual(['text', 'line']);
+  });
 });

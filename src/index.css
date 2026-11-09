@@ -184,3 +184,21 @@ input[type='checkbox'] {
     stroke-dasharray: none;
   }
 }
+
+/* live values: dots running along the wires in the direction of the current */
+@keyframes bb-flow {
+  from {
+    stroke-dashoffset: 16;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.bb-flow {
+  animation: bb-flow 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-flow {
+    animation: none;
+  }
+}

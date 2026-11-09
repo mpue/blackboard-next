@@ -3,6 +3,7 @@ import { isBoardLayer } from '../model/types.ts';
 import { BoardBackground } from './BoardBackground.tsx';
 import { ItemView } from './ItemView.tsx';
 import type { Settings } from '../store/store.ts';
+import { PcbView } from './PcbView.tsx';
 
 /** Static rendering used for SVG/PNG export and printing. */
 export function DocumentSvg({ doc, settings, mirror }: { doc: Doc; settings: Settings; mirror: boolean }) {
@@ -10,7 +11,8 @@ export function DocumentSvg({ doc, settings, mirror }: { doc: Doc; settings: Set
   return (
     <svg xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" width={doc.width} height={doc.height} viewBox={`0 0 ${doc.width} ${doc.height}`}>
       <g transform={mirror ? `translate(${doc.width} 0) scale(-1 1)` : undefined}>
-        {[...doc.layers].reverse().map((layer) => {
+        {doc.type === 'PCB' && <PcbView doc={doc} idPrefix="x" mirror={mirror} opts={{ ...flags, realistic: settings.pcbRealistic, zoom: 1 }} />}
+        {doc.type !== 'PCB' && [...doc.layers].reverse().map((layer) => {
           if (!layer.visible) return null;
           return (
             <g key={layer.id} opacity={isBoardLayer(layer) ? 1 : layer.opacity}>

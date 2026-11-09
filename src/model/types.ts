@@ -4,7 +4,7 @@
 export const RASTER = 16;
 export const MM_PER_UNIT = 2.54 / RASTER;
 
-export type BoardType = 'HOLES' | 'STRIPES' | 'BLANK' | 'SCHEMATICS' | 'CUSTOM';
+export type BoardType = 'HOLES' | 'STRIPES' | 'BLANK' | 'SCHEMATICS' | 'CUSTOM' | 'PCB';
 export type EdgeType = 'STRAIGHT' | 'ROUND_DOT' | 'SIMPLE_ARROW';
 export type ShapeStyle = 'OUTLINED' | 'FILLED' | 'OUTLINED_FILLED';
 export type TextType = 'TEXT' | 'NAME' | 'VALUE' | 'SPICE_DIRECTIVE' | 'CONTROL';
@@ -189,9 +189,120 @@ export interface SymbolItem extends ItemBase, Omit<SymbolDef, 'name' | 'value'> 
   symbolName: string;
 }
 
-export type Item = LineItem | BoxItem | EllipseItem | TextItem | ResistorItem | DiodeItem | PartItem | SymbolItem;
+// ---- printed circuit boards ------------------------------------------------------
+//
+// PCB geometry uses board units as well (floats; see src/pcb/units.ts for mm and
+// mil conversions). Footprints are embedded into the document like symbols, so a
+// board stays self contained. Angles are degrees, clockwise (y points down).
+
+export type CopperSide = 'top' | 'bottom';
+export type PadShape = 'circle' | 'rect' | 'oval' | 'roundrect';
+
+export interface PadDef {
+  /** pad number as in the datasheet: "1", "2", "A1" */
+  num: string;
+  /** optional function, e.g. "B"/"C"/"E": symbol pins are then mapped by name */
+  name?: string;
+  /** centre in footprint coordinates */
+  x: number;
+  y: number;
+  shape: PadShape;
+  /** copper size */
+  w: number;
+  h: number;
+  rotation?: number;
+  /** corner radius as a fraction of the smaller side (roundrect), 0..0.5 */
+  roundness?: number;
+  /** plated through hole diameter; without a drill the pad is SMD on the footprint side */
+  drill?: number;
+  /** non plated hole without copper (mounting holes) */
+  npth?: boolean;
+}
+
+export type FootprintGraphic =
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; width: number }
+  | { kind: 'rect'; x: number; y: number; w: number; h: number; width: number }
+  | { kind: 'circle'; cx: number; cy: number; r: number; width: number; fill?: boolean }
+  /** start and sweep in degrees, clockwise from +x */
+  | { kind: 'arc'; cx: number; cy: number; r: number; start: number; sweep: number; width: number }
+  | { kind: 'poly'; pts: { x: number; y: number }[]; width: number; fill?: boolean };
+
+export interface FootprintDef {
+  /** library id, e.g. "DIP-8_W7.62mm" */
+  id: string;
+  name: string;
+  description: string;
+  /** library group, e.g. "DIP", "Resistors THT", "Chip SMD" */
+  category: string;
+  /** THT footprints have their origin on pad 1, SMD footprints in the body centre */
+  pads: PadDef[];
+  /** silkscreen in footprint coordinates */
+  silk: FootprintGraphic[];
+  /** body outline incl. clearance, used for placement and overlap checks */
+  courtyard: { x: number; y: number; w: number; h: number };
+  /** reference designator text position */
+  refPos?: { x: number; y: number };
+  /** search keywords */
+  tags?: string[];
+}
+
+export interface FootprintItem extends ItemBase {
+  kind: 'footprint';
+  /** origin in world coordinates */
+  x: number;
+  y: number;
+  rotation: number;
+  /** bottom side footprints are mirrored (seen through the board from the top) */
+  side: CopperSide;
+  /** designator, links the footprint to the schematic symbol */
+  name: string;
+  value: string;
+  footprint: FootprintDef;
+  /** pad number -> net name */
+  nets: Record<string, string>;
+  /** designator position relative to the origin (unrotated); default footprint.refPos */
+  refOffset?: { x: number; y: number };
+}
+
+export interface TrackItem extends ItemBase {
+  kind: 'track';
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  width: number;
+  /** the copper layer is the item layer (role top-copper / bottom-copper) */
+  net?: string;
+}
+
+export interface ViaItem extends ItemBase {
+  kind: 'via';
+  x: number;
+  y: number;
+  diameter: number;
+  drill: number;
+  net?: string;
+}
+
+export interface ZoneItem extends ItemBase {
+  kind: 'zone';
+  /** outline, closed implicitly */
+  points: { x: number; y: number }[];
+  net: string;
+  /** copper clearance to other nets; default: design rules */
+  clearance?: number;
+  /** pads of the zone net: thermal relief spokes or solid connection */
+  connect?: 'thermal' | 'solid';
+  priority?: number;
+}
+
+export type PcbItem = FootprintItem | TrackItem | ViaItem | ZoneItem;
+
+export type Item = LineItem | BoxItem | EllipseItem | TextItem | ResistorItem | DiodeItem | PartItem | SymbolItem | PcbItem;
 export type ItemKind = Item['kind'];
-export type TwoPointItem = LineItem | ResistorItem | DiodeItem;
+export type TwoPointItem = LineItem | ResistorItem | DiodeItem | TrackItem;
+
+export type LayerRole = 'top-copper' | 'bottom-copper' | 'top-silk' | 'bottom-silk' | 'outline';
 
 export interface Layer {
   id: string;
@@ -200,6 +311,33 @@ export interface Layer {
   locked: boolean;
   opacity: number;
   color: string;
+  /** physical meaning on PCBs */
+  role?: LayerRole;
+}
+
+export interface DesignRules {
+  /** copper to copper of different nets */
+  clearance: number;
+  trackWidth: number;
+  /** tracks of supply nets (GND, VCC, +5V …) */
+  powerTrackWidth: number;
+  viaDiameter: number;
+  viaDrill: number;
+  minTrackWidth: number;
+  minDrill: number;
+  minAnnularRing: number;
+  /** copper to board edge */
+  edgeClearance: number;
+  /** single sided boards (home etching) only use the bottom copper */
+  copperLayers: 1 | 2;
+}
+
+export interface PcbSettings {
+  rules: DesignRules;
+  /** file name of the schematic the board was created from */
+  schematic?: string;
+  /** rounded board corners */
+  cornerRadius?: number;
 }
 
 export interface Doc {
@@ -212,12 +350,23 @@ export interface Doc {
   items: Item[];
   parts: Record<string, PartDef>;
   backgroundImage?: string;
+  /** only on PCB documents */
+  pcb?: PcbSettings;
 }
 
 export function isBoardLayer(l: Layer): boolean {
-  return l.name.toLowerCase() === 'board';
+  return l.role === 'outline' || l.name.toLowerCase() === 'board';
 }
 
 export function isTwoPoint(i: Item): i is TwoPointItem {
-  return i.kind === 'line' || i.kind === 'resistor' || i.kind === 'diode';
+  return i.kind === 'line' || i.kind === 'resistor' || i.kind === 'diode' || i.kind === 'track';
+}
+
+/** Circuit diagrams: schematics, and older boards drawn with symbols (often typed BLANK). */
+export function isSchematicDoc(doc: Doc): boolean {
+  return doc.type === 'SCHEMATICS' || (doc.type !== 'PCB' && doc.items.some((i) => i.kind === 'symbol'));
+}
+
+export function isPcbItem(i: Item): i is PcbItem {
+  return i.kind === 'footprint' || i.kind === 'track' || i.kind === 'via' || i.kind === 'zone';
 }

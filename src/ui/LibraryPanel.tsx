@@ -1,16 +1,18 @@
-import { memo, useDeferredValue, useMemo, useState } from 'react';
+import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, Search, Trash2, Copy } from 'lucide-react';
-import { setLibrary, startPlacement, toast, useStore, type Placement } from '../store/store.ts';
+import { activeDoc, setLibrary, startPlacement, toast, useStore, type Placement } from '../store/store.ts';
 import { setDragPayload } from '../editor/dragPayload.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
-import type { PartDef, SpiceModel, SymbolDef } from '../model/types.ts';
+import type { FootprintDef, PartDef, SpiceModel, SymbolDef } from '../model/types.ts';
+import { FOOTPRINT_CATEGORIES, FOOTPRINTS, searchFootprints } from '../pcb/footprints/index.ts';
+import { footprintBoundsLocal, FootprintThumb } from './FootprintThumb.tsx';
 import { ShapeView } from '../render/shapes.tsx';
 import { inflate, shapeBounds, unionRect, type Rect } from '../geometry/geom.ts';
 import { saveUserSymbols } from '../platform/persist.ts';
 import { INSTRUMENT_DEFS } from '../spice/instruments.ts';
 import { cx, IconButton } from './primitives.tsx';
 
-type Tab = 'parts' | 'symbols' | 'models';
+type Tab = 'parts' | 'symbols' | 'models' | 'footprints';
 
 // The shipped library has ~70 package types; they are folded into a few shelves.
 const SHELVES: [RegExp, string][] = [
@@ -44,11 +46,19 @@ export function LibraryPanel() {
   const [query, setQuery] = useState('');
   const q = useDeferredValue(query.trim().toLowerCase());
   const lib = useStore((s) => s.library);
-  const tabs: [Tab, I18nKey, number][] = [
-    ['parts', 'lib.parts', lib.parts.length],
-    ['symbols', 'lib.symbols', lib.symbols.length + lib.userSymbols.length],
-    ['models', 'lib.models', lib.models.length],
-  ];
+  const pcb = useStore((s) => activeDoc(s)?.doc.type === 'PCB');
+  // PCBs are built from footprints; the other documents from parts and symbols
+  useEffect(() => setTab((cur) => (pcb ? 'footprints' : cur === 'footprints' ? 'parts' : cur)), [pcb]);
+  const tabs: [Tab, I18nKey, number][] = pcb
+    ? [
+        ['footprints', 'lib.footprints', FOOTPRINTS.length],
+        ['models', 'lib.models', lib.models.length],
+      ]
+    : [
+        ['parts', 'lib.parts', lib.parts.length],
+        ['symbols', 'lib.symbols', lib.symbols.length + lib.userSymbols.length],
+        ['models', 'lib.models', lib.models.length],
+      ];
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r border-line bg-panel" aria-label={t('view.leftPanel')}>
       <div className="flex gap-1 border-b border-line p-1.5" role="tablist">
@@ -72,7 +82,9 @@ export function LibraryPanel() {
         </div>
       </div>
       <div className="bb-scroll min-h-0 flex-1 overflow-y-auto">
-        {!lib.loaded ? (
+        {tab === 'footprints' ? (
+          <FootprintsList q={q} />
+        ) : !lib.loaded ? (
           <p className="p-4 text-muted">{lib.error ?? t('lib.loading')}</p>
         ) : tab === 'parts' ? (
           <PartsList parts={lib.parts} q={q} />
@@ -101,7 +113,21 @@ function Group({ title, count, children, defaultOpen }: { title: string; count: 
   );
 }
 
-function Tile({ title, subtitle, placement, children, onRemove }: { title: string; subtitle?: string; placement: Placement; children: React.ReactNode; onRemove?: () => void }) {
+function Tile({
+  title,
+  subtitle,
+  placement,
+  children,
+  onRemove,
+  dark,
+}: {
+  title: string;
+  subtitle?: string;
+  placement: Placement;
+  children: React.ReactNode;
+  onRemove?: () => void;
+  dark?: boolean;
+}) {
   const active = useStore((s) => s.tool === 'place' && s.placement !== null && samePlacement(s.placement, placement));
   return (
     <div className="group relative">
@@ -120,7 +146,7 @@ function Tile({ title, subtitle, placement, children, onRemove }: { title: strin
           active ? 'border-accent bg-accent-soft' : 'border-line bg-panel-2 hover:border-accent/50 hover:bg-hover',
         )}
       >
-        <div className="flex min-h-0 w-full flex-1 items-center justify-center rounded-md bg-white/90 p-1 dark:bg-white/[0.92]">{children}</div>
+        <div className={cx('flex min-h-0 w-full flex-1 items-center justify-center rounded-md p-1', dark ? 'bg-[#0f1913]' : 'bg-white/90 dark:bg-white/[0.92]')}>{children}</div>
         <span className="w-full truncate text-[10.5px] leading-tight">{title}</span>
       </button>
       {onRemove && (
@@ -135,8 +161,33 @@ function Tile({ title, subtitle, placement, children, onRemove }: { title: strin
 function samePlacement(a: Placement, b: Placement) {
   if (a.kind === 'part' && b.kind === 'part') return a.ref === b.ref;
   if (a.kind === 'symbol' && b.kind === 'symbol') return a.def === b.def;
+  if (a.kind === 'footprint' && b.kind === 'footprint') return a.def.id === b.def.id;
   return false;
 }
+
+const FootprintsList = memo(function FootprintsList({ q }: { q: string }) {
+  const t = useT();
+  const groups = useMemo(() => {
+    const list = q ? searchFootprints(q) : FOOTPRINTS;
+    const m = new Map<string, FootprintDef[]>();
+    for (const f of list) m.set(f.category, [...(m.get(f.category) ?? []), f]);
+    return [...m.entries()].sort((a, b) => FOOTPRINT_CATEGORIES.indexOf(a[0]) - FOOTPRINT_CATEGORIES.indexOf(b[0]));
+  }, [q]);
+  if (!groups.length) return <p className="p-4 text-muted">{t('lib.empty')}</p>;
+  return (
+    <>
+      {groups.map(([cat, list]) => (
+        <Group key={cat} title={t(`fpcat.${cat}` as I18nKey)} count={list.length} defaultOpen={!!q}>
+          {list.map((f) => (
+            <Tile key={f.id} title={f.name} subtitle={f.description} placement={{ kind: 'footprint', def: f }} dark>
+              <FootprintThumb def={f} box={footprintBoundsLocal(f)} />
+            </Tile>
+          ))}
+        </Group>
+      ))}
+    </>
+  );
+});
 
 const PartsList = memo(function PartsList({ parts, q }: { parts: PartDef[]; q: string }) {
   const t = useT();

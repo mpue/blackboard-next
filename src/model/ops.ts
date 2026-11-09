@@ -12,10 +12,17 @@ export function translateItem(it: Item, dx: number, dy: number): void {
     case 'line':
     case 'resistor':
     case 'diode':
+    case 'track':
       it.x1 += dx;
       it.y1 += dy;
       it.x2 += dx;
       it.y2 += dy;
+      break;
+    case 'zone':
+      for (const p of it.points) {
+        p.x += dx;
+        p.y += dy;
+      }
       break;
     default:
       it.x += dx;
@@ -41,7 +48,8 @@ export function rotateItem(doc: Doc, it: Item, deg: number, center: Pt, snap: bo
   switch (it.kind) {
     case 'line':
     case 'resistor':
-    case 'diode': {
+    case 'diode':
+    case 'track': {
       const a = rot({ x: it.x1, y: it.y1 });
       const b = rot({ x: it.x2, y: it.y2 });
       it.x1 = a.x;
@@ -60,7 +68,8 @@ export function rotateItem(doc: Doc, it: Item, deg: number, center: Pt, snap: bo
     }
     case 'text':
     case 'part':
-    case 'symbol': {
+    case 'symbol':
+    case 'footprint': {
       const o = rot({ x: it.x, y: it.y });
       it.x = o.x;
       it.y = o.y;
@@ -68,8 +77,18 @@ export function rotateItem(doc: Doc, it: Item, deg: number, center: Pt, snap: bo
       it.rotation = r > 180 ? r - 360 : r;
       break;
     }
+    case 'via': {
+      const o = rot({ x: it.x, y: it.y });
+      it.x = o.x;
+      it.y = o.y;
+      break;
+    }
+    case 'zone':
+      it.points = it.points.map(rot);
+      break;
   }
-  if (snap) snapItem(doc, it);
+  // PCB items keep their fine positions; only legacy items snap to the hole raster
+  if (snap && doc.type !== 'PCB') snapItem(doc, it);
 }
 
 /** Moves an item so its first pin (or reference point) lies on the raster. */
@@ -77,13 +96,14 @@ export function snapItem(doc: Doc, it: Item): void {
   const pins = itemPins(it, partLookup(doc));
   let ref: Pt;
   if (pins.length) ref = pins[0];
-  else if (it.kind === 'line') ref = { x: it.x1, y: it.y1 };
+  else if (it.kind === 'line' || it.kind === 'track') ref = { x: it.x1, y: it.y1 };
   else if (it.kind === 'resistor' || it.kind === 'diode') ref = { x: it.x1, y: it.y1 };
+  else if (it.kind === 'zone') ref = it.points[0] ?? { x: 0, y: 0 };
   else ref = { x: it.x, y: it.y };
   const dx = snapTo(ref.x, RASTER / 2) - ref.x;
   const dy = snapTo(ref.y, RASTER / 2) - ref.y;
   if (Math.abs(dx) > 1e-6 || Math.abs(dy) > 1e-6) translateItem(it, dx, dy);
-  if (it.kind === 'line' || it.kind === 'resistor' || it.kind === 'diode') {
+  if (it.kind === 'line' || it.kind === 'resistor' || it.kind === 'diode' || it.kind === 'track') {
     it.x2 = snapTo(it.x2, RASTER / 2);
     it.y2 = snapTo(it.y2, RASTER / 2);
   }
@@ -96,11 +116,29 @@ export function flipItem(it: Item, horizontal: boolean, center: Pt): void {
     case 'line':
     case 'resistor':
     case 'diode':
+    case 'track':
       it.x1 = fx(it.x1);
       it.x2 = fx(it.x2);
       it.y1 = fy(it.y1);
       it.y2 = fy(it.y2);
       break;
+    case 'via':
+      it.x = fx(it.x);
+      it.y = fy(it.y);
+      break;
+    case 'zone':
+      it.points = it.points.map((p) => ({ x: fx(p.x), y: fy(p.y) }));
+      break;
+    case 'footprint': {
+      // flipping a footprint moves it to the other board side (mirrored); the
+      // caller moves it onto the matching copper layer
+      it.side = it.side === 'top' ? 'bottom' : 'top';
+      it.rotation = normDeg(horizontal ? -it.rotation : 180 - it.rotation);
+      if (it.rotation > 180) it.rotation -= 360;
+      it.x = fx(it.x);
+      it.y = fy(it.y);
+      break;
+    }
     case 'box':
     case 'ellipse':
       if (horizontal) it.x = 2 * center.x - it.x - it.w;
@@ -158,7 +196,7 @@ export function cloneItems(doc: Doc, items: Item[], dx: number, dy: number, renu
     const it = structuredClone(src);
     it.id = uid();
     translateItem(it, dx, dy);
-    if (renumber && (it.kind === 'part' || it.kind === 'resistor' || it.kind === 'diode' || it.kind === 'symbol') && DESIGNATOR_RE.test(it.name)) {
+    if (renumber && (it.kind === 'part' || it.kind === 'resistor' || it.kind === 'diode' || it.kind === 'symbol' || it.kind === 'footprint') && DESIGNATOR_RE.test(it.name)) {
       it.name = nextDesignator(working, designatorPrefix(it.name));
     }
     working.items.push(it);

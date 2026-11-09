@@ -6,6 +6,7 @@ import { symbolItemFromDef } from '../io/legacy.ts';
 import { snapTo, type Pt } from '../geometry/geom.ts';
 import type { Placement } from '../store/store.ts';
 import { INSTRUMENT_PREFIX, instrumentOf } from '../spice/instruments.ts';
+import { makeFootprintItem, sideForLayer } from '../pcb/place.ts';
 
 export function partsLayer(doc: Doc, current: string): string {
   if (doc.type === 'SCHEMATICS') return current;
@@ -47,8 +48,20 @@ export function designatorForSymbol(def: SymbolDef): string {
   }
 }
 
-export function makePlacedItem(doc: Doc, placement: Placement, at: Pt, layer: string, snap: boolean, parts: (ref: string) => PartDef | undefined): Item | undefined {
+export function makePlacedItem(
+  doc: Doc,
+  placement: Placement,
+  at: Pt,
+  layer: string,
+  snap: boolean,
+  parts: (ref: string) => PartDef | undefined,
+  snapStep = RASTER,
+): Item | undefined {
   const s = (v: number) => (snap ? snapTo(v, RASTER) : Math.round(v));
+  if (placement.kind === 'footprint') {
+    const fine = (v: number) => (snap ? snapTo(v, snapStep) : v);
+    return makeFootprintItem(doc, placement.def, fine(at.x), fine(at.y), sideForLayer(doc, layer));
+  }
   if (placement.kind === 'part') {
     const def = parts(placement.ref);
     if (!def) return undefined;

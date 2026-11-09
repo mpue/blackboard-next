@@ -5,6 +5,8 @@ import { useStore, updateSettings, activeDoc } from '../store/store.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { Button, IconButton, cx } from './primitives.tsx';
 import { Logo } from './Logo.tsx';
+import { useLive } from '../store/live.ts';
+import { isSchematicDoc } from '../model/types.ts';
 
 type MenuEntry = Command | 'sep' | { radio: string; checked: boolean; run: () => void };
 
@@ -45,8 +47,12 @@ function useMenus(): { title: I18nKey; items: MenuEntry[] }[] {
         { radio: 'English', checked: settings.lang === 'en', run: () => updateSettings({ lang: 'en' }) },
       ],
     },
-    { title: 'menu.board', items: [c.boardProps, 'sep', c.simulate, c.check, c.exportNetlist] },
-    { title: 'menu.tools', items: [c.select, c.pan, c.wire, c.resistor, c.diode, c.box, c.ellipse, c.text, c.measure, c.check] },
+    { title: 'menu.board', items: [c.boardProps, 'sep', c.simulate, c.live, c.check, c.exportNetlist] },
+    {
+      title: 'menu.pcb',
+      items: [c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
+    },
+    { title: 'menu.tools', items: [c.select, c.pan, c.wire, c.resistor, c.diode, c.box, c.ellipse, c.text, c.measure, c.check, 'sep', c.track, c.via, c.zone] },
     { title: 'menu.help', items: [c.shortcuts, c.about] },
   ];
 }
@@ -111,6 +117,13 @@ export function TopBar() {
   const theme = useStore((s) => s.settings.theme);
   const lang = useStore((s) => s.settings.lang);
   const hasDoc = useStore((s) => !!s.active);
+  const docType = useStore((s) => activeDoc(s)?.doc.type);
+  const schematic = useStore((s) => {
+    const d = activeDoc(s)?.doc;
+    return !!d && isSchematicDoc(d);
+  });
+  const liveOn = useLive((s) => s.on);
+  const liveStatus = useLive((s) => s.status);
   useStore((s) => activeDoc(s));
   useStore((s) => s.settings);
 
@@ -171,9 +184,26 @@ export function TopBar() {
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <IconButton icon={Languages} className="max-sm:hidden" label={t('view.language')} onClick={() => updateSettings({ lang: lang === 'de' ? 'en' : 'de' })} />
         <IconButton icon={ThemeIcon} className="max-sm:hidden" label={`${t('view.theme')}: ${t(`view.theme.${theme}`)}`} onClick={() => updateSettings({ theme: nextTheme })} />
-        <Button variant="primary" icon={Activity} disabled={!hasDoc} onClick={() => runCommand(commands.simulate)} title={`${t('board.simulate')} (F5)`}>
-          <span className="hidden md:inline">{t('sim.run')}</span>
-        </Button>
+        {schematic && (
+          <Button
+            variant={liveOn ? 'primary' : 'ghost'}
+            icon={commands.live.icon}
+            onClick={() => runCommand(commands.live)}
+            title={`${t('live.toggle')} (Shift+L)${liveOn ? ` · ${t('hint.live')}` : ''}`}
+            className={cx(liveStatus === 'running' && '[&_svg]:animate-pulse')}
+          >
+            <span className="hidden md:inline">{t('live.short')}</span>
+          </Button>
+        )}
+        {docType === 'PCB' ? (
+          <Button variant="primary" icon={commands.drc.icon} onClick={() => runCommand(commands.drc)} title={`${t('pcb.drc')} (Shift+D)`}>
+            <span className="hidden md:inline">DRC</span>
+          </Button>
+        ) : (
+          <Button variant="primary" icon={Activity} disabled={!hasDoc} onClick={() => runCommand(commands.simulate)} title={`${t('board.simulate')} (F5)`}>
+            <span className="hidden md:inline">{t('sim.run')}</span>
+          </Button>
+        )}
       </div>
     </header>
   );

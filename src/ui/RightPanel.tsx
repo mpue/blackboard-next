@@ -16,7 +16,8 @@ import {
 } from '../store/store.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import type { DiodeType, EdgeType, Item, ShapeStyle, SpiceType, SymbolItem, TextType } from '../model/types.ts';
-import { isBoardLayer, MM_PER_UNIT } from '../model/types.ts';
+import { isBoardLayer, isPcbItem, MM_PER_UNIT } from '../model/types.ts';
+import { PcbItemFields, SymbolFootprintField } from './PcbProperties.tsx';
 import { formatOhm, parseEng } from '../model/ops.ts';
 import { resistorBands } from '../render/resistorColors.ts';
 import { Check, Field, IconButton, NumberInput, Section, Select, TextArea, TextInput, cx } from './primitives.tsx';
@@ -153,10 +154,14 @@ function ItemProperties({ item }: { item: Item }) {
     diode: 'tool.diode',
     part: 'lib.parts',
     symbol: 'lib.symbols',
+    footprint: 'pcb.footprint',
+    track: 'pcb.track',
+    via: 'pcb.via',
+    zone: 'pcb.zone',
   };
   return (
     <Section title={`${t('props.title')} · ${t(kindLabel[item.kind])}`}>
-      {(item.kind === 'part' || item.kind === 'resistor' || item.kind === 'diode' || item.kind === 'symbol') && (
+      {(item.kind === 'part' || item.kind === 'resistor' || item.kind === 'diode' || item.kind === 'symbol' || item.kind === 'footprint') && (
         <Field label={t('props.name')}>
           <TextInput id="bb-prop-name" value={item.name} onCommit={(v) => set((i) => 'name' in i && (i.name = v))} />
         </Field>
@@ -259,7 +264,8 @@ function ItemProperties({ item }: { item: Item }) {
       )}
       {item.kind === 'part' && <PartFields item={item} />}
       {item.kind === 'symbol' && <SymbolFields item={item} />}
-      <LayerField items={[item]} />
+      {isPcbItem(item) && <PcbItemFields item={item} />}
+      {!isPcbItem(item) && <LayerField items={[item]} />}
     </Section>
   );
 }
@@ -320,6 +326,7 @@ function SymbolFields({ item }: { item: SymbolItem }) {
         <Check checked={item.mirrorH} onChange={(v) => set((s) => (s.mirrorH = v))} label="↔" />
         <Check checked={item.mirrorV} onChange={(v) => set((s) => (s.mirrorV = v))} label="↕" />
       </div>
+      {item.pins.length > 0 && <SymbolFootprintField item={item} />}
       <Field label={t('props.spiceType')}>
         <Select
           value={item.spiceType ?? ''}
@@ -447,7 +454,7 @@ function LayersPanel() {
       actions={
         <>
           <IconButton icon={Plus} label={t('layers.add')} className="h-6 w-6" size={14} onClick={() => addLayer(t('layers.newName', { n: layers.length + 1 }))} />
-          <IconButton icon={CopyPlus} label={t('layers.duplicate')} className="h-6 w-6" size={14} onClick={() => duplicateLayer(ds.currentLayer)} />
+          <IconButton icon={CopyPlus} label={t('layers.duplicate')} className="h-6 w-6" size={14} disabled={!!current?.role} onClick={() => duplicateLayer(ds.currentLayer)} />
           <IconButton icon={ArrowUp} label={t('layers.up')} className="h-6 w-6" size={14} onClick={() => moveLayer(ds.currentLayer, -1)} />
           <IconButton icon={ArrowDown} label={t('layers.down')} className="h-6 w-6" size={14} onClick={() => moveLayer(ds.currentLayer, 1)} />
           <IconButton
@@ -455,8 +462,8 @@ function LayersPanel() {
             label={t('layers.delete')}
             className="h-6 w-6"
             size={14}
-            disabled={layers.length <= 1}
-            onClick={() => current && confirm(t('layers.deleteConfirm', { name: current.name })) && deleteLayer(current.id)}
+            disabled={layers.length <= 1 || !!current?.role}
+            onClick={() => current && !current.role && confirm(t('layers.deleteConfirm', { name: current.name })) && deleteLayer(current.id)}
           />
         </>
       }

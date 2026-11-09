@@ -9,6 +9,10 @@ import { LibraryPanel } from './ui/LibraryPanel.tsx';
 import { RightPanel } from './ui/RightPanel.tsx';
 import { Dialogs, Welcome } from './ui/Dialogs.tsx';
 import { SimulationPanel } from './ui/SimulationPanel.tsx';
+import { DrcPanel } from './ui/DrcPanel.tsx';
+import { useDrc } from './ui/drcState.ts';
+import { installCrossProbing } from './editor/crossProbe.ts';
+import { installLiveUpdates } from './store/live.ts';
 import { useApplyTheme } from './ui/theme.ts';
 import { loadSession, loadUserSymbols, saveSession } from './platform/persist.ts';
 import type { PartDef, SpiceModel, SymbolDef } from './model/types.ts';
@@ -101,6 +105,11 @@ export function App() {
   const left = useStore((s) => s.settings.leftPanel);
   const right = useStore((s) => s.settings.rightPanel);
   const simOpen = useStore((s) => s.simulationOpen);
+  const drcOpen = useDrc((s) => s.open);
+  const isPcb = useStore((s) => s.docs.find((d) => d.id === s.active)?.doc.type === 'PCB');
+
+  useEffect(installCrossProbing, []);
+  useEffect(installLiveUpdates, []);
 
   useEffect(() => {
     if (window.innerWidth < 900) updateSettings({ leftPanel: false, rightPanel: false });
@@ -123,7 +132,8 @@ export function App() {
               <div className="min-h-0 flex-1">
                 <Canvas />
               </div>
-              {simOpen && <SimulationPanel key={active} />}
+              {drcOpen && isPcb && <DrcPanel />}
+              {simOpen && !isPcb && <SimulationPanel key={active} />}
             </>
           ) : (
             <Welcome />

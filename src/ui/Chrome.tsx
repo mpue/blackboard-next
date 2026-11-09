@@ -8,18 +8,28 @@ import { closeWithConfirm } from '../editor/fileActions.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { IconButton, cx } from './primitives.tsx';
 import { MM_PER_UNIT, RASTER } from '../model/types.ts';
+import { mm } from '../pcb/units.ts';
+import { PcbStatus } from './PcbStatus.tsx';
 
 export function ToolRail() {
   const t = useT();
   useStore((s) => s.tool);
   const hasDoc = useStore((s) => !!s.active);
+  const pcb = useStore((s) => activeDoc(s)?.doc.type === 'PCB');
   const c = commands;
-  const groups: Command[][] = [
-    [c.select, c.pan],
-    [c.wire, c.resistor, c.diode],
-    [c.box, c.ellipse, c.text],
-    [c.measure, c.check],
-  ];
+  const groups: Command[][] = pcb
+    ? [
+        [c.select, c.pan],
+        [c.track, c.via, c.zone],
+        [c.wire, c.box, c.ellipse, c.text],
+        [c.measure, c.check, c.drc],
+      ]
+    : [
+        [c.select, c.pan],
+        [c.wire, c.resistor, c.diode],
+        [c.box, c.ellipse, c.text],
+        [c.measure, c.check],
+      ];
   return (
     <aside className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-line bg-panel py-2" aria-label="Tools">
       {groups.map((g, i) => (
@@ -88,6 +98,9 @@ const HINTS: Record<string, I18nKey> = {
   diode: 'hint.diode',
   check: 'hint.check',
   place: 'hint.place',
+  track: 'hint.track',
+  via: 'hint.via',
+  zone: 'hint.zone',
 };
 
 function CursorReadout() {
@@ -128,12 +141,21 @@ export function StatusBar() {
           )}
           <span className="whitespace-nowrap max-sm:hidden">{t('status.items', { count: ds.doc.items.length })}</span>
           <span className={cx('whitespace-nowrap max-sm:hidden', ds.mirror && 'font-semibold text-red-500')}>{ds.mirror ? t('status.solderSide') : t('status.partsSide')}</span>
+          {ds.doc.type === 'PCB' && <PcbStatus />}
           <label className="flex items-center gap-1 whitespace-nowrap">
             {t('status.raster')}
             <select className="rounded bg-transparent text-fg outline-none" value={snapStep} onChange={(e) => updateSettings({ snapStep: Number(e.target.value) })}>
               <option value={RASTER}>1/1 (2.54 mm)</option>
-              <option value={RASTER / 2}>1/2</option>
-              <option value={RASTER / 4}>1/4</option>
+              <option value={RASTER / 2}>1/2 (1.27 mm)</option>
+              <option value={RASTER / 4}>1/4 (0.635 mm)</option>
+              {ds.doc.type === 'PCB' && (
+                <>
+                  <option value={mm(1)}>1 mm</option>
+                  <option value={mm(0.5)}>0.5 mm</option>
+                  <option value={mm(0.25)}>0.25 mm</option>
+                  <option value={mm(0.1)}>0.1 mm</option>
+                </>
+              )}
               <option value={1}>{t('status.free')}</option>
             </select>
           </label>

@@ -1,10 +1,64 @@
 // .bb files are zip archives: <name>.bb.xml (BoardBean) plus the used parts
 // (parts/<file>.xml, parts/images/<image>.png) so boards stay self contained.
+// Data BlackBoard 1.x/2.x has no beans for (PCBs: footprints, tracks, vias,
+// zones, layer roles, design rules) lives in bbnext/document.json, which the
+// old versions ignore; they still open the drawings and texts of the board.
 
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
 import { parseXml } from './xml.ts';
 import { parseBoard, parsePartDef, serializeBoard, serializePartDef } from './legacy.ts';
-import type { Doc, PartDef } from '../model/types.ts';
+import type { BoardType, Doc, Item, LayerRole, PartDef, PcbSettings } from '../model/types.ts';
+import { isPcbItem } from '../model/types.ts';
+
+const EXTENSION = 'bbnext/document.json';
+
+interface DocExtension {
+  format: 'blackboard-next';
+  version: 1;
+  /** board types the BoardBean enum does not know */
+  type?: BoardType;
+  pcb?: PcbSettings;
+  /** by layer index */
+  layerRoles?: (LayerRole | null)[];
+  /** items without a BoardBean: position in the item list (z-order) and layer index */
+  items?: { index: number; layer: number; item: Item }[];
+}
+
+/** Legacy BoardBean board types. */
+const LEGACY_TYPES: BoardType[] = ['HOLES', 'STRIPES', 'BLANK', 'SCHEMATICS', 'CUSTOM'];
+
+export function documentExtension(doc: Doc): DocExtension | undefined {
+  const ext: DocExtension = { format: 'blackboard-next', version: 1 };
+  if (!LEGACY_TYPES.includes(doc.type)) ext.type = doc.type;
+  if (doc.pcb) ext.pcb = doc.pcb;
+  if (doc.layers.some((l) => l.role)) ext.layerRoles = doc.layers.map((l) => l.role ?? null);
+  const layerIndex = new Map(doc.layers.map((l, i) => [l.id, i]));
+  const items = doc.items.flatMap((item, index) => (isPcbItem(item) ? [{ index, layer: layerIndex.get(item.layer) ?? 0, item }] : []));
+  if (items.length) ext.items = items;
+  return Object.keys(ext).length > 2 ? ext : undefined;
+}
+
+export function applyExtension(doc: Doc, ext: DocExtension): void {
+  if (ext.format !== 'blackboard-next') return;
+  if (ext.type) doc.type = ext.type;
+  if (ext.pcb) doc.pcb = ext.pcb;
+  ext.layerRoles?.forEach((role, i) => {
+    if (role && doc.layers[i]) doc.layers[i].role = role;
+  });
+  if (!ext.items?.length) return;
+  // legacy items keep their relative order and fill the gaps between the extension items
+  const total = doc.items.length + ext.items.length;
+  const slots: (Item | undefined)[] = new Array(total);
+  const rest: Item[] = [];
+  for (const e of ext.items) {
+    const item = { ...e.item, layer: doc.layers[e.layer]?.id ?? doc.layers[0].id } as Item;
+    if (e.index >= 0 && e.index < total && !slots[e.index]) slots[e.index] = item;
+    else rest.push(item);
+  }
+  let k = 0;
+  for (let i = 0; i < total && k < doc.items.length; i++) if (!slots[i]) slots[i] = doc.items[k++];
+  doc.items = [...slots.filter((i): i is Item => !!i), ...doc.items.slice(k), ...rest];
+}
 
 export interface OpenResult {
   doc: Doc;
@@ -77,6 +131,14 @@ export function readBoardArchive(
     }
   }
   const result = readBoardXml(strFromU8(files[preferred]), libraryPart, embedded);
+  const ext = files[EXTENSION];
+  if (ext) {
+    try {
+      applyExtension(result.doc, JSON.parse(strFromU8(ext)) as DocExtension);
+    } catch {
+      /* a damaged extension leaves the legacy board */
+    }
+  }
   const bg = result.doc.backgroundImage;
   if (bg) {
     const key = lower[bg.toLowerCase()];
@@ -98,13 +160,16 @@ export async function writeBoardArchive(
 ): Promise<Uint8Array> {
   const base = fileName.replace(/\.bbs?$/i, '');
   const files: Record<string, Uint8Array> = {};
-  const exported: Doc = { ...doc };
+  // the BoardBean only knows the legacy board types; PCBs open as blank boards in 1.x/2.x
+  const exported: Doc = { ...doc, type: LEGACY_TYPES.includes(doc.type) ? doc.type : 'BLANK' };
   if (doc.backgroundImage) {
     const name = `${base}_background.${doc.backgroundImage.startsWith('data:image/jpeg') ? 'jpg' : 'png'}`;
     files[name] = await loadBytes(doc.backgroundImage);
     exported.backgroundImage = name;
   }
   files[`${base}.bb.xml`] = strToU8(serializeBoard(exported));
+  const ext = documentExtension(doc);
+  if (ext) files[EXTENSION] = strToU8(JSON.stringify(ext));
   const used = new Set(doc.items.flatMap((i) => (i.kind === 'part' ? [i.ref] : [])));
   for (const ref of used) {
     const def = doc.parts[ref];
