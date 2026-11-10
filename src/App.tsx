@@ -10,6 +10,7 @@ import { RightPanel } from './ui/RightPanel.tsx';
 import { Dialogs, Welcome } from './ui/Dialogs.tsx';
 import { SimulationPanel } from './ui/SimulationPanel.tsx';
 import { DrcPanel } from './ui/DrcPanel.tsx';
+import { useCode } from './ui/codeState.ts';
 import { useDrc } from './ui/drcState.ts';
 import { installCrossProbing } from './editor/crossProbe.ts';
 import { installLiveUpdates } from './store/live.ts';
@@ -24,6 +25,8 @@ import { isDirty } from './store/store.ts';
 
 // lessons and the component guide are loaded when the learning panel opens
 const LearnPanel = lazy(() => import('./learn/LearnPanel.tsx').then((m) => ({ default: m.LearnPanel })));
+// the code editor (CodeMirror) when it is opened
+const CodePanel = lazy(() => import('./ui/CodePanel.tsx').then((m) => ({ default: m.CodePanel })));
 
 const PHONE = '(max-width: 767px)';
 
@@ -185,6 +188,7 @@ export function App() {
   const simOpen = useStore((s) => s.simulationOpen);
   const drcOpen = useDrc((s) => s.open);
   const learnOpen = useLearn((s) => s.open);
+  const codeOpen = useCode((s) => !!s.open);
   // on phones the learning panel sits below the canvas instead of beside it
   const phone = usePhone();
   const learnPanel = (
@@ -221,6 +225,11 @@ export function App() {
                 <Board3DHost />
               </div>
               {learnOpen && phone && learnPanel}
+              {codeOpen && phone && (
+                <Suspense>
+                  <CodePanel phone />
+                </Suspense>
+              )}
               {drcOpen && <DrcPanel />}
               {simOpen && !isPcb && <SimulationPanel key={active} />}
             </>
@@ -233,6 +242,11 @@ export function App() {
             </>
           )}
         </main>
+        {codeOpen && !phone && (
+          <Suspense>
+            <CodePanel phone={false} />
+          </Suspense>
+        )}
         {learnOpen && !phone && learnPanel}
         {hasDocs && right && <RightPanel />}
       </div>

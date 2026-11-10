@@ -26,8 +26,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 25_000,
   },
   worker: { format: 'es' },
-  // the server (server/) has its own tests on node:test
-  test: { exclude: ['**/node_modules/**', 'server/**', 'dist/**'] },
+  // the server (server/) and the compiler (compiler/) have their own tests on node:test
+  test: { exclude: ['**/node_modules/**', 'server/**', 'compiler/**', 'dist/**'] },
   define: { __ESP32_VERSION__: JSON.stringify(esp32Version) },
   plugins: [
     react(),

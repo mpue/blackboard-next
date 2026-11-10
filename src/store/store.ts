@@ -206,13 +206,20 @@ function updateActive(fn: (d: DocState) => DocState) {
 
 const HISTORY_LIMIT = 200;
 
+function step(ds: DocState, recipe: (d: Draft<Doc>) => void): DocState {
+  const next = produce(ds.doc, recipe);
+  if (next === ds.doc) return ds;
+  return { ...ds, doc: next, past: [...ds.past.slice(-HISTORY_LIMIT), ds.doc], future: [] };
+}
+
 /** Applies a recipe to the active document and records an undo step. */
 export function commit(recipe: (d: Draft<Doc>) => void) {
-  updateActive((ds) => {
-    const next = produce(ds.doc, recipe);
-    if (next === ds.doc) return ds;
-    return { ...ds, doc: next, past: [...ds.past.slice(-HISTORY_LIMIT), ds.doc], future: [] };
-  });
+  updateActive((ds) => step(ds, recipe));
+}
+
+/** Like commit, for any open document (the code editor writes into the tab its chip is in). */
+export function commitDoc(docId: string, recipe: (d: Draft<Doc>) => void) {
+  set((s) => ({ docs: s.docs.map((ds) => (ds.id === docId ? step(ds, recipe) : ds)) }));
 }
 
 /** Interactive gestures (drag, resize) are recorded as a single undo step. */

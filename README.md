@@ -126,6 +126,14 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
 - Firmware is an Intel HEX file (Arduino IDE: *Sketch → Export compiled binary*) or one
   of the examples (blink, push button, running light, PWM dimmer, serial echo); it is
   stored in the schematic
+- **Code editor** (*Write code (C/C++)* on an ATmega): Arduino sketches or plain C/C++
+  with `main()`, several files as tabs, templates, completion while typing (Arduino
+  functions, `Serial.`/`lcd.`/`servo.` members by the variable's type, registers, the
+  program's own functions, variables and structs), parameter help, explanations on
+  hover. *Upload* (Ctrl+Enter) compiles on the server, puts the HEX onto the chip and
+  starts the live simulation; *Verify* (Ctrl+B) only compiles. Errors are marked in the
+  text, memory use is shown, and the HEX and the source can be saved. The source is
+  stored in the chip next to its HEX
 - Coupled to ngspice through the operating point: outputs drive the circuit through
   their 25 Ω drivers, pull-ups are 35 kΩ, inputs read the node voltages (Schmitt
   trigger levels), A0–A5 feed the ADC, the chip resets below 2.7 V. PWM pins are
@@ -225,13 +233,36 @@ The landing page and the editor share one `index.html`: `./` shows the landing p
 `./?app` (and every direct link below) the editor; the desktop app always opens the
 editor.
 
-### Docker
+### Compiler (compiler/)
 
-The Dockerfile builds two images: `web` (the app, nginx unprivileged on port 8080, which
-passes `/api/` on to the API) and `api` (the server, data in `/data`).
+The code editor compiles on the server: `compiler/` is a small Node service around
+arduino-cli 1.5.1 with the Arduino AVR core 1.8.6 (avr-gcc 7.3, as in the Arduino IDE)
+and the libraries LiquidCrystal, Servo and Stepper (EEPROM, Wire, SPI and SoftwareSerial
+come with the core). `POST /compile` takes `{ files: [{ name, content }], clock }` and
+answers with the HEX, the memory use and gcc's messages. A program without a `.ino` file
+is plain C/C++ with its own `main()`. The API passes `/api/compile` on to it (at most
+`MAX_COMPILES` per visitor in ten minutes); the desktop app compiles on the public server.
+
+It compiles code from the web, so it runs in a container of its own: nothing secret in it,
+no network (an internal Docker network, only the API reaches it), read-only file system,
+`/tmp` as a small tmpfs, no capabilities, memory, CPU and process limits, at most two
+compiles at once and 45 s each. For development:
 
 ```bash
-docker compose up -d --build     # both, the app on 127.0.0.1:8080
+docker build --target compiler -t blackboard-compiler .
+docker run -d --name bb-compiler -p 127.0.0.1:8789:8789 --read-only \
+  --tmpfs /tmp:size=512m,mode=1777,noexec,nosuid --cap-drop ALL blackboard-compiler
+npm run server     # passes /api/compile on to http://localhost:8789 (COMPILER_URL)
+```
+
+### Docker
+
+The Dockerfile builds three images: `web` (the app, nginx unprivileged on port 8080, which
+passes `/api/` on to the API), `api` (the server, data in `/data`) and `compiler` (see
+above).
+
+```bash
+docker compose up -d --build     # all three, the app on 127.0.0.1:8080
 ```
 
 The app only uses relative URLs, so it also runs below a path prefix. Example for
@@ -253,7 +284,7 @@ example.org {
 Hashed assets are cached for a year, `index.html` and the service worker are always
 revalidated, so a new image reaches users on their next visit.
 
-`scripts/deploy.sh` builds both images, copies them to a server over SSH and restarts
+`scripts/deploy.sh` builds the three images, copies them to a server over SSH and restarts
 the containers there (`DEPLOY_HOST`, default `root@pueski.de`; `DEPLOY_PORT`, default
 `8210`; `DEPLOY_DIR`, default `/opt/blackboard`; `DEPLOY_ORIGIN` and `DEPLOY_PATH`,
 default `https://pueski.de` and `/blackboard`). The secrets of the API live in
@@ -283,7 +314,8 @@ npm run tauri build   # installers in src-tauri/target/release/bundle/
 ```
 library/                   the classic BlackBoard library: parts, symbols, models (XML), samples
 scripts/build-library.ts   library/ -> public/library/*.json, public/samples/
-server/                    accounts and cloud projects (Node, Better Auth, SQLite)
+server/                    accounts and cloud projects (Node, Better Auth, SQLite), /api/compile
+compiler/                  C/C++ -> Intel HEX for the ATmega328P (arduino-cli, own container)
 src/landing/               landing page, sign-in dialogs, plans, legal pages
 src/account/               auth client, cloud projects in the editor
 src/io/                    XML reader/writer, legacy BoardBean format, .bb archives, KiCad
@@ -293,7 +325,8 @@ src/render/                SVG rendering of boards, parts, symbols, resistors, d
 src/editor/                canvas interaction, commands & shortcuts, file actions
 src/spice/                 connectivity (union-find), netlist, ngspice web worker, live values
 src/mcu/                   ATmega328P on avr8js, ESP32 on esp32sim (web workers), firmware
-                           formats, examples, coupling to the operating point
+                           formats, examples, code editor sketches and compiling,
+                           coupling to the operating point
 public/esp32/              esp32sim.wasm, ESP32 mask ROM, MicroPython (scripts/build-esp32.sh)
 src/pcb/                   PCB: footprints, copper geometry, connectivity, ratsnest, DRC,
                            zones, schematic -> PCB, autorouter, fabrication outputs (fab/)
@@ -323,4 +356,6 @@ BlackBoard 1.x so `plot v(5)` in existing schematics still shows the same signal
 Third-party components keep their own licences: the part library is partly
 CC BY 3.0 (Gerd Bartelt, Andreas Kraemer); simulation: ngspice (BSD-3) via eecircuit-engine (MIT);
 microcontrollers: avr8js, esp32sim and MicroPython (MIT), see
-`public/esp32/NOTICE.txt`.
+`public/esp32/NOTICE.txt`; code editor: CodeMirror (MIT); the compiler container runs
+arduino-cli, avr-gcc, avr-libc, the Arduino AVR core and its libraries unchanged, under
+their own licences (GPL, LGPL, BSD).

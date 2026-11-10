@@ -1,7 +1,8 @@
 # docker compose up -d --build
 #
-# The app on 127.0.0.1:8080 (for a reverse proxy on the same host) and the
-# account server behind it. Secrets go into server.env next to this file (see
+# The app on 127.0.0.1:8080 (for a reverse proxy on the same host), the
+# account server behind it and the C/C++ compiler behind that (no network
+# access, only the API reaches it). Secrets go into server.env next to this file (see
 # server/.env.example); the settings under `environment` take precedence.
 services:
   blackboard:
@@ -29,8 +30,35 @@ services:
     environment:
       ORIGIN: http://localhost:8080
       PUBLIC_PATH: ""
+      COMPILER_URL: http://compiler:8789
     volumes:
       - data:/data
+    networks:
+      - default
+      - compile
+  # compiles code from the web: nothing secret inside, no way out, small limits
+  compiler:
+    build:
+      context: .
+      target: compiler
+    image: blackboard-compiler:latest
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2
+    networks:
+      - compile
+
+networks:
+  compile:
+    internal: true
 
 volumes:
   data:

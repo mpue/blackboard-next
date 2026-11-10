@@ -1,0 +1,13 @@
+{
+  "name": "blackboard-compiler",
+  "private": true,
+  "type": "module",
+  "description": "C/C++ to Intel HEX for the ATmega328P with arduino-cli, for the code editor of BlackBoard Next",
+  "scripts": {
+    "start": "node main.ts",
+    "test": "node --test *.test.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

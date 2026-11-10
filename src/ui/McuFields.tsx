@@ -2,19 +2,23 @@ import { useMemo, useState } from 'react';
 import { Activity, Code2, RotateCcw, Terminal, Trash2, Upload } from 'lucide-react';
 import type { SymbolItem } from '../model/types.ts';
 import { setLiveMode, setLiveValues, useLive } from '../store/live.ts';
-import { openMonitor, resetMcu, useMcu, type ChipState } from '../mcu/controller.ts';
+import { openMonitor, resetMcu, useMcu } from '../mcu/controller.ts';
 import { clearFirmware, loadEsp32Example, loadEsp32Image, loadExample, loadHexFile, setClock, setScript, setUsbPower } from '../mcu/firmwareActions.ts';
 import { EXAMPLES, exampleById, type ExampleId } from '../mcu/examples.ts';
 import { ESP32_EXAMPLES, esp32ExampleById, type Esp32ExampleId } from '../mcu/esp32Examples.ts';
 import { parseHex } from '../mcu/hex.ts';
 import { mcuClock, mcuFirmware, mcuKind, usbPowered } from '../mcu/pinout.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
+import { useStore } from '../store/store.ts';
+import { openCode } from './codeState.ts';
 import { Button, Check, Dialog, Field, IconButton, Select, cx } from './primitives.tsx';
 
 const CLOCKS = [1e6, 8e6, 16e6, 20e6];
 
-function Status({ item, chip }: { item: SymbolItem; chip: ChipState | undefined }) {
+/** What the chip is doing, and the step that is missing to make it run. */
+export function McuStatus({ item }: { item: SymbolItem }) {
   const t = useT();
+  const chip = useMcu((s) => s.chips[item.id]);
   const on = useLive((s) => s.on);
   const mode = useLive((s) => s.mode);
   const hex = mcuFirmware(item);
@@ -82,6 +86,7 @@ function AvrExampleInfo({ id }: { id: ExampleId }) {
 
 function AvrProgram({ item }: { item: SymbolItem }) {
   const t = useT();
+  const docId = useStore((s) => s.active);
   const hex = item.properties?.firmware;
   const name = item.properties?.firmwareName ?? '';
   const example = name.startsWith('example:') ? exampleById(name.slice(8)) : undefined;
@@ -108,9 +113,14 @@ function AvrProgram({ item }: { item: SymbolItem }) {
         />
       </Field>
       {example && <AvrExampleInfo id={example.id} />}
-      <Button icon={Upload} onClick={() => void loadHexFile(item.id)} className="self-start">
-        {t('mcu.loadHex')}
-      </Button>
+      <div className="flex flex-wrap gap-1.5">
+        <Button variant="primary" icon={Code2} onClick={() => docId && openCode(docId, item.id)}>
+          {t('mcu.writeCode')}
+        </Button>
+        <Button icon={Upload} onClick={() => void loadHexFile(item.id)}>
+          {t('mcu.loadHex')}
+        </Button>
+      </div>
       <p className="text-[11px] leading-snug text-muted">{t('mcu.hexHint')}</p>
       <Field label={t('mcu.clock')}>
         <Select value={mcuClock(item)} options={CLOCKS.map((f) => ({ value: f, label: `${f / 1e6} MHz` }))} onChange={(v) => setClock(item.id, v)} />
@@ -219,7 +229,7 @@ export function McuFields({ item }: { item: SymbolItem }) {
   const chip = useMcu((s) => s.chips[item.id]);
   return (
     <div className="grid gap-2.5 rounded-md bg-panel-2 p-2">
-      <Status item={item} chip={chip} />
+      <McuStatus item={item} />
       {mcuKind(item) === 'esp32' ? <Esp32Program item={item} /> : <AvrProgram item={item} />}
       <div className="flex flex-wrap gap-1.5">
         <Button icon={RotateCcw} onClick={() => resetMcu(item.id)} disabled={chip?.status !== 'running'}>

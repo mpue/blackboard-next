@@ -17,6 +17,10 @@ export interface Config {
   /** largest project in bytes */
   maxProjectBytes: number;
   maxProjectsPerUser: number;
+  /** the compile service (compiler/) */
+  compilerUrl: string;
+  /** compiles per visitor in ten minutes */
+  maxCompiles: number;
 }
 
 /** The session secret: from AUTH_SECRET, else made once and kept in the data directory. */
@@ -52,5 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       : undefined,
     maxProjectBytes: Number(env.MAX_PROJECT_MB ?? 8) * 1024 * 1024,
     maxProjectsPerUser: Number(env.MAX_PROJECTS ?? 200),
+    compilerUrl: (env.COMPILER_URL ?? 'http://localhost:8789').replace(/\/+$/, ''),
+    maxCompiles: Number(env.MAX_COMPILES ?? 60),
   };
 }

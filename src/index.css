@@ -16,6 +16,14 @@
   --bb-workspace-dots: #c9ced8;
   --bb-board-border: #94a3b8;
   --bb-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 4px 16px rgb(15 23 42 / 0.06);
+  /* syntax colours of the code editor */
+  --code-keyword: #7c3aed;
+  --code-type: #0e7490;
+  --code-string: #15803d;
+  --code-number: #c2410c;
+  --code-comment: #8a94a6;
+  --code-macro: #b45309;
+  --code-function: #1d4ed8;
   color-scheme: light;
 }
 
@@ -33,6 +41,13 @@
   --bb-workspace-dots: #1d2433;
   --bb-board-border: #475569;
   --bb-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+  --code-keyword: #c4b5fd;
+  --code-type: #67e8f9;
+  --code-string: #86efac;
+  --code-number: #fdba74;
+  --code-comment: #6b7689;
+  --code-macro: #fcd34d;
+  --code-function: #93c5fd;
   color-scheme: dark;
 }
 

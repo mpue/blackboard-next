@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer as createHttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { loadConfig } from './config.ts';
 import { createServer } from './main.ts';
 import type { Mail } from './mail.ts';
@@ -135,4 +137,41 @@ test('password reset by mail, and deleting the account takes the projects along'
   assert.equal(del.status, 200, await del.clone().text());
   const bobList = (await (await call(`${P}/api/projects`, { cookie: bob })).json()) as { shared: unknown[] };
   assert.deepEqual(bobList.shared, []);
+});
+
+test('compile: passed on to the compiler, limited per visitor, open to the desktop app', async () => {
+  const seen: string[] = [];
+  const fake = createHttpServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      seen.push(`${req.method} ${req.url} ${body}`);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, hex: ':00000001FF\n', diagnostics: [], log: '', ms: 1 }));
+    });
+  });
+  await new Promise<void>((r) => fake.listen(0, '127.0.0.1', r));
+  const port = (fake.address() as AddressInfo).port;
+  try {
+    const config = loadConfig({ DATA_DIR: mkdtempSync(join(tmpdir(), 'bb-')), ORIGIN, PUBLIC_PATH: P, COMPILER_URL: `http://127.0.0.1:${port}`, MAX_COMPILES: '2' });
+    const { app } = await createServer(config, { file: ':memory:', mailer: async () => {} });
+    const compile = (ip: string, origin = ORIGIN) =>
+      app.fetch(new Request(`${ORIGIN}${P}/api/compile`, { method: 'POST', headers: { origin, 'content-type': 'application/json', 'x-forwarded-for': ip }, body: '{"files":[]}' }));
+    const ok = await compile('1.2.3.4');
+    assert.equal(ok.status, 200);
+    assert.equal(((await ok.json()) as { hex: string }).hex, ':00000001FF\n');
+    assert.deepEqual(seen, ['POST /compile {"files":[]}']);
+    const desktop = await compile('1.2.3.4', 'tauri://localhost');
+    assert.equal(desktop.headers.get('access-control-allow-origin'), 'tauri://localhost');
+    assert.equal((await compile('1.2.3.4')).status, 429);
+    assert.equal((await compile('5.6.7.8', 'https://evil.example')).headers.get('access-control-allow-origin'), null);
+    const big = await app.fetch(new Request(`${ORIGIN}${P}/api/compile`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '9.9.9.9' }, body: 'x'.repeat(1024 * 1024 + 1) }));
+    assert.equal(big.status, 413);
+  } finally {
+    fake.close();
+  }
+  const offline = loadConfig({ DATA_DIR: mkdtempSync(join(tmpdir(), 'bb-')), ORIGIN, PUBLIC_PATH: P, COMPILER_URL: `http://127.0.0.1:${port}` });
+  const { app } = await createServer(offline, { file: ':memory:', mailer: async () => {} });
+  const none = await app.fetch(new Request(`${ORIGIN}${P}/api/compile`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }));
+  assert.equal(none.status, 503);
 });
