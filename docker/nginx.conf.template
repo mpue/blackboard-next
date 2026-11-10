@@ -1,3 +1,12 @@
+# the visitor's address for the API, as a single address: the reverse proxy in
+# front (Caddy) puts it into X-Forwarded-For; without a proxy it is the address
+# the request came from. Better Auth limits sign-in attempts per address and
+# ignores a list of several.
+map $http_x_forwarded_for $client_ip {
+    ""      $remote_addr;
+    default $http_x_forwarded_for;
+}
+
 server {
     listen 8080;
     listen [::]:8080;
@@ -25,7 +34,7 @@ server {
         proxy_pass $api$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $client_ip;
         proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
         # projects of up to MAX_PROJECT_MB (8 MB) are uploaded in one piece
         client_max_body_size 10m;
