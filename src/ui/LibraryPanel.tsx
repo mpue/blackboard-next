@@ -15,6 +15,7 @@ import { inflate, shapeBounds, unionRect, type Rect } from '../geometry/geom.ts'
 import { saveUserSymbols } from '../platform/persist.ts';
 import { INSTRUMENT_DEFS } from '../spice/instruments.ts';
 import { LABEL_DEFS } from '../spice/labels.ts';
+import { BUILTIN_SYMBOLS } from '../spice/builtinSymbols.ts';
 import { cx, IconButton } from './primitives.tsx';
 
 type Tab = 'parts' | 'symbols' | 'models' | 'footprints';
@@ -277,7 +278,7 @@ const SymbolsList = memo(function SymbolsList({ symbols, user, q }: { symbols: S
   const t = useT();
   const groups = useMemo(() => {
     const m = new Map<string, SymbolDef[]>();
-    for (const s of [...Object.values(INSTRUMENT_DEFS), ...LABEL_DEFS, ...user.map((u) => ({ ...u, category: 'User' })), ...symbols]) {
+    for (const s of [...Object.values(INSTRUMENT_DEFS), ...LABEL_DEFS, ...BUILTIN_SYMBOLS, ...user.map((u) => ({ ...u, category: 'User' })), ...symbols]) {
       if (q && !`${s.name} ${s.value} ${s.category} ${s.spiceType ?? ''} ${s.filename ?? ''}`.toLowerCase().includes(q)) continue;
       m.set(s.category, [...(m.get(s.category) ?? []), s]);
     }

@@ -22,6 +22,7 @@ function anchorOffset(pins: Pin[], w: number, h: number): Pt {
 export function designatorForSymbol(def: SymbolDef): string {
   const instrument = instrumentOf({ kind: 'symbol', properties: def.properties });
   if (instrument) return INSTRUMENT_PREFIX[instrument];
+  if (def.properties?.prefix) return def.properties.prefix;
   const fromName = /^([A-Z]{1,3})\d*$/.exec(def.name)?.[1];
   if (fromName && fromName !== 'GND' && fromName !== 'VCC') return fromName;
   switch (def.spiceType) {
