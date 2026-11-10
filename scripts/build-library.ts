@@ -1,5 +1,5 @@
-// Converts the classic BlackBoard library (parts/, symbols/, models/, samples/
-// in the repository root) into compact JSON bundles under public/library.
+// Converts the classic BlackBoard library (library/parts, symbols, models,
+// samples) into compact JSON bundles under public/library.
 // Runs with plain Node (>= 23.6, native TypeScript type stripping).
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, existsSync, statSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { normalizeCategory, parseModelFile, parsePartDef, parseSymbolBean } from
 import type { PartDef, SpiceModel, SymbolDef } from '../src/model/types.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repo = join(here, '..', '..');
+const src = join(here, '..', 'library');
 const out = join(here, '..', 'public');
 const lib = join(out, 'library');
 
@@ -26,18 +26,18 @@ function warn(msg: string) {
 mkdirSync(join(lib, 'parts', 'images'), { recursive: true });
 
 // ---- parts ----------------------------------------------------------------------
-const partImages = new Map(readdirSync(join(repo, 'parts', 'images')).map((f) => [f.toLowerCase(), f]));
+const partImages = new Map(readdirSync(join(src, 'parts', 'images')).map((f) => [f.toLowerCase(), f]));
 const parts: PartDef[] = [];
-for (const file of xmlFiles(join(repo, 'parts'))) {
+for (const file of xmlFiles(join(src, 'parts'))) {
   try {
-    const def = parsePartDef(parseXml(readFileSync(join(repo, 'parts', file), 'utf8')), file, (img) => `library/parts/images/${img}`);
+    const def = parsePartDef(parseXml(readFileSync(join(src, 'parts', file), 'utf8')), file, (img) => `library/parts/images/${img}`);
     // the library was maintained on Windows, image names are case insensitive there
     const actual = partImages.get(def.imageName.toLowerCase());
     if (!def.imageName || !actual) {
       warn(`part ${file}: image ${def.imageName} missing`);
       continue;
     }
-    copyFileSync(join(repo, 'parts', 'images', actual), join(lib, 'parts', 'images', def.imageName));
+    copyFileSync(join(src, 'parts', 'images', actual), join(lib, 'parts', 'images', def.imageName));
     parts.push(def);
   } catch (e) {
     warn(`part ${file}: ${(e as Error).message}`);
@@ -72,10 +72,10 @@ function ensureLabels(def: SymbolDef): void {
 }
 
 const symbols: SymbolDef[] = [];
-for (const file of xmlFiles(join(repo, 'symbols'))) {
+for (const file of xmlFiles(join(src, 'symbols'))) {
   if (file === 'symbol.xsd') continue;
   try {
-    const { def } = parseSymbolBean(parseXml(readFileSync(join(repo, 'symbols', file), 'utf8')));
+    const { def } = parseSymbolBean(parseXml(readFileSync(join(src, 'symbols', file), 'utf8')));
     def.filename = file;
     def.category = normalizeCategory(def.category);
     if (!def.name) def.name = file.replace(/\.xml$/i, '');
@@ -89,9 +89,9 @@ writeFileSync(join(lib, 'symbols.json'), JSON.stringify(symbols));
 
 // ---- SPICE models -----------------------------------------------------------------
 const models: SpiceModel[] = [];
-for (const file of xmlFiles(join(repo, 'models'))) {
+for (const file of xmlFiles(join(src, 'models'))) {
   try {
-    const m = parseModelFile(parseXml(readFileSync(join(repo, 'models', file), 'utf8')), file);
+    const m = parseModelFile(parseXml(readFileSync(join(src, 'models', file), 'utf8')), file);
     m.filename = file;
     models.push(m);
   } catch (e) {
@@ -104,7 +104,7 @@ writeFileSync(join(lib, 'models.json'), JSON.stringify(models));
 const samplesOut = join(out, 'samples');
 const samples: { group: string; file: string; size: number }[] = [];
 for (const group of ['boards', 'schematics']) {
-  const dir = join(repo, 'samples', group);
+  const dir = join(src, 'samples', group);
   if (!existsSync(dir)) continue;
   mkdirSync(join(samplesOut, group), { recursive: true });
   for (const file of readdirSync(dir).filter((f) => /\.bb$/i.test(f)).sort()) {

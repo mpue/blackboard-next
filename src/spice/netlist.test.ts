@@ -6,7 +6,7 @@ import { buildNetlist, spiceValue } from './netlist.ts';
 import { computeConnectivity } from './connectivity.ts';
 import type { SpiceModel } from '../model/types.ts';
 
-const samples = join(import.meta.dirname, '..', '..', '..', 'samples');
+const samples = join(import.meta.dirname, '..', '..', 'library', 'samples');
 const models: SpiceModel[] = JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', 'public', 'library', 'models.json'), 'utf8'));
 const load = (group: string, file: string) => readBoardArchive(new Uint8Array(readFileSync(join(samples, group, file))), file, () => undefined).doc;
 

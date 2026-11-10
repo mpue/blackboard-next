@@ -421,7 +421,7 @@ describe('annotate', () => {
 // ---- samples ---------------------------------------------------------------------------------
 
 describe('sample schematics', () => {
-  const dir = join(root, '..', 'samples', 'schematics');
+  const dir = join(root, 'library', 'samples', 'schematics');
   const files = readdirSync(dir).filter((f) => f.endsWith('.bb'));
   const anyFootprint = (id: string) => fp(id, numbered(64));
   const load = (f: string) => readBoardArchive(new Uint8Array(readFileSync(join(dir, f))), f, () => undefined).doc;

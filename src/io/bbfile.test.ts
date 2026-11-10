@@ -5,7 +5,7 @@ import { readBoardArchive, writeBoardArchive } from './bbfile.ts';
 import { parseXml } from './xml.ts';
 import { parseBoard, serializeBoard } from './legacy.ts';
 
-const samples = join(import.meta.dirname, '..', '..', '..', 'samples');
+const samples = join(import.meta.dirname, '..', '..', 'library', 'samples');
 // phasenschieber.bbs ships as a damaged archive (bad local header offsets)
 const all = ['boards', 'schematics'].flatMap((g) => readdirSync(join(samples, g)).filter((f) => f.endsWith('.bb')).map((f) => join(samples, g, f)));
 const noLibrary = () => undefined;
