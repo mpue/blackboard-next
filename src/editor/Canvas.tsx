@@ -44,6 +44,7 @@ import { applyAttachments, collectAttachments, type Attachment } from '../model/
 import { takeDragPayload } from './dragPayload.ts';
 import { useT } from '../i18n/i18n.ts';
 import { PcbView } from '../render/PcbView.tsx';
+import { Junctions } from '../render/Junctions.tsx';
 import { copperAt, posture, routingLayer, trackWidthFor } from '../pcb/route.ts';
 import { copperSideOfLayer } from '../pcb/geometry.ts';
 import { copperLayerFor } from '../pcb/place.ts';
@@ -70,7 +71,7 @@ type Drag =
 interface Preview {
   marquee?: Rect & { crossing: boolean };
   shape?: { shape: 'box' | 'ellipse'; r: Rect };
-  chain?: { from: Pt; to: Pt };
+  chain?: { from: Pt; to: Pt; bend?: Pt };
   measure?: { a: Pt; b: Pt };
   ghost?: Item;
   net?: Net;
@@ -116,6 +117,8 @@ export function Canvas() {
   const route = useRef<RouteState | null>(null);
   const zonePts = useRef<Pt[] | null>(null);
   const lastCursor = useRef<Pt>({ x: 0, y: 0 });
+  /** schematic wires: horizontal leg first ("/" toggles) */
+  const wireHFirst = useRef(true);
   const pointers = useRef(new Map<number, Pt>());
   const pinch = useRef<{ dist: number; mid: Pt } | null>(null);
   const [preview, setPreview] = useState<Preview>({});
@@ -287,6 +290,12 @@ export function Canvas() {
   // routing keys must win over the global shortcuts ("v" = select tool)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && chainStart.current && useStore.getState().tool === 'wire') {
+        e.preventDefault();
+        wireHFirst.current = !wireHFirst.current;
+        setPreview((pv) => (pv.chain ? { ...pv, chain: { ...pv.chain, bend: orthoBend(pv.chain.from, pv.chain.to, wireHFirst.current) } } : pv));
+        return;
+      }
       if (!route.current || e.ctrlKey || e.metaKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return;
@@ -483,6 +492,25 @@ export function Canvas() {
         }
         let end = pt;
         if (e.shiftKey) end = constrain(start, pt);
+        if (s.tool === 'wire' && isSchematicDoc(d.doc) && !e.shiftKey) {
+          // schematics: orthogonal wires with one bend; a click on a pin ends the wire
+          const color = s.settings.useLayerColor ? (d.doc.layers.find((l) => l.id === layer)?.color ?? s.drawStyle.color) : s.drawStyle.color;
+          const bend = orthoBend(start, end, wireHFirst.current);
+          const pts = bend ? [start, bend, end] : [start, end];
+          const lines: LineItem[] = [];
+          for (let i = 1; i < pts.length; i++) {
+            lines.push({ id: uid(), kind: 'line', layer, x1: pts[i - 1].x, y1: pts[i - 1].y, x2: pts[i].x, y2: pts[i].y, color, thickness: s.drawStyle.thickness, startType: 'STRAIGHT', endType: 'STRAIGHT' });
+          }
+          addItems(lines, undefined, false);
+          if (nearPin(raw, d)) {
+            chainStart.current = null;
+            setPreview({});
+          } else {
+            chainStart.current = end;
+            setPreview({ chain: { from: end, to: end } });
+          }
+          return;
+        }
         if (s.tool === 'wire') {
           // on PCBs drawings belong to silkscreen or outline, never to copper
           const pcbSide = d.doc.type === 'PCB' ? copperSideOfLayer(d.doc, layer) : undefined;
@@ -744,7 +772,8 @@ export function Canvas() {
     if ((s.tool === 'wire' || s.tool === 'resistor' || s.tool === 'diode') && chainStart.current) {
       const pin = nearPin(raw, d);
       const to = e.shiftKey ? constrain(chainStart.current, pin ?? p) : (pin ?? p);
-      setPreview({ chain: { from: chainStart.current, to }, snapPin: pin });
+      const bend = s.tool === 'wire' && isSchematicDoc(d.doc) && !e.shiftKey ? orthoBend(chainStart.current, to, wireHFirst.current) : undefined;
+      setPreview({ chain: { from: chainStart.current, to, bend }, snapPin: pin });
     } else if (s.tool === 'wire' || s.tool === 'resistor' || s.tool === 'diode') {
       const pin = nearPin(raw, d);
       setPreview((pv) => (pv.snapPin === pin ? pv : { ...pv, snapPin: pin }));
@@ -963,6 +992,7 @@ export function Canvas() {
               );
             })}
 
+            {doc.type !== 'PCB' && isSchematicDoc(doc) && <Junctions doc={doc} />}
             <InstrumentOverlays doc={doc} docId={ds.id} />
             {doc.type !== 'PCB' && <LiveOverlay doc={doc} docId={ds.id} z={z} showLabels={settings.showValues} />}
 
@@ -1032,15 +1062,14 @@ export function Canvas() {
                 </g>
               )}
               {preview.chain && (tool === 'wire' ? (
-                <line
-                  x1={preview.chain.from.x}
-                  y1={preview.chain.from.y}
-                  x2={preview.chain.to.x}
-                  y2={preview.chain.to.y}
+                <polyline
+                  points={[preview.chain.from, ...(preview.chain.bend ? [preview.chain.bend] : []), preview.chain.to].map((q) => `${q.x},${q.y}`).join(' ')}
+                  fill="none"
                   stroke={drawStyle.color}
                   strokeOpacity={0.7}
                   strokeWidth={drawStyle.thickness}
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               ) : (
                 <line x1={preview.chain.from.x} y1={preview.chain.from.y} x2={preview.chain.to.x} y2={preview.chain.to.y} stroke="#6b7280" strokeWidth={2.5} strokeDasharray={`${4 / z} ${3 / z}`} />
@@ -1178,4 +1207,10 @@ function toggleSwitch(id: string) {
     else p.throw = p.throw === '3' ? '2' : '3';
     it.properties = p;
   });
+}
+
+/** Corner of an orthogonal wire from `a` to `b`, undefined when they are aligned. */
+function orthoBend(a: Pt, b: Pt, horizontalFirst: boolean): Pt | undefined {
+  if (a.x === b.x || a.y === b.y) return undefined;
+  return horizontalFirst ? { x: b.x, y: a.y } : { x: a.x, y: b.y };
 }

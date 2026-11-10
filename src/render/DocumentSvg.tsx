@@ -4,6 +4,8 @@ import { BoardBackground } from './BoardBackground.tsx';
 import { ItemView } from './ItemView.tsx';
 import type { Settings } from '../store/store.ts';
 import { PcbView } from './PcbView.tsx';
+import { Junctions } from './Junctions.tsx';
+import { isSchematicDoc } from '../model/types.ts';
 
 /** Static rendering used for SVG/PNG export and printing. */
 export function DocumentSvg({ doc, settings, mirror, zoneFills }: { doc: Doc; settings: Settings; mirror: boolean; zoneFills?: Map<string, string> }) {
@@ -43,6 +45,7 @@ export function DocumentSvg({ doc, settings, mirror, zoneFills }: { doc: Doc; se
             </g>
           );
         })}
+        {doc.type !== 'PCB' && isSchematicDoc(doc) && <Junctions doc={doc} />}
       </g>
     </svg>
   );
