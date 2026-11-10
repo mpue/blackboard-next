@@ -91,13 +91,15 @@ function parseMarkup(src: string) {
   return { bold, italic, underline, lines };
 }
 
-export const TextShape = memo(function TextShape({ g, display, color }: { g: TextGeom; display?: string; color?: string }) {
+export const TextShape = memo(function TextShape({ g, display, color, centered }: { g: TextGeom; display?: string; color?: string; centered?: boolean }) {
   const m = parseMarkup(display ?? g.text);
   const mono = g.textType === 'SPICE_DIRECTIVE' || g.textType === 'CONTROL';
   return (
     <text
       x={g.x}
       y={g.y}
+      textAnchor={centered ? 'middle' : undefined}
+      dominantBaseline={centered ? 'central' : undefined}
       fill={color ?? g.color}
       fontSize={g.fontSize}
       fontFamily={mono ? '"JetBrains Mono", "Cascadia Code", Consolas, monospace' : `"${g.font}"${FONT_FALLBACK}`}

@@ -1,8 +1,8 @@
 import { memo } from 'react';
-import type { DiodeItem, Item, PartDef, PartItem, ResistorItem, SymbolItem } from '../model/types.ts';
+import type { DiodeItem, Item, PartDef, PartItem, ResistorItem, SymbolItem, TextGeom } from '../model/types.ts';
 import { BoxShape, EllipseShape, LineShape, ShapeView, TextShape } from './shapes.tsx';
 import { resistorBands } from './resistorColors.ts';
-import { partToWorld, symbolTransform, symbolToWorld } from '../geometry/geom.ts';
+import { partToWorld, rotatePt, symbolTransform, symbolToWorld, textLocalRect } from '../geometry/geom.ts';
 import { formatOhm } from '../model/ops.ts';
 
 export interface RenderFlags {
@@ -152,15 +152,33 @@ const Part = memo(function Part({ it, def, flags, bottomLayer }: { it: PartItem;
   );
 });
 
+/**
+ * Designators and values stay readable whatever the symbol's rotation and
+ * mirroring: they are drawn centred on their original place, horizontally or
+ * reading from bottom to top.
+ */
+function SymbolLabel({ it, s, display }: { it: SymbolItem; s: TextGeom; display: string }) {
+  const r = textLocalRect(s, display);
+  const o = { x: s.x, y: s.y };
+  const c = symbolToWorld(it, rotatePt({ x: s.x + r.x + r.w / 2, y: s.y + r.y + r.h / 2 }, o, s.rotation));
+  const a = symbolToWorld(it, o);
+  const b = symbolToWorld(it, rotatePt({ x: s.x + 10, y: s.y }, o, s.rotation));
+  const vertical = Math.abs(b.y - a.y) > Math.abs(b.x - a.x);
+  return <TextShape g={{ ...s, x: c.x, y: c.y, rotation: vertical ? -90 : 0 }} display={display} centered />;
+}
+
+const isLabel = (s: SymbolItem['shapes'][number]): s is TextGeom => s.kind === 'text' && (s.textType === 'NAME' || s.textType === 'VALUE');
+
 const Symbol = memo(function Symbol({ it, flags }: { it: SymbolItem; flags: RenderFlags }) {
   return (
     <g>
       <g transform={symbolTransform(it)}>
-        {it.shapes.map((s, i) => {
-          if (s.kind === 'text' && ((s.textType === 'NAME' && !flags.showNames) || (s.textType === 'VALUE' && !flags.showValues))) return null;
-          return <ShapeView key={i} s={s} name={it.name} value={it.value} />;
-        })}
+        {it.shapes.map((s, i) => (isLabel(s) ? null : <ShapeView key={i} s={s} name={it.name} value={it.value} />))}
       </g>
+      {it.shapes.map((s, i) => {
+        if (!isLabel(s) || (s.textType === 'NAME' && !flags.showNames) || (s.textType === 'VALUE' && !flags.showValues)) return null;
+        return <SymbolLabel key={`l${i}`} it={it} s={s} display={s.textType === 'NAME' ? it.name : it.value} />;
+      })}
       {flags.showPins &&
         it.pins.map((p, i) => {
           const w = symbolToWorld(it, p);

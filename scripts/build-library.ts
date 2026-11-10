@@ -46,6 +46,31 @@ for (const file of xmlFiles(join(repo, 'parts'))) {
 writeFileSync(join(lib, 'parts.json'), JSON.stringify(parts));
 
 // ---- symbols ----------------------------------------------------------------------
+
+/**
+ * Many library symbols show no designator (or only a "Led #" placeholder as
+ * plain text) and passive parts often no value: they get NAME/VALUE fields,
+ * next to the body for tall symbols, above/below it for wide ones.
+ */
+function ensureLabels(def: SymbolDef): void {
+  if (def.pins.length < 2) return;
+  const texts = def.shapes.filter((s) => s.kind === 'text');
+  const field = (textType: 'NAME' | 'VALUE', x: number, y: number) =>
+    def.shapes.push({ kind: 'text', x, y, text: textType, font: 'Arial', fontSize: 11, rotation: 0, textType, color: '#000000' });
+  const tall = def.height > def.width * 1.3;
+  if (!texts.some((t) => t.textType === 'NAME')) {
+    const placeholder = texts.find((t) => t.textType === 'TEXT' && /#/.test(t.text));
+    if (placeholder) placeholder.textType = 'NAME';
+    else if (tall) field('NAME', def.width + 4, def.height / 2 - 4);
+    else field('NAME', Math.max(0, def.width / 2 - 8), -6);
+  }
+  const passive = def.spiceType === 'RESISTOR' || def.spiceType === 'CAPACITOR' || def.spiceType === 'INDUCTOR' || def.spiceType === 'DIODE';
+  if (passive && !texts.some((t) => t.textType === 'VALUE')) {
+    if (tall) field('VALUE', def.width + 4, def.height / 2 + 10);
+    else field('VALUE', Math.max(0, def.width / 2 - 12), def.height + 14);
+  }
+}
+
 const symbols: SymbolDef[] = [];
 for (const file of xmlFiles(join(repo, 'symbols'))) {
   if (file === 'symbol.xsd') continue;
@@ -54,6 +79,7 @@ for (const file of xmlFiles(join(repo, 'symbols'))) {
     def.filename = file;
     def.category = normalizeCategory(def.category);
     if (!def.name) def.name = file.replace(/\.xml$/i, '');
+    ensureLabels(def);
     symbols.push(def);
   } catch (e) {
     warn(`symbol ${file}: ${(e as Error).message}`);
