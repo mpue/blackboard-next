@@ -35,7 +35,40 @@ function GoogleIcon() {
  * Sign in, sign up, password reset and the account, in one dialog. `next`:
  * where to go after signing in ('app' = the editor).
  */
-export function AuthDialog({ mode: start, t, token, next, onClose, onPrivacy }: { mode: AuthMode; t: T; token?: string; next?: 'app'; onClose: () => void; onPrivacy: () => void }) {
+export function AuthDialog({
+  mode: start,
+  t,
+  token,
+  next,
+  onClose,
+  onPrivacy,
+  onTerms,
+}: {
+  mode: AuthMode;
+  t: T;
+  token?: string;
+  next?: 'app';
+  onClose: () => void;
+  onPrivacy: () => void;
+  onTerms: () => void;
+}) {
+  // a text with {terms} and {privacy} as links to those pages
+  const withLinks = (key: 'auth.consent' | 'auth.googleNote') =>
+    t(key, { terms: '\u0001', privacy: '\u0002' })
+      .split(/([\u0001\u0002])/)
+      .map((part, i) =>
+        part === '\u0001' ? (
+          <button key={i} type="button" className={link} onClick={onTerms}>
+            {t('auth.termsLink')}
+          </button>
+        ) : part === '\u0002' ? (
+          <button key={i} type="button" className={link} onClick={onPrivacy}>
+            {t('auth.consentLink')}
+          </button>
+        ) : (
+          part
+        ),
+      );
   const [mode, setMode] = useState<AuthMode>(start);
   const [done, setDone] = useState<Done | null>(null);
   const [busy, setBusy] = useState(false);
@@ -203,6 +236,7 @@ export function AuthDialog({ mode: start, t, token, next, onClose, onPrivacy }: 
                 <button type="button" onClick={googleSignIn} className="flex h-10 items-center justify-center gap-2.5 rounded-lg bg-white text-[14px] font-semibold text-slate-800 hover:bg-slate-100">
                   <GoogleIcon /> {t('auth.google')}
                 </button>
+                {mode === 'signUp' && <p className="-mt-2 text-[12px] leading-relaxed text-slate-500">{withLinks('auth.googleNote')}</p>}
                 <div className="flex items-center gap-3 text-[12px] text-slate-500">
                   <span className="h-px flex-1 bg-white/10" />
                   {t('auth.or')}
@@ -243,20 +277,7 @@ export function AuthDialog({ mode: start, t, token, next, onClose, onPrivacy }: 
             {mode === 'signUp' && (
               <label className="flex items-start gap-2.5 text-[13px] text-slate-400">
                 <input type="checkbox" className="mt-0.5" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                <span>
-                  {t('auth.consent', { privacy: '\u0000' })
-                    .split('\u0000')
-                    .flatMap((part, i) =>
-                      i === 0
-                        ? [part]
-                        : [
-                            <button key={i} type="button" className={link} onClick={onPrivacy}>
-                              {t('auth.consentLink')}
-                            </button>,
-                            part,
-                          ],
-                    )}
-                </span>
+                <span>{withLinks('auth.consent')}</span>
               </label>
             )}
             {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[13px] leading-relaxed text-red-200">{error}</p>}

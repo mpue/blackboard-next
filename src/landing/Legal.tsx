@@ -5,12 +5,12 @@
 import type { ReactNode } from 'react';
 import type { Lang } from './strings.ts';
 
-/** Operator of the site: fill in before going live. */
+/** Operator of the site */
 export const OPERATOR = {
-  name: 'Matthias Püski',
+  name: 'Matthias Püski, M.Sc.',
   /** postal address, required in the Impressum */
-  address: ['[Straße und Hausnummer]', '[PLZ Ort]'],
-  email: 'matthias@pueski.de',
+  address: ['Im Jägeracker 42', '79312 Emmendingen'],
+  email: 'blackboard@pueski.de',
 };
 
 const H = ({ children }: { children: ReactNode }) => <h2 className="mt-8 text-[18px] font-semibold text-white">{children}</h2>;
@@ -106,11 +106,192 @@ function Privacy() {
   );
 }
 
-export function LegalPage({ page, lang }: { page: 'impressum' | 'datenschutz'; lang: Lang }) {
+const address = () => `${OPERATOR.name}, ${OPERATOR.address.join(', ')}`;
+const Stand = () => <p className="mt-2 text-[13px] text-slate-500">Stand: November 2026</p>;
+
+/** Terms of use: everyone, with or without account (Free / Edu and the rules for commercial use) */
+function Terms() {
+  return (
+    <>
+      <h1 className="text-[28px] font-bold text-white">Nutzungsbedingungen</h1>
+      <Stand />
+      <H>§ 1 Geltungsbereich</H>
+      <P>
+        Diese Nutzungsbedingungen gelten für die Nutzung von BlackBoard – der Web-App, der installierbaren App und der Desktop-Anwendung – und des BlackBoard-Kontos. Anbieter ist {address()}{' '}
+        (siehe Impressum). Für das kostenpflichtige Abo Individual Commercial gelten zusätzlich die AGB.
+      </P>
+      <H>§ 2 Nutzungsrecht</H>
+      <P>(1) Der Anbieter räumt dir ein einfaches, nicht übertragbares Recht ein, BlackBoard nach diesen Bedingungen zu nutzen.</P>
+      <P>
+        (2) Free / Edu: Kostenlos ist die Nutzung für private Zwecke ohne Erwerbsabsicht sowie für Schule, Ausbildung, Studium, Lehre und nicht kommerzielle Forschung an
+        Bildungseinrichtungen.
+      </P>
+      <P>
+        (3) Gewerbliche Nutzung: Wer BlackBoard im Zusammenhang mit einer gewerblichen oder selbstständigen beruflichen Tätigkeit nutzt – etwa für Produktentwicklung, Auftragsarbeiten oder
+        Beratung, auch als Beschäftigte eines Unternehmens für dessen Zwecke –, braucht für jede Person, die BlackBoard so nutzt, ein Abo Individual Commercial.
+      </P>
+      <P>
+        (4) Nicht erlaubt ist, BlackBoard zu verändern, zu dekompilieren oder weiterzuverbreiten, soweit das Gesetz es nicht ausdrücklich erlaubt (§§ 69d, 69e UrhG), sowie Grenzen oder
+        Schutzmaßnahmen des Dienstes zu umgehen. Bestandteile Dritter (Bauteilbibliothek, Simulator, Emulatoren) stehen unter ihren eigenen Lizenzen; sie sind in der App unter „Über
+        BlackBoard“ genannt.
+      </P>
+      <H>§ 3 Konto</H>
+      <P>(1) Für den Editor brauchst du kein Konto. Das Konto ist kostenlos; du brauchst es für Projekte in der Cloud und zum Teilen.</P>
+      <P>(2) Deine Angaben müssen zutreffen. Halte dein Passwort geheim. Jedes Konto gehört einer Person.</P>
+      <P>(3) Minderjährige brauchen die Zustimmung ihrer Erziehungsberechtigten.</P>
+      <H>§ 4 Cloud-Projekte und Teilen</H>
+      <P>
+        (1) Deine Projekte bleiben deine. Du räumst dem Anbieter nur die Rechte ein, die er braucht, um sie zu speichern, dir anzuzeigen und den Personen zugänglich zu machen, mit denen du
+        sie teilst.
+      </P>
+      <P>
+        (2) Du bist für die Inhalte deiner Projekte verantwortlich und stellst sicher, dass du sie speichern und teilen darfst. Rechtswidrige Inhalte sind nicht erlaubt. Projekte sollen
+        keine personenbezogenen Daten Dritter enthalten.
+      </P>
+      <P>(3) Für Größe und Anzahl der Cloud-Projekte gelten angemessene Grenzen, derzeit 8 MB je Projekt und 200 Projekte je Konto.</P>
+      <P>(4) Bewahre von wichtigen Projekten eigene Kopien auf (als Datei speichern). Der Anbieter sichert die Daten, kann einen Verlust aber nicht ausschließen.</P>
+      <H>§ 5 Simulation und Ergebnisse</H>
+      <P>
+        BlackBoard berechnet Schaltungen mit Modellen. Ergebnisse von Simulation, Emulation, Design-Regel-Prüfung und Autorouter können von realen Schaltungen abweichen. Sie ersetzen keine
+        eigene Prüfung, keine Messung und keine nach Normen vorgeschriebene Prüfung oder Abnahme. Arbeiten an Netzspannung und anderen gefährlichen Spannungen erfordern Fachkenntnis.
+      </P>
+      <H>§ 6 Verfügbarkeit und Änderungen</H>
+      <P>
+        Der kostenlose Dienst wird ohne Zusage einer bestimmten Verfügbarkeit angeboten. Der Anbieter darf Funktionen weiterentwickeln, ändern oder einstellen. Stellt er die
+        Cloud-Funktionen ein, kündigt er das mindestens vier Wochen vorher an, damit du deine Projekte sichern kannst.
+      </P>
+      <H>§ 7 Haftung</H>
+      <P>
+        (1) Der Anbieter haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit, für Schäden aus der Verletzung des Lebens, des Körpers oder der Gesundheit sowie nach dem
+        Produkthaftungsgesetz.
+      </P>
+      <P>
+        (2) Bei leichter Fahrlässigkeit haftet der Anbieter nur für die Verletzung wesentlicher Pflichten, deren Erfüllung die Nutzung erst ermöglicht und auf deren Einhaltung du
+        regelmäßig vertrauen darfst, und dann begrenzt auf den vorhersehbaren, typischen Schaden.
+      </P>
+      <P>(3) Das gilt auch für gesetzliche Vertreter und Erfüllungsgehilfen des Anbieters.</P>
+      <H>§ 8 Ende der Nutzung</H>
+      <P>(1) Du kannst dein Konto jederzeit löschen (Startseite → Konto → Konto löschen). Dabei werden deine Cloud-Projekte und Freigaben gelöscht.</P>
+      <P>(2) Der Anbieter kann ein kostenloses Konto mit einer Frist von vier Wochen kündigen und bei schweren oder wiederholten Verstößen gegen diese Bedingungen sofort sperren.</P>
+      <H>§ 9 Änderungen dieser Bedingungen</H>
+      <P>
+        Änderungen teilt der Anbieter Kontoinhabern mindestens vier Wochen vor ihrem Inkrafttreten per E-Mail mit und bittet um Zustimmung. Stimmst du nicht zu, gelten die bisherigen
+        Bedingungen weiter; der Anbieter kann das kostenlose Konto dann nach § 8 kündigen.
+      </P>
+      <H>§ 10 Schlussbestimmungen</H>
+      <P>
+        Es gilt deutsches Recht. Bist du Verbraucher mit gewöhnlichem Aufenthalt in einem anderen Staat, bleiben die zwingenden Verbraucherschutzvorschriften dieses Staates unberührt. Der
+        Anbieter ist nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
+      </P>
+    </>
+  );
+}
+
+/** Terms of sale of the subscription "Individual Commercial" (businesses only) */
+function Agb() {
+  return (
+    <>
+      <h1 className="text-[28px] font-bold text-white">Allgemeine Geschäftsbedingungen für das Abo „Individual Commercial“</h1>
+      <Stand />
+      <H>§ 1 Geltungsbereich und Kunden</H>
+      <P>(1) Diese AGB gelten für Verträge über das Abo Individual Commercial zwischen {address()} („Anbieter“) und seinen Kunden.</P>
+      <P>
+        (2) Das Abo richtet sich ausschließlich an Unternehmer im Sinne von § 14 BGB, juristische Personen des öffentlichen Rechts und öffentlich-rechtliche Sondervermögen. Mit dem
+        Abschluss bestätigt der Kunde, in Ausübung seiner gewerblichen oder selbstständigen beruflichen Tätigkeit zu handeln. Mit Verbrauchern schließt der Anbieter keine Verträge über das
+        Abo.
+      </P>
+      <P>(3) Ergänzend gelten die Nutzungsbedingungen. Abweichende Bedingungen des Kunden gelten nur, wenn der Anbieter ihnen ausdrücklich in Textform zustimmt.</P>
+      <H>§ 2 Vertragsschluss</H>
+      <P>(1) Die Darstellung auf der Website ist kein bindendes Angebot. Der Kunde gibt sein Angebot auf der Bezahlseite des Zahlungsdienstleisters Stripe ab („Abonnieren“).</P>
+      <P>(2) Der Vertrag kommt zustande, wenn die erste Zahlung erfolgreich ist. Der Kunde erhält dann eine Bestätigung per E-Mail.</P>
+      <P>(3) Vertragssprache ist Deutsch.</P>
+      <H>§ 3 Leistungen</H>
+      <P>
+        (1) Das Abo gibt einer natürlichen Person (Lizenznehmer) das Recht, BlackBoard für gewerbliche Zwecke zu nutzen – in der Web-App, als installierte App und als Desktop-Anwendung,
+        mit dem jeweils aktuellen Funktionsumfang. Lizenznehmer ist die beim Abschluss angegebene Person. Ein Wechsel der Person ist zum nächsten Abrechnungsmonat möglich; der Kunde teilt
+        ihn in Textform mit.
+      </P>
+      <P>(2) Die Lizenz ist an die Person gebunden. Nutzen mehrere Personen BlackBoard gewerblich, braucht jede ein eigenes Abo.</P>
+      <P>
+        (3) Die Cloud-Funktionen stehen nach den Nutzungsbedingungen zur Verfügung. Der Anbieter bemüht sich um eine hohe Verfügbarkeit, schuldet aber keine bestimmte; Wartungen kündigt er
+        nach Möglichkeit vorher an. Der Editor selbst arbeitet auch ohne Verbindung zum Server.
+      </P>
+      <P>
+        (4) Der Anbieter entwickelt BlackBoard weiter. Schränkt eine Änderung den Kern der Leistung – Entwurf, Simulation und Platinen – wesentlich ein, kann der Kunde mit sofortiger
+        Wirkung kündigen.
+      </P>
+      <H>§ 4 Preise und Zahlung</H>
+      <P>
+        (1) Das Abo kostet 29 € pro Monat. Der Anbieter ist Kleinunternehmer im Sinne von § 19 UStG; Umsatzsteuer wird nicht berechnet. Entfällt diese Regelung, kommt die gesetzliche
+        Umsatzsteuer hinzu; der Anbieter kündigt das mindestens vier Wochen vorher in Textform an.
+      </P>
+      <P>(2) Der Betrag ist monatlich im Voraus fällig und wird über Stripe mit der beim Abschluss gewählten Zahlungsart eingezogen. Rechnungen erhält der Kunde per E-Mail.</P>
+      <P>(3) Schlägt eine Zahlung fehl, ruht das Recht zur gewerblichen Nutzung, bis der offene Betrag bezahlt ist.</P>
+      <P>
+        (4) Preisänderungen kündigt der Anbieter mindestens sechs Wochen vor ihrem Wirksamwerden in Textform an. Der Kunde kann bis dahin zum Zeitpunkt des Wirksamwerdens kündigen; darauf
+        weist der Anbieter in der Ankündigung hin.
+      </P>
+      <H>§ 5 Laufzeit und Kündigung</H>
+      <P>(1) Das Abo läuft jeweils einen Monat und verlängert sich automatisch um einen weiteren Monat.</P>
+      <P>
+        (2) Beide Seiten können jederzeit zum Ende des laufenden Abrechnungsmonats kündigen, der Kunde über das Kundenportal von Stripe oder in Textform per E-Mail an {OPERATOR.email}.
+      </P>
+      <P>(3) Das Recht zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt.</P>
+      <P>
+        (4) Mit dem Ende des Abos endet das Recht zur gewerblichen Nutzung; Konto und Cloud-Projekte bleiben nach den Nutzungsbedingungen erhalten. Kündigt der Kunde nach § 3 Abs. 4,
+        erstattet der Anbieter den bereits bezahlten Betrag für die Zeit danach anteilig.
+      </P>
+      <H>§ 6 Mängel</H>
+      <P>(1) Der Anbieter sorgt dafür, dass BlackBoard während der Laufzeit im Wesentlichen wie beschrieben funktioniert, und behebt gemeldete Mängel in angemessener Frist.</P>
+      <P>(2) Der Kunde meldet Mängel unverzüglich in Textform mit einer nachvollziehbaren Beschreibung.</P>
+      <P>
+        (3) Ergebnisse von Simulation, Emulation, Design-Regel-Prüfung und Autorouter sind Modellrechnungen. Sie ersetzen keine eigene Prüfung, Messung, Normprüfung oder Abnahme; ob sie
+        für einen bestimmten Zweck genügen, prüft der Kunde selbst. Abweichungen zwischen Modell und realer Schaltung sind kein Mangel.
+      </P>
+      <H>§ 7 Haftung</H>
+      <P>
+        (1) Der Anbieter haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit, bei Verletzung des Lebens, des Körpers oder der Gesundheit, nach dem Produkthaftungsgesetz und im Umfang
+        einer übernommenen Garantie.
+      </P>
+      <P>
+        (2) Bei leichter Fahrlässigkeit haftet der Anbieter nur für die Verletzung wesentlicher Vertragspflichten – solcher, deren Erfüllung die ordnungsgemäße Durchführung des Vertrags
+        erst ermöglicht und auf deren Einhaltung der Kunde regelmäßig vertrauen darf –, und dann begrenzt auf den bei Vertragsschluss vorhersehbaren, vertragstypischen Schaden.
+      </P>
+      <P>
+        (3) Für den Verlust von Daten haftet der Anbieter nur in Höhe des Aufwands, der bei regelmäßiger Datensicherung durch den Kunden für ihre Wiederherstellung nötig gewesen wäre.
+      </P>
+      <P>(4) Die verschuldensunabhängige Haftung für Mängel, die bei Vertragsschluss schon vorhanden waren (§ 536a Abs. 1 BGB), ist ausgeschlossen.</P>
+      <P>(5) Diese Regeln gelten auch für gesetzliche Vertreter und Erfüllungsgehilfen des Anbieters.</P>
+      <H>§ 8 Daten</H>
+      <P>
+        Der Anbieter verarbeitet personenbezogene Daten nach der Datenschutzerklärung. Cloud-Projekte sollen keine personenbezogenen Daten Dritter enthalten; eine Verarbeitung im Auftrag des
+        Kunden (Art. 28 DSGVO) ist nicht Gegenstand des Vertrags.
+      </P>
+      <H>§ 9 Änderungen dieser AGB</H>
+      <P>
+        Der Anbieter kann diese AGB mit Wirkung für die Zukunft ändern, soweit das für den Kunden zumutbar ist, etwa bei geänderter Rechtslage oder neuen Funktionen. Er teilt Änderungen
+        mindestens sechs Wochen vor ihrem Wirksamwerden in Textform mit. Widerspricht der Kunde bis dahin nicht, gelten sie als angenommen; auf diese Folge und auf sein Recht, bis dahin zu
+        kündigen, weist der Anbieter in der Mitteilung hin.
+      </P>
+      <H>§ 10 Schlussbestimmungen</H>
+      <P>(1) Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts.</P>
+      <P>
+        (2) Ist der Kunde Kaufmann, juristische Person des öffentlichen Rechts oder öffentlich-rechtliches Sondervermögen, ist Gerichtsstand für alle Streitigkeiten aus dem Vertrag
+        Emmendingen.
+      </P>
+      <P>(3) Ist eine Bestimmung unwirksam, bleibt der Vertrag im Übrigen wirksam; an ihre Stelle treten die gesetzlichen Vorschriften (§ 306 BGB).</P>
+    </>
+  );
+}
+
+export const LEGAL_PAGES = ['impressum', 'datenschutz', 'agb', 'nutzungsbedingungen'] as const;
+export type LegalPageId = (typeof LEGAL_PAGES)[number];
+
+export function LegalPage({ page, lang }: { page: LegalPageId; lang: Lang }) {
   return (
     <article className="mx-auto max-w-[760px] px-5 py-14 text-[15px]">
-      {lang === 'en' && <p className="mb-6 rounded-lg bg-white/5 p-3 text-[13px] text-slate-400">German law asks for the legal notice and the privacy policy in German; here is the binding German text.</p>}
-      {page === 'impressum' ? <Imprint /> : <Privacy />}
+      {lang === 'en' && <p className="mb-6 rounded-lg bg-white/5 p-3 text-[13px] text-slate-400">The legal texts are binding in German; here is the German text.</p>}
+      {page === 'impressum' ? <Imprint /> : page === 'datenschutz' ? <Privacy /> : page === 'agb' ? <Agb /> : <Terms />}
     </article>
   );
 }

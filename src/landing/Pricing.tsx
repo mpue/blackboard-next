@@ -16,7 +16,7 @@ const PLANS = [
   { key: 'pro', icon: Briefcase, features: ['plan.pro.f1', 'plan.pro.f2', 'plan.pro.f3'] },
 ] as const;
 
-export function Pricing({ t, userId }: { t: T; userId?: string }) {
+export function Pricing({ t, userId, onAgb }: { t: T; userId?: string; onAgb: () => void }) {
   return (
     <>
       <h2 className="text-center text-[30px] font-bold tracking-tight text-white md:text-[38px]">{t('pricing.title')}</h2>
@@ -40,6 +40,7 @@ export function Pricing({ t, userId }: { t: T; userId?: string }) {
                 <span className="text-[42px] font-bold tracking-tight text-white">{t(`plan.${key}.price`)}</span>
                 <span className="text-[15px] text-slate-400">{t(`plan.${key}.period`)}</span>
               </p>
+              {pro && <p className="mt-1 text-[12.5px] text-slate-500">{t('plan.pro.note')}</p>}
               <p className="mt-2 text-[15px] leading-relaxed text-slate-300">{t(`plan.${key}.text`)}</p>
               <ul className="mt-6 grid gap-3 text-[14.5px]">
                 {features.map((f: LandingKey) => (
@@ -54,6 +55,22 @@ export function Pricing({ t, userId }: { t: T; userId?: string }) {
               >
                 {t(`plan.${key}.cta`)} <ArrowRight size={16} />
               </a>
+              {pro && (
+                <p className="mt-3 text-center text-[12.5px] text-slate-500">
+                  {t('plan.pro.terms', { agb: '\u0000' })
+                    .split('\u0000')
+                    .flatMap((part, i) =>
+                      i === 0
+                        ? [part]
+                        : [
+                            <button key={i} type="button" className="text-indigo-300 hover:text-indigo-200" onClick={onAgb}>
+                              {t('footer.agb')}
+                            </button>,
+                            part,
+                          ],
+                    )}
+                </p>
+              )}
             </div>
           );
         })}

@@ -6,11 +6,13 @@ import { Activity, ArrowRight, CircuitBoard, Cloud, Cpu, Gauge, Grid3x3, Lock, L
 import { Logo } from '../ui/Logo.tsx';
 import { authClient, editorUrl, serverConfig } from '../account/auth.ts';
 import { AuthDialog, type AuthMode } from './AuthDialog.tsx';
-import { LegalPage } from './Legal.tsx';
+import { LEGAL_PAGES, LegalPage, type LegalPageId } from './Legal.tsx';
 import { Pricing } from './Pricing.tsx';
 import { landingLang, setLandingLang, translator, type LandingKey, type Lang } from './strings.ts';
 
-type Page = 'home' | 'impressum' | 'datenschutz';
+type Page = 'home' | LegalPageId;
+
+const asPage = (p: string | null): Page => (LEGAL_PAGES.includes(p as LegalPageId) ? (p as LegalPageId) : 'home');
 
 const FEATURES: { icon: typeof Cpu; key: 'boards' | 'spice' | 'live' | 'bench' | 'mcu' | 'pcb' }[] = [
   { icon: Grid3x3, key: 'boards' },
@@ -53,7 +55,7 @@ export function Landing() {
   const [lang, setLang] = useState<Lang>(landingLang);
   const t = translator(lang);
   const params = new URLSearchParams(location.search);
-  const [page, setPage] = useState<Page>(() => (params.get('page') === 'impressum' || params.get('page') === 'datenschutz' ? (params.get('page') as Page) : 'home'));
+  const [page, setPage] = useState<Page>(() => asPage(params.get('page')));
   const [dialog, setDialog] = useState<{ mode: AuthMode; token?: string } | null>(() => {
     if (params.get('reset') && params.get('token')) return { mode: 'reset', token: params.get('token')! };
     if (params.has('login')) return { mode: 'signIn' };
@@ -61,7 +63,9 @@ export function Landing() {
     return null;
   });
   const next = params.get('next') === 'app' ? 'app' : undefined;
-  const [banner, setBanner] = useState<string | null>(() => (params.has('verified') ? t('auth.verified') : params.has('authError') ? t('err.generic', { message: params.get('error') ?? 'Google' }) : null));
+  const [banner, setBanner] = useState<string | null>(() =>
+    params.has('verified') ? t('auth.verified') : params.has('subscribed') ? t('pricing.thanks') : params.has('authError') ? t('err.generic', { message: params.get('error') ?? 'Google' }) : null,
+  );
   const [cloud, setCloud] = useState(true);
   const session = authClient.useSession();
   const user = session.data?.user;
@@ -93,8 +97,7 @@ export function Landing() {
   };
   useEffect(() => {
     const onPop = () => {
-      const p = new URLSearchParams(location.search).get('page');
-      setPage(p === 'impressum' || p === 'datenschutz' ? p : 'home');
+      setPage(asPage(new URLSearchParams(location.search).get('page')));
     };
     addEventListener('popstate', onPop);
     return () => removeEventListener('popstate', onPop);
@@ -281,7 +284,7 @@ export function Landing() {
           )}
 
           <Section id="pricing" className="py-20">
-            <Pricing t={t} userId={user?.id} />
+            <Pricing t={t} userId={user?.id} onAgb={() => open('agb')} />
           </Section>
 
           {/* call to action */}
@@ -307,6 +310,12 @@ export function Landing() {
             <button className="hover:text-slate-300" onClick={() => open('datenschutz')}>
               {t('footer.privacy')}
             </button>
+            <button className="hover:text-slate-300" onClick={() => open('nutzungsbedingungen')}>
+              {t('footer.terms')}
+            </button>
+            <button className="hover:text-slate-300" onClick={() => open('agb')}>
+              {t('footer.agb')}
+            </button>
             <button className="hover:text-slate-300" onClick={switchLang}>
               {t('footer.language')}
             </button>
@@ -314,7 +323,7 @@ export function Landing() {
         </div>
       </footer>
 
-      {dialog && <AuthDialog mode={dialog.mode} token={dialog.token} next={next} t={t} onClose={() => setDialog(null)} onPrivacy={() => open('datenschutz')} />}
+      {dialog && <AuthDialog mode={dialog.mode} token={dialog.token} next={next} t={t} onClose={() => setDialog(null)} onPrivacy={() => open('datenschutz')} onTerms={() => open('nutzungsbedingungen')} />}
       {banner && (
         <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-[14px] text-white shadow-2xl">
           <CheckCircle2 size={17} className="text-emerald-400" /> {banner}

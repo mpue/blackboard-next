@@ -313,6 +313,6 @@ BlackBoard 1.x so `plot v(5)` in existing schematics still shows the same signal
 © 2026 Matthias Püski. All rights reserved.
 
 Third-party components keep their own licences: the part library is partly
-CC BY 3.0 (Gerd Bartelt); simulation: ngspice (BSD-3) via eecircuit-engine (MIT);
+CC BY 3.0 (Gerd Bartelt, Andreas Kraemer); simulation: ngspice (BSD-3) via eecircuit-engine (MIT);
 microcontrollers: avr8js, esp32sim and MicroPython (MIT), see
 `public/esp32/NOTICE.txt`.
