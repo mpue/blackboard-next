@@ -214,7 +214,7 @@ const PartsList = memo(function PartsList({ parts, q }: { parts: PartDef[]; q: s
   return (
     <>
       {groups.map(([g, list]) => (
-        <Group key={g} title={g} count={list.length} defaultOpen={!!q}>
+        <Group key={g} title={t(`shelf.${g}` as I18nKey)} count={list.length} defaultOpen={!!q}>
           {list.map((p) => (
             <Tile key={p.file} title={p.name} subtitle={p.description} placement={{ kind: 'part', ref: p.file }}>
               <img src={p.image} alt="" loading="lazy" className="max-h-full max-w-full object-contain" draggable={false} />
