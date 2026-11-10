@@ -9,6 +9,7 @@ import type { Item, SymbolItem } from '../model/types.ts';
 import { commitDoc } from '../store/store.ts';
 import { isTauri } from '../platform/files.ts';
 import { exampleById, type ExampleId } from './examples.ts';
+import CLOCK from './templates/uhr.ino?raw';
 
 export interface SourceFile {
   name: string;
@@ -82,9 +83,12 @@ export const mainFile = (files: SourceFile[]) => (files.find((f) => f.name.endsW
 
 // ---- templates ----
 
-export type TemplateId = 'empty' | 'c' | ExampleId;
+export type TemplateId = 'empty' | 'clock' | 'c' | ExampleId;
 
-export const TEMPLATES: TemplateId[] = ['empty', 'blink', 'button', 'chaser', 'dimmer', 'serial', 'demo', 'lcd', 'c'];
+export const TEMPLATES: TemplateId[] = ['empty', 'blink', 'button', 'chaser', 'dimmer', 'serial', 'demo', 'lcd', 'clock', 'c'];
+
+/** the firmware example a template is the sketch of (it has a wiring hint and a name there) */
+export const exampleOf = (id: TemplateId): ExampleId | undefined => (id === 'empty' || id === 'clock' || id === 'c' ? undefined : id);
 
 const EMPTY = `void setup() {
   // läuft einmal nach dem Start
@@ -113,6 +117,7 @@ int main(void) {
 export function templateFiles(id: TemplateId, wire?: string): SourceFile[] {
   if (id === 'empty') return [{ name: 'sketch.ino', content: EMPTY }];
   if (id === 'c') return [{ name: 'main.c', content: PLAIN_C }];
+  if (id === 'clock') return [{ name: 'uhr.ino', content: CLOCK }];
   const sketch = exampleById(id)!.sketch;
   return [{ name: `${id}.ino`, content: `${wire ? `// ${wire}\n\n` : ''}${sketch.endsWith('\n') ? sketch : `${sketch}\n`}` }];
 }

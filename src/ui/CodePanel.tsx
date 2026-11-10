@@ -10,7 +10,7 @@ import { activeDoc, toast, useStore } from '../store/store.ts';
 import { commands as appCommands, runCommand } from '../editor/commands.ts';
 import { openMonitor } from '../mcu/controller.ts';
 import { mcuClock } from '../mcu/pinout.ts';
-import { encodeSketch, FILE_NAME, mainFile, MAX_FILES, sketchFiles, storeSketch, templateFiles, TEMPLATES, type Diagnostic, type SourceFile, type TemplateId } from '../mcu/sketch.ts';
+import { encodeSketch, exampleOf, FILE_NAME, mainFile, MAX_FILES, sketchFiles, storeSketch, templateFiles, TEMPLATES, type Diagnostic, type SourceFile, type TemplateId } from '../mcu/sketch.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { closeCode, compileChip, pickSource, saveHex, saveSource, useCode, type CompileRun } from './codeState.ts';
 import { CodeEditor, type JumpTarget } from './CodeEditor.tsx';
@@ -122,8 +122,19 @@ function Panel({ docId, chip, phone }: { docId: string; chip: SymbolItem; phone:
     update(cur.map((x) => (x === f ? { ...x, content } : x)));
   };
 
+  const templateLabel = (id: TemplateId) => {
+    const ex = exampleOf(id);
+    return t(ex ? (`mcu.ex.${ex}` as I18nKey) : (`code.tpl.${id}` as I18nKey));
+  };
+  const templateWire = (id: TemplateId) => {
+    const ex = exampleOf(id);
+    return ex && t(`mcu.ex.${ex}.wire` as I18nKey);
+  };
+
   const replaceAll = (next: SourceFile[], question: string) => {
-    const pristine = TEMPLATES.some((id) => encodeSketch(templateFiles(id)) === encodeSketch(filesRef.current));
+    const now = encodeSketch(filesRef.current);
+    // a template as it came (with or without the wiring hint) is replaced without asking
+    const pristine = TEMPLATES.some((id) => [templateFiles(id), templateFiles(id, templateWire(id))].some((f) => encodeSketch(f) === now));
     if (!pristine && !confirm(question)) return;
     update(next, true);
     setActive(next[0].name);
@@ -187,7 +198,6 @@ function Panel({ docId, chip, phone }: { docId: string; chip: SymbolItem; phone:
 
   const main = mainFile(files);
   const diagnostics = run?.result?.diagnostics ?? [];
-  const templateLabel = (id: TemplateId) => t(id === 'empty' || id === 'c' ? `code.tpl.${id}` : (`mcu.ex.${id}` as I18nKey));
 
   return (
     <aside
@@ -241,8 +251,7 @@ function Panel({ docId, chip, phone }: { docId: string; chip: SymbolItem; phone:
             const id = e.target.value as TemplateId;
             e.target.value = '';
             if (!id) return;
-            const wire = id === 'empty' || id === 'c' ? undefined : t(`mcu.ex.${id}.wire` as I18nKey);
-            replaceAll(templateFiles(id, wire), t('code.replace', { name: templateLabel(id) }));
+            replaceAll(templateFiles(id, templateWire(id)), t('code.replace', { name: templateLabel(id) }));
           }}
         >
           <option value="">{t('code.template')}</option>
