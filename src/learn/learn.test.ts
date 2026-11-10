@@ -30,6 +30,13 @@ describe('lesson checks', () => {
     expect(evaluate({ kind: 'connected', a: { ref: 'R1', pin: 1 }, b: { ref: 'D1', pin: 'A' } }, { doc })).toBe('fail');
     expect(evaluate({ kind: 'current', ref: 'D1', min: 0.01, max: 0.02 }, { doc })).toBe('pending');
     expect(evaluate({ kind: 'quiz', question: { de: '', en: '' }, options: [], answer: 1 }, { doc, quizKey: 'q', answers: { q: 1 } })).toBe('pass');
+    expect(evaluate({ kind: 'product', refs: ['R1', 'R1'], min: 2e5, max: 2.3e5 }, { doc })).toBe('pass');
+    // R1 sits between the battery + and the LED anode, whatever it is called
+    const between = { kind: 'between', a: { ref: 'V1', pin: '+' }, b: { ref: 'D1', pin: 'A' }, match: { spiceType: 'RESISTOR' } } as const;
+    expect(evaluate(between, { doc })).toBe('pass');
+    expect(evaluate({ ...between, min: 400, max: 500 }, { doc })).toBe('pass');
+    expect(evaluate({ ...between, min: 1000, max: 2000 }, { doc })).toBe('fail');
+    expect(evaluate({ ...between, b: { ref: 'D1', pin: 'K' } }, { doc })).toBe('fail');
   });
 
   it('measures the LED current with the built-in LED model', async () => {

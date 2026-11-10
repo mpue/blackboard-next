@@ -60,6 +60,7 @@ import {
   ListOrdered,
   Wand2,
   Box,
+  Eraser,
 } from 'lucide-react';
 import {
   activeDoc,
@@ -88,7 +89,7 @@ import type { I18nKey } from '../i18n/i18n.ts';
 import { isSchematicDoc } from '../model/types.ts';
 import { exportBom, exportNetlist, exportPng, exportSvg, openFromDisk, printActive, saveActive } from './fileActions.ts';
 import { breakSymbols } from './symbolActions.ts';
-import { annotateSchematic, createPcbFromSchematic, exportEtching, exportFabrication, updatePcbFromSchematic } from './pcbActions.ts';
+import { annotateSchematic, createPcbFromSchematic, exportEtching, exportFabrication, unroute, updatePcbFromSchematic } from './pcbActions.ts';
 import { setDrcOpen } from '../ui/drcState.ts';
 import { runAutorouter } from './autorouteAction.ts';
 import { setView3d, useView3d } from '../ui/Board3DHost.tsx';
@@ -225,6 +226,8 @@ export const commands = {
   createPcb: { id: 'createPcb', label: 'pcb.create', icon: Cpu, run: createPcbFromSchematic, enabled: isSchematic },
   updatePcb: { id: 'updatePcb', label: 'pcb.update', icon: RefreshCw, run: updatePcbFromSchematic, enabled: isPcb },
   autoroute: { id: 'autoroute', label: 'route.run', icon: Wand2, shortcut: 'Shift+A', run: runAutorouter, enabled: isPcb },
+  unrouteNet: { id: 'unrouteNet', label: 'route.unrouteNet', icon: Eraser, run: () => unroute('selection'), enabled: () => isPcb() && hasSel() },
+  unrouteAll: { id: 'unrouteAll', label: 'route.unrouteAll', run: () => unroute('all'), enabled: isPcb },
   drc: { id: 'drc', label: 'pcb.drc', icon: ShieldCheck, shortcut: 'Shift+D', run: () => setDrcOpen(true), enabled: isPcb },
   erc: { id: 'erc', label: 'erc.title', icon: ShieldCheck, shortcut: 'Shift+D', run: () => setDrcOpen(true), enabled: isSchematic },
   exportGerber: { id: 'exportGerber', label: 'pcb.exportGerber', icon: Factory, run: () => void exportFabrication(), enabled: isPcb },

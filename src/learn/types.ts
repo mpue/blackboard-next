@@ -32,6 +32,13 @@ export type LessonCheck =
   | { kind: 'current'; ref: string; min: number; max: number }
   /** component value (engineering notation parsed), e.g. ohms of R1 */
   | { kind: 'value'; ref: string; min: number; max: number }
+  /** product of component values, e.g. R·C of a time constant */
+  | { kind: 'product'; refs: string[]; min: number; max: number }
+  /**
+   * a component matching `match` sits between the nets of `a` and `b` (either way
+   * round), optionally with its value in [min, max] — whatever its designator
+   */
+  | { kind: 'between'; a: PinRef; b: PinRef; match: SymbolMatch; min?: number; max?: number }
   /** symbol property, e.g. a switch being closed */
   | { kind: 'property'; ref: string; key: string; equals: string }
   /** multiple choice question answered in the lesson panel */

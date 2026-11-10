@@ -106,6 +106,30 @@ export function evaluate(check: LessonCheck, ctx: CheckContext): CheckResult {
       const v = s ? componentValue(s) : undefined;
       return v !== undefined && within(v, check.min, check.max) ? 'pass' : 'fail';
     }
+    case 'product': {
+      let v = 1;
+      for (const ref of check.refs) {
+        const s = findRef(doc, ref);
+        const x = s ? componentValue(s) : undefined;
+        if (x === undefined) return 'fail';
+        v *= x;
+      }
+      return within(v, check.min, check.max) ? 'pass' : 'fail';
+    }
+    case 'between': {
+      const a = netOf(doc, conn, check.a);
+      const b = netOf(doc, conn, check.b);
+      if (a === undefined || b === undefined || a === b) return 'fail';
+      const found = symbols(doc).some((s) => {
+        if (!matches(s, check.match) || s.pins.length < 2) return false;
+        const nets = s.pins.map((_, i) => conn.netOfPin.get(pinKey(s.id, i)));
+        if (!nets.includes(a) || !nets.includes(b)) return false;
+        if (check.min === undefined && check.max === undefined) return true;
+        const v = componentValue(s);
+        return v !== undefined && within(v, check.min ?? -Infinity, check.max ?? Infinity);
+      });
+      return found ? 'pass' : 'fail';
+    }
     case 'property': {
       const s = findRef(doc, check.ref);
       return s?.properties?.[check.key] === check.equals ? 'pass' : 'fail';

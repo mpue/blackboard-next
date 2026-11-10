@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { openDoc, setLibrary, toast, updateSettings, useStore } from './store/store.ts';
 import { handleShortcut } from './editor/commands.ts';
 import { openBytes } from './editor/fileActions.ts';
@@ -13,13 +13,15 @@ import { DrcPanel } from './ui/DrcPanel.tsx';
 import { useDrc } from './ui/drcState.ts';
 import { installCrossProbing } from './editor/crossProbe.ts';
 import { installLiveUpdates } from './store/live.ts';
-import { LearnPanel } from './learn/LearnPanel.tsx';
 import { Board3DHost } from './ui/Board3DHost.tsx';
 import { useLearn } from './learn/state.ts';
 import { useApplyTheme } from './ui/theme.ts';
 import { loadSession, loadUserSymbols, saveSession } from './platform/persist.ts';
 import type { PartDef, SpiceModel, SymbolDef } from './model/types.ts';
 import { isDirty } from './store/store.ts';
+
+// lessons and the component guide are loaded when the learning panel opens
+const LearnPanel = lazy(() => import('./learn/LearnPanel.tsx').then((m) => ({ default: m.LearnPanel })));
 
 async function loadLibrary() {
   try {
@@ -144,7 +146,11 @@ export function App() {
             <Welcome />
           )}
         </main>
-        {learnOpen && <LearnPanel />}
+        {learnOpen && (
+          <Suspense fallback={<aside className="w-80 shrink-0 border-l border-line bg-panel" />}>
+            <LearnPanel />
+          </Suspense>
+        )}
         {hasDocs && right && <RightPanel />}
       </div>
       <StatusBar />

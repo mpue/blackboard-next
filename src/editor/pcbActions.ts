@@ -13,6 +13,7 @@ import { mm, toMm } from '../pcb/units.ts';
 import { fabricationZip } from '../pcb/fab/index.ts';
 import { etchingSvg } from '../pcb/fab/etching.ts';
 import { runDrc } from '../pcb/drc.ts';
+import { computePcbConnectivity } from '../pcb/connectivity.ts';
 import { snapTo } from '../geometry/geom.ts';
 import { isSchematicDoc, RASTER } from '../model/types.ts';
 import { exportFile } from '../platform/files.ts';
@@ -260,4 +261,29 @@ export async function openPcbDemo() {
   if (!ds || !isSchematicDoc(ds.doc)) return;
   createPcbFromSchematic();
   if (activeDoc()?.doc.type === 'PCB') runAutorouter();
+}
+
+/** Removes tracks and vias: all of them, or only those of the selected items' nets. */
+export function unroute(scope: 'all' | 'selection') {
+  const ds = activeDoc();
+  if (!ds || ds.doc.type !== 'PCB') return;
+  let nets: Set<string> | undefined;
+  if (scope === 'selection') {
+    const conn = computePcbConnectivity(ds.doc);
+    const sel = new Set(ds.selection);
+    nets = new Set<string>();
+    conn.objects.forEach((o) => {
+      if (!sel.has(o.itemId)) return;
+      const n = o.kind === 'pad' ? o.net : conn.netOfItem.get(o.itemId);
+      if (n) nets!.add(n);
+    });
+    if (!nets.size) return;
+    commit((d) => {
+      d.items = d.items.filter((i) => (i.kind !== 'track' && i.kind !== 'via') || !nets!.has(conn.netOfItem.get(i.id) ?? i.net ?? '')) as Draft<Item>[];
+    });
+    return;
+  }
+  commit((d) => {
+    d.items = d.items.filter((i) => i.kind !== 'track' && i.kind !== 'via') as Draft<Item>[];
+  });
 }

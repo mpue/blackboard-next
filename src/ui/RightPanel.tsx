@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Eye, EyeOff, Lock, LockOpen, Plus, Trash2, ArrowUp, ArrowDown, CopyPlus, Minus } from 'lucide-react';
 import type { Draft } from 'immer';
 import {
@@ -18,10 +18,11 @@ import { useT, type I18nKey } from '../i18n/i18n.ts';
 import type { DiodeType, EdgeType, Item, ShapeStyle, SpiceType, SymbolItem, TextType } from '../model/types.ts';
 import { isBoardLayer, isPcbItem, MM_PER_UNIT } from '../model/types.ts';
 import { PcbItemFields, SymbolFootprintField } from './PcbProperties.tsx';
-import { ComponentInfoCard } from '../learn/ComponentInfoCard.tsx';
 import { formatOhm, parseEng } from '../model/ops.ts';
 import { resistorBands } from '../render/resistorColors.ts';
 import { Check, Field, IconButton, NumberInput, Section, Select, TextArea, TextInput, cx } from './primitives.tsx';
+
+const ComponentInfoCard = lazy(() => import('../learn/ComponentInfoCard.tsx').then((m) => ({ default: m.ComponentInfoCard })));
 
 const EDGES: EdgeType[] = ['STRAIGHT', 'ROUND_DOT', 'SIMPLE_ARROW'];
 const STYLES: ShapeStyle[] = ['OUTLINED', 'FILLED', 'OUTLINED_FILLED'];
@@ -267,7 +268,11 @@ function ItemProperties({ item }: { item: Item }) {
       {item.kind === 'symbol' && <SymbolFields item={item} />}
       {isPcbItem(item) && <PcbItemFields item={item} />}
       {!isPcbItem(item) && <LayerField items={[item]} />}
-      {item.kind === 'symbol' && <ComponentInfoCard item={item} />}
+      {item.kind === 'symbol' && (
+        <Suspense fallback={null}>
+          <ComponentInfoCard item={item} />
+        </Suspense>
+      )}
     </Section>
   );
 }
