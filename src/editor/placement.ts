@@ -6,6 +6,8 @@ import { symbolItemFromDef } from '../io/legacy.ts';
 import { snapTo, type Pt } from '../geometry/geom.ts';
 import type { Placement } from '../store/store.ts';
 import { INSTRUMENT_PREFIX, instrumentOf } from '../spice/instruments.ts';
+import { spiceValue } from '../spice/netlist.ts';
+import { suggestValue } from '../spice/readiness.ts';
 import { makeFootprintItem, sideForLayer } from '../pcb/place.ts';
 
 export function partsLayer(doc: Doc, current: string): string {
@@ -89,7 +91,11 @@ export function makePlacedItem(
         : special
           ? def.name.toUpperCase()
           : nextDesignator(doc, designatorForSymbol(def));
-  return symbolItemFromDef(def, s(at.x) - o.x, s(at.y) - o.y, layer, name);
+  const item = symbolItemFromDef(def, s(at.x) - o.x, s(at.y) - o.y, layer, name);
+  // library values are often catalogue ranges ("1..470u"); start with one SPICE can use
+  const kind = item.spiceType === 'RESISTOR' ? 'R' : item.spiceType === 'CAPACITOR' ? 'C' : item.spiceType === 'INDUCTOR' ? 'L' : undefined;
+  if (kind && !spiceValue(item.value, kind)) item.value = suggestValue(item.value, kind);
+  return item;
 }
 
 export function editableLayer(doc: Doc, current: string): string | undefined {

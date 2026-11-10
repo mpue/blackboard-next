@@ -2,6 +2,7 @@
 
 import type { Doc, SpiceModel, SymbolItem } from '../model/types.ts';
 import { computeConnectivity, pinKey } from './connectivity.ts';
+import { globalNetKey } from './labels.ts';
 import { parseEng } from '../model/ops.ts';
 import { dmmMode, earthedPinIndex, fgenSettings, fgenSource, instrumentOf, type Probes } from './instruments.ts';
 
@@ -17,6 +18,8 @@ export interface NetlistResult {
   probes: Probes;
   /** SPICE node of every connectivity net index ("0" = ground) */
   nodeOfNet: Map<number, string>;
+  /** supply symbols (+5V, VCC …) that drive their net; `assumed` when the voltage is not in the name or value */
+  supplies: { name: string; volts: number; assumed: boolean; node: string; element: string }[];
   /** emitted elements: symbol, SPICE element name and its terminals in SPICE order (symbol pin index + node) */
   elements: { symbolId: string; name: string; type: NonNullable<SymbolItem['spiceType']>; pins: { index: number; node: string }[] }[];
 }
@@ -234,6 +237,15 @@ export function lampOf(s: SymbolItem): { ohms: number; watts: number } | undefin
   return { ohms: (volts * volts) / watts, watts };
 }
 
+/** Rail voltage written in a supply name or value: "+5V" 5, "+3V3" 3.3, "-12V" -12, "9 V" 9. */
+export function supplyVolts(text: string): number | undefined {
+  const m = /([+-]?)\s*(\d+)(?:[.,](\d+))?\s*V(\d*)/i.exec(text.trim());
+  if (!m) return undefined;
+  const frac = m[3] ?? m[4] ?? '';
+  const v = parseFloat(`${m[2]}${frac ? `.${frac}` : ''}`);
+  return Number.isFinite(v) ? (m[1] === '-' ? -v : v) : undefined;
+}
+
 export function withUic(directive: string): string {
   return /^\.tran\b/i.test(directive) && !/\buic\b/i.test(directive) ? `${directive} uic` : directive;
 }
@@ -247,6 +259,7 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     defaultAnalysisAdded: false,
     probes: { nodes: {}, currents: {} },
     nodeOfNet: new Map(),
+    supplies: [],
     elements: [],
   };
   const symbols = doc.items.filter((i): i is SymbolItem => i.kind === 'symbol');
@@ -470,6 +483,26 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     const name = elementName(s, 'R', used);
     lines.push(`${name} ${node(s, 0)} ${node(s, 1)} ${parseFloat(lamp.ohms.toPrecision(6))}`);
     res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [0, 1].map((index) => ({ index, node: node(s, index) })) });
+  }
+
+  // supply symbols drive their rail like a lab supply, unless a real source already does
+  const driven = new Set(res.elements.filter((e) => e.type === 'VOLTAGE_SOURCE').flatMap((e) => e.pins.map((p) => p.node)));
+  const rails = new Map<string, SymbolItem>();
+  for (const s of symbols) {
+    const key = globalNetKey(s);
+    if (key?.startsWith('supply:') && !rails.has(key)) rails.set(key, s);
+  }
+  for (const s of rails.values()) {
+    const n = node(s, 0);
+    if (n === '0' || driven.has(n)) continue;
+    const parsed = supplyVolts(s.value) ?? supplyVolts(s.name);
+    const volts = parsed ?? 5;
+    let name = `VSUPPLY${res.supplies.length + 1}`;
+    while (used.has(name)) name += '_';
+    used.add(name);
+    lines.push(`${name} ${n} 0 DC ${volts}`);
+    driven.add(n);
+    res.supplies.push({ name: s.name, volts, assumed: parsed === undefined, node: n, element: name });
   }
 
   // probes: oscilloscopes and voltmeters only read nodes, ammeters are 0 V sources in series

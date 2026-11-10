@@ -9,7 +9,9 @@ import { Multimeter } from './Multimeter.tsx';
 import { FunctionGenerator } from './FunctionGenerator.tsx';
 import { SymbolThumb } from '../LibraryPanel.tsx';
 import { Button, Check } from '../primitives.tsx';
-import { useT } from '../../i18n/i18n.ts';
+import { useT, type I18nKey } from '../../i18n/i18n.ts';
+import { SimChecklist } from '../SimChecklist.tsx';
+import { explainSpiceError } from '../../spice/explain.ts';
 
 const ORDER: InstrumentKind[] = ['fgen', 'scope', 'dmm'];
 
@@ -82,22 +84,12 @@ export function Workbench() {
           )}
         </span>
       </div>
-      {(sim.status === 'error' || sim.errors.length > 0 || sim.warnings.length > 0) && (
-        <ul className="flex shrink-0 flex-wrap gap-x-4 border-b border-line px-3 py-1.5 text-[11.5px] text-amber-700 dark:text-amber-400">
-          {sim.errors.map((e) => (
-            <li key={e} className="flex items-center gap-1">
-              <AlertTriangle size={12} /> {t(e === 'noGround' ? 'inst.noGround' : 'sim.noSymbols')}
-            </li>
-          ))}
-          {sim.status === 'error' && sim.error && (
-            <li className="flex items-center gap-1 text-red-600 dark:text-red-400">
-              <AlertTriangle size={12} /> {sim.error.split('\n')[0]}
-            </li>
-          )}
-          {sim.warnings.slice(0, 4).map((w, i) => (
-            <li key={i}>{t(`sim.w.${w.key}`, { name: w.name, value: w.value ?? '' })}</li>
-          ))}
-        </ul>
+      <SimChecklist compact className="bb-scroll max-h-40 shrink-0 overflow-y-auto border-b border-line px-3 py-1.5" />
+      {sim.status === 'error' && sim.error && !sim.errors.length && (
+        <div className="flex shrink-0 items-start gap-1.5 border-b border-line px-3 py-1.5 text-[11.5px] text-red-600 dark:text-red-400">
+          <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+          <span>{t(`err.${explainSpiceError(sim.error).kind}` as I18nKey, { name: '' })}</span>
+        </div>
       )}
       <div className="bb-scroll flex min-h-0 flex-1 items-start gap-4 overflow-auto bg-[radial-gradient(circle_at_30%_0%,#3f3f46,#18181b_70%)] p-4">
         {instruments.some((i) => instrumentOf(i) !== 'scope') && (
