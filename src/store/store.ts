@@ -9,7 +9,7 @@ import { cloneItems, flipItem, rotateItem, selectionBounds, translateItem } from
 import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import type { Pt } from '../geometry/geom.ts';
 
-export type Tool = 'select' | 'pan' | 'wire' | 'box' | 'ellipse' | 'text' | 'measure' | 'resistor' | 'diode' | 'check' | 'place' | 'track' | 'via' | 'zone';
+export type Tool = 'select' | 'pan' | 'wire' | 'box' | 'ellipse' | 'text' | 'measure' | 'resistor' | 'diode' | 'check' | 'place' | 'track' | 'via' | 'zone' | 'outline';
 
 export type Placement = { kind: 'part'; ref: string } | { kind: 'symbol'; def: SymbolDef } | { kind: 'footprint'; def: FootprintDef };
 

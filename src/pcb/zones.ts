@@ -24,8 +24,10 @@ import {
   type CopperShape,
 } from './geometry.ts';
 import { mm } from './units.ts';
+import { customOutline } from './outline.ts';
 import {
   boxesTouch,
+  capsule,
   difference,
   inflateMulti,
   intersection,
@@ -209,6 +211,18 @@ function boardRing(doc: Doc, rules: DesignRules): PRing {
   return roundedConvex([{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }], rho, false, CHORD);
 }
 
+/** Area copper may use: the board inset by the edge clearance (rectangle or free outline). */
+function boardArea(doc: Doc, rules: DesignRules): Geom {
+  const poly = customOutline(doc);
+  if (!poly) return [boardRing(doc, rules)];
+  const e = rules.edgeClearance;
+  const ring: PRing = poly.map((p) => [p.x, p.y]);
+  if (e <= 0) return [ring];
+  // a band of the edge clearance along every edge is cut away
+  const bands = poly.map((p, i) => [capsule(poly[(i + poly.length - 1) % poly.length], p, e, CHORD)] as PPolygon);
+  return difference([ring], bands);
+}
+
 /** Rounded convex shape inflated by d (d may be negative down to -r). */
 function shapePoly(s: CopperShape, d: number, outer: boolean): PPolygon | undefined {
   const r = s.r + d;
@@ -263,7 +277,7 @@ function fill(ctx: Ctx, zone: ZoneItem, c: number): ZoneFill {
   const net = zone.net || undefined;
   const thermal = zone.connect !== 'solid';
 
-  const start = intersection([zone.points.map((p): [number, number] => [p.x, p.y])], [boardRing(doc, rules)]);
+  const start = intersection([zone.points.map((p): [number, number] => [p.x, p.y])], boardArea(doc, rules));
   const box = multiBox(start);
   if (!box) return emptyFill(c);
 

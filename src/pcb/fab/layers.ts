@@ -7,6 +7,7 @@ import type { Pt } from '../../geometry/geom.ts';
 import { copperSideOfLayer, footprintToWorld, padSides, padWorldRotation } from '../geometry.ts';
 import { mm } from '../units.ts';
 import { strokeText } from './strokeFont.ts';
+import { customOutline } from '../outline.ts';
 import type { PolygonWithHoles, Ring, Segment, ZoneFills } from './types.ts';
 
 /** Flashed pad shape; `rot` in degrees clockwise. */
@@ -344,7 +345,10 @@ export function edgePrims(doc: Doc): Prim[] {
   const r = cornerRadius(doc);
   const fn = 'Profile';
   const out: Prim[] = [];
-  if (r <= EPS) {
+  const custom = customOutline(doc);
+  if (custom) {
+    out.push({ kind: 'path', width: EDGE_WIDTH, closed: true, fn, pts: custom });
+  } else if (r <= EPS) {
     out.push({ kind: 'path', width: EDGE_WIDTH, closed: true, fn, pts: [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }] });
   } else {
     // clockwise on screen: top edge, right edge, bottom edge, left edge

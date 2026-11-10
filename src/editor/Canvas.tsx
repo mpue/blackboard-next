@@ -4,6 +4,7 @@ import {
   addItems,
   beginGesture,
   cancelGesture,
+  commit,
   endGesture,
   fitToView,
   gestureUpdate,
@@ -50,6 +51,7 @@ import { copperSideOfLayer } from '../pcb/geometry.ts';
 import { copperLayerFor } from '../pcb/place.ts';
 import { defaultRules } from '../pcb/defaults.ts';
 import { mm } from '../pcb/units.ts';
+import { outlineBounds } from '../pcb/outline.ts';
 import { netKeys, usePcbDerived, type PcbDerived } from './pcbDerived.ts';
 import { useZoneFills } from './zoneFills.ts';
 import { useDrc } from '../ui/drcState.ts';
@@ -285,6 +287,23 @@ export function Canvas() {
     const net = copperAt(d.doc, pts[0], 1)?.net ?? (nets.has('GND') ? 'GND' : ([...nets].sort()[0] ?? ''));
     const zone: ZoneItem = { id: uid(), kind: 'zone', layer, points: pts, net };
     addItems([zone]);
+  }, []);
+
+  /** A free board outline; everything is moved so the outline starts at 0/0 (the Gerber origin). */
+  const finishOutline = useCallback(() => {
+    const d = activeDoc();
+    const pts = zonePts.current;
+    zonePts.current = null;
+    setPreview({});
+    if (!d || d.doc.type !== 'PCB' || !pts || pts.length < 3) return;
+    const b = outlineBounds(pts);
+    commit((doc) => {
+      for (const it of doc.items) translateItem(it as Item, -b.x, -b.y);
+      if (doc.pcb) doc.pcb.outline = pts.map((p) => ({ x: p.x - b.x, y: p.y - b.y }));
+      doc.width = b.w;
+      doc.height = b.h;
+    });
+    window.dispatchEvent(new Event('bb:fit'));
   }, []);
 
   // routing keys must win over the global shortcuts ("v" = select tool)
@@ -628,7 +647,8 @@ export function Canvas() {
         addItems([via]);
         return;
       }
-      case 'zone': {
+      case 'zone':
+      case 'outline': {
         const pts = zonePts.current ?? [];
         const last = pts[pts.length - 1];
         if (last && Math.hypot(last.x - p.x, last.y - p.y) < 1e-6) return;
@@ -759,7 +779,7 @@ export function Canvas() {
       showRoute(r, routeTarget(d, raw, copperSideOfLayer(d.doc, r.layer)).at);
       return;
     }
-    if (s.tool === 'zone' && zonePts.current) {
+    if ((s.tool === 'zone' || s.tool === 'outline') && zonePts.current) {
       setPreview({ zone: [...zonePts.current, p] });
       return;
     }
@@ -852,6 +872,10 @@ export function Canvas() {
       finishZone();
       return;
     }
+    if (tl === 'outline') {
+      finishOutline();
+      return;
+    }
     if (!d || tl !== 'select') return;
     const hit = hitTest(d, toWorld(e.clientX, e.clientY));
     if (hit) window.dispatchEvent(new CustomEvent('bb:focus-props', { detail: hit.kind === 'text' ? 'text' : 'name' }));
@@ -864,6 +888,10 @@ export function Canvas() {
     const s = useStore.getState();
     if (s.tool === 'zone' && zonePts.current) {
       finishZone();
+      return;
+    }
+    if (s.tool === 'outline' && zonePts.current) {
+      finishOutline();
       return;
     }
     if (chainStart.current || route.current || s.tool === 'place') {

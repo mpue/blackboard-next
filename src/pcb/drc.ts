@@ -7,6 +7,7 @@ import { copperShapeBounds, footprintToWorld, polygonDistance, shapeGap, type Co
 import { defaultRules } from './defaults.ts';
 import { computePcbConnectivity, contactPoint, ratsnest, unroutedNets, type PcbConnectivity, type ZoneFills } from './connectivity.ts';
 import { gapMidpoint, polyGap, shapeCentroid, sweepPairs } from './spatial.ts';
+import { customOutline, insidePolygon, nearestOutlinePoint } from './outline.ts';
 
 export type DrcKind =
   | 'clearance'
@@ -127,34 +128,66 @@ export function runDrc(doc: Doc, opts: { zoneFills?: ZoneFills; rules?: DesignRu
   }
 
   // board edge
-  const board = boardOutline(doc);
-  const boardShape: CopperShape = {
-    pts: [
-      { x: board.r, y: board.r },
-      { x: doc.width - board.r, y: board.r },
-      { x: doc.width - board.r, y: doc.height - board.r },
-      { x: board.r, y: doc.height - board.r },
-    ],
-    r: board.r,
-  };
-  objects.forEach((o, i) => {
-    if (o.shape) {
-      const d = polygonDistance(o.shape.pts, boardShape.pts);
-      if (d > 0 && d - o.shape.r - boardShape.r >= -EPS) {
-        add({ kind: 'outsideBoard', severity: 'error', at: shapeCentroid(o.shape), nets: netList(netOf(i)) }, [o.key], [o.itemId]);
-        return;
+  const custom = customOutline(doc);
+  if (custom) customEdgeChecks(custom);
+  else rectEdgeChecks();
+
+  function customEdgeChecks(poly: Pt[]) {
+    const edges = poly.map((p, i) => [poly[(i + poly.length - 1) % poly.length], p]);
+    const edgeGap = (pts: Pt[]) => Math.min(...edges.map((e) => polygonDistance(pts, e)));
+    objects.forEach((o, i) => {
+      if (o.shape) {
+        const c = shapeCentroid(o.shape);
+        const inside = insidePolygon(c, poly);
+        const gap = edgeGap(o.shape.pts) - o.shape.r;
+        if (!inside && gap > EPS) {
+          add({ kind: 'outsideBoard', severity: 'error', at: c, nets: netList(netOf(i)) }, [o.key], [o.itemId]);
+          return;
+        }
+        if (!inside || gap < rules.edgeClearance - EPS) {
+          add({ kind: 'edgeClearance', severity: 'error', at: nearestOutlinePoint(c, poly), nets: netList(netOf(i)), actual: inside ? Math.max(0, gap) : 0, required: rules.edgeClearance }, [o.key], [o.itemId]);
+        }
+      } else if (o.fill) {
+        const ring = o.fill[0];
+        const out = ring.some((p) => !insidePolygon(p, poly));
+        const gap = Math.min(...ring.map((p) => edgeGap([p])));
+        if (out || gap < rules.edgeClearance - FILL_EPS) {
+          add({ kind: 'edgeClearance', severity: 'error', at: nearestOutlinePoint(ring[0], poly), nets: netList(o.net), actual: out ? 0 : Math.max(0, gap), required: rules.edgeClearance }, [o.key], [o.itemId]);
+        }
       }
-      const e = edgeDistance(board, o.shape.pts, o.shape.r);
-      if (e.dist < rules.edgeClearance - EPS) {
-        add({ kind: 'edgeClearance', severity: 'error', at: e.at, nets: netList(netOf(i)), actual: Math.max(0, e.dist), required: rules.edgeClearance }, [o.key], [o.itemId]);
+    });
+  }
+
+  function rectEdgeChecks() {
+    const board = boardOutline(doc);
+    const boardShape: CopperShape = {
+      pts: [
+        { x: board.r, y: board.r },
+        { x: doc.width - board.r, y: board.r },
+        { x: doc.width - board.r, y: doc.height - board.r },
+        { x: board.r, y: doc.height - board.r },
+      ],
+      r: board.r,
+    };
+    objects.forEach((o, i) => {
+      if (o.shape) {
+        const d = polygonDistance(o.shape.pts, boardShape.pts);
+        if (d > 0 && d - o.shape.r - boardShape.r >= -EPS) {
+          add({ kind: 'outsideBoard', severity: 'error', at: shapeCentroid(o.shape), nets: netList(netOf(i)) }, [o.key], [o.itemId]);
+          return;
+        }
+        const e = edgeDistance(board, o.shape.pts, o.shape.r);
+        if (e.dist < rules.edgeClearance - EPS) {
+          add({ kind: 'edgeClearance', severity: 'error', at: e.at, nets: netList(netOf(i)), actual: Math.max(0, e.dist), required: rules.edgeClearance }, [o.key], [o.itemId]);
+        }
+      } else if (o.fill) {
+        const e = edgeDistance(board, o.fill[0], 0);
+        if (e.dist < rules.edgeClearance - FILL_EPS) {
+          add({ kind: 'edgeClearance', severity: 'error', at: e.at, nets: netList(o.net), actual: Math.max(0, e.dist), required: rules.edgeClearance }, [o.key], [o.itemId]);
+        }
       }
-    } else if (o.fill) {
-      const e = edgeDistance(board, o.fill[0], 0);
-      if (e.dist < rules.edgeClearance - FILL_EPS) {
-        add({ kind: 'edgeClearance', severity: 'error', at: e.at, nets: netList(o.net), actual: Math.max(0, e.dist), required: rules.edgeClearance }, [o.key], [o.itemId]);
-      }
-    }
-  });
+    });
+  }
 
   // courtyards
   const yards = footprints.map((fp) => courtyard(fp));

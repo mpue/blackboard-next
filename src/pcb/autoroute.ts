@@ -12,6 +12,7 @@ import { copperLayers, trackWidthFor } from './route.ts';
 import { defaultRules } from './defaults.ts';
 import { shapeCentroid } from './spatial.ts';
 import { mm } from './units.ts';
+import { boardSdf as outlineSdf } from './outline.ts';
 
 export interface AutorouteOptions {
   /** grid pitch in board units; default mm(0.254), a tenth of the 2.54 mm raster */
@@ -119,12 +120,6 @@ function gapAt(px: number, py: number, s: CopperShape): number {
   return inside ? -s.r : best - s.r;
 }
 
-/** Signed distance to the (rounded) board rectangle, negative inside. */
-function boardSdf(w: number, h: number, r: number, x: number, y: number): number {
-  const qx = Math.abs(x - w / 2) - (w / 2 - r);
-  const qy = Math.abs(y - h / 2) - (h / 2 - r);
-  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
-}
 
 function simplify(pts: Pt[]): Pt[] {
   const out: Pt[] = [];
@@ -257,10 +252,10 @@ class Grid {
     this.sT = [];
     for (let k = 0; k < widths.length * this.L; k++) this.sT.push(new Int32Array(this.N).fill(FREE));
     this.sV = this.L === 2 ? new Int32Array(this.N).fill(FREE) : undefined;
-    const cr = Math.max(0, Math.min(doc.pcb?.cornerRadius ?? 0, doc.width / 2, doc.height / 2));
+    const sdf = outlineSdf(doc);
     for (let j = 0; j < this.ny; j++) {
       for (let i = 0; i < this.nx; i++) {
-        const inside = -boardSdf(doc.width, doc.height, cr, i * g, j * g);
+        const inside = -sdf(i * g, j * g);
         const idx = j * this.nx + i;
         for (let c = 0; c < widths.length; c++) {
           if (inside < rules.edgeClearance + widths[c] / 2 + EPS) for (let li = 0; li < this.L; li++) this.sT[c * this.L + li][idx] = BLOCK;
@@ -765,8 +760,8 @@ export function autoroute(doc: Doc, opts: AutorouteOptions = {}, onProgress?: (d
     return out;
   };
 
-  const cr = Math.max(0, Math.min(doc.pcb?.cornerRadius ?? 0, doc.width / 2, doc.height / 2));
-  const edgeOk = (p: Pt, r: number) => -boardSdf(doc.width, doc.height, cr, p.x, p.y) - r >= rules.edgeClearance + SAFE;
+  const sdf = outlineSdf(doc);
+  const edgeOk = (p: Pt, r: number) => -sdf(p.x, p.y) - r >= rules.edgeClearance + SAFE;
 
   /** exact clearance check of one piece of copper against foreign copper */
   const clean = (shape: CopperShape, sides: number, obs: Cu[]): boolean => {

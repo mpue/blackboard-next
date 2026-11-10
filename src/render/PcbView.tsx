@@ -7,6 +7,7 @@ import { memo } from 'react';
 import type { CopperSide, Doc, FootprintGraphic, FootprintItem, Item, Layer, LayerRole, PadDef, TrackItem, ViaItem, ZoneItem } from '../model/types.ts';
 import { footprintToWorld, footprintTransform } from '../pcb/geometry.ts';
 import { mm } from '../pcb/units.ts';
+import { outlinePath } from '../pcb/outline.ts';
 import { ItemView, type RenderFlags } from './ItemView.tsx';
 import { rectOfPoints, textWorldCorners } from '../geometry/geom.ts';
 import type { TextItem } from '../model/types.ts';
@@ -202,10 +203,6 @@ function Zone({ z, color, fill, opacity, hl }: { z: ZoneItem; color: string; fil
 
 // ---- board -------------------------------------------------------------------------------------
 
-/** Board outline as SVG rect attributes. */
-export function boardRect(doc: Doc) {
-  return { x: 0, y: 0, width: doc.width, height: doc.height, rx: Math.min(doc.pcb?.cornerRadius ?? 0, doc.width / 2, doc.height / 2) };
-}
 
 export const PcbView = memo(function PcbView({ doc, idPrefix, opts, mirror }: { doc: Doc; idPrefix: string; opts: PcbRenderOptions; mirror: boolean }) {
   const pal = palette(doc.layers, opts.realistic);
@@ -223,7 +220,7 @@ export const PcbView = memo(function PcbView({ doc, idPrefix, opts, mirror }: { 
   const zones = doc.items.filter((i): i is ZoneItem => i.kind === 'zone');
   const others = doc.items.filter((i) => i.kind !== 'footprint' && i.kind !== 'track' && i.kind !== 'via' && i.kind !== 'zone');
   const hl = opts.highlight;
-  const r = boardRect(doc);
+  const edge = outlinePath(doc);
   const activeSide = opts.activeLayer ? layerSide(opts.activeLayer) : undefined;
   // seen from below the bottom side is in front
   const front: CopperSide = mirror ? 'bottom' : activeSide ?? 'top';
@@ -303,13 +300,13 @@ export const PcbView = memo(function PcbView({ doc, idPrefix, opts, mirror }: { 
           </pattern>
         )}
         <clipPath id={`${idPrefix}-pcbclip`}>
-          <rect {...r} />
+          <path d={edge} />
         </clipPath>
       </defs>
       {/* substrate */}
-      <rect {...r} fill={pal.substrate} />
-      {opts.realistic && <rect {...r} fill="none" stroke="#c8b27a" strokeWidth={mm(0.15)} />}
-      {opts.grid && !opts.realistic && <rect {...r} fill={`url(#${idPrefix}-pcbgrid)`} />}
+      <path d={edge} fill={pal.substrate} />
+      {opts.realistic && <path d={edge} fill="none" stroke="#c8b27a" strokeWidth={mm(0.15)} />}
+      {opts.grid && !opts.realistic && <path d={edge} fill={`url(#${idPrefix}-pcbgrid)`} />}
 
       <g clipPath={opts.realistic ? `url(#${idPrefix}-pcbclip)` : undefined}>
         {silkLayer(back, true)}
@@ -346,7 +343,7 @@ export const PcbView = memo(function PcbView({ doc, idPrefix, opts, mirror }: { 
       {/* board edge and drawings on the outline layer */}
       {(outline?.visible ?? true) && (
         <g opacity={outline?.opacity ?? 1}>
-          {!opts.realistic && <rect {...r} fill="none" stroke={pal.edge} strokeWidth={mm(0.15)} />}
+          {!opts.realistic && <path d={edge} fill="none" stroke={pal.edge} strokeWidth={mm(0.15)} />}
           {legacy(otherItemsOn('outline'), 'outline')}
         </g>
       )}

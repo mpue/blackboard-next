@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import type { Doc } from '../model/types.ts';
 import { footprintToWorld } from '../pcb/geometry.ts';
-import { toMm } from '../pcb/units.ts';
+import { mm, toMm } from '../pcb/units.ts';
+import { boardSdf, customOutline } from '../pcb/outline.ts';
 import { BOARD_THICKNESS } from './models.ts';
 
 export const SOLDER_MASK = '#145c34';
@@ -24,8 +25,10 @@ export function boardHoles(doc: Doc): Hole[] {
   const H = toMm(doc.height);
   const rc = cornerRadius(doc);
   const out: Hole[] = [];
+  const sdf = boardSdf(doc);
   const inside = (x: number, y: number, r: number) => {
     const m = r + 0.2;
+    if (customOutline(doc)) return -toMm(sdf(mm(x), mm(-y))) >= m;
     if (x < m || x > W - m || -y < m || -y > H - m) return false;
     // within a rounded corner the hole must clear the arc
     const inCorner = (x < rc || x > W - rc) && (-y < rc || -y > H - rc);
@@ -60,7 +63,10 @@ export function boardShape(doc: Doc): THREE.Shape {
   const H = toMm(doc.height);
   const r = cornerRadius(doc);
   const s = new THREE.Shape();
-  if (r < 1e-3) {
+  const custom = customOutline(doc);
+  if (custom) {
+    custom.forEach((p, i) => (i ? s.lineTo(toMm(p.x), -toMm(p.y)) : s.moveTo(toMm(p.x), -toMm(p.y))));
+  } else if (r < 1e-3) {
     s.moveTo(0, -H);
     s.lineTo(W, -H);
     s.lineTo(W, 0);

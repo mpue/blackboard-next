@@ -304,3 +304,12 @@ export function selectConnectedCopper() {
   });
   select([...ids]);
 }
+
+/** Back to the rectangular board (size of the free outline's bounding box). */
+export function resetOutline() {
+  const ds = activeDoc();
+  if (!ds?.doc.pcb?.outline) return;
+  commit((d) => {
+    if (d.pcb) delete d.pcb.outline;
+  });
+}

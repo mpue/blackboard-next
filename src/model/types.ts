@@ -338,6 +338,8 @@ export interface PcbSettings {
   schematic?: string;
   /** rounded board corners */
   cornerRadius?: number;
+  /** free board outline (closed polygon); the rectangle when absent */
+  outline?: { x: number; y: number }[];
 }
 
 export interface Doc {

@@ -20,7 +20,7 @@ export function ToolRail() {
   const groups: Command[][] = pcb
     ? [
         [c.select, c.pan],
-        [c.track, c.via, c.zone],
+        [c.track, c.via, c.zone, c.outline],
         [c.wire, c.box, c.ellipse, c.text],
         [c.measure, c.check, c.drc],
       ]
@@ -101,6 +101,7 @@ const HINTS: Record<string, I18nKey> = {
   track: 'hint.track',
   via: 'hint.via',
   zone: 'hint.zone',
+  outline: 'hint.outline',
 };
 
 function CursorReadout() {
