@@ -160,18 +160,60 @@ function usePlayback(series: LiveSeries | null, conn: Connectivity): { values: L
 }
 
 /** Measurement tooltip: voltage of a wire, or U, I and P of a component. */
-function Probe({ doc, values, conn, z }: { doc: Doc; values: LiveValues; conn: Connectivity; z: number }) {
+/** Voltage of a connectivity net over the simulated time (slow motion). */
+function netTrace(series: LiveSeries, net: number | undefined): number[] | undefined {
+  if (net === undefined) return undefined;
+  const node = series.nl.nodeOfNet.get(net);
+  if (node === undefined) return undefined;
+  if (node === '0') return series.time.map(() => 0);
+  return series.vectors.get(`v(${node})`);
+}
+
+/** Small oscilloscope trace with the playback position. */
+function Trace({ values, phase, y, w }: { values: number[]; phase: number; y: number; w: number }) {
+  const h = 38;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const step = Math.max(1, Math.floor(values.length / 160));
+  // plot on the left, the scale in its own column on the right
+  const pw = w - 16 - 40;
+  const pts: string[] = [];
+  for (let i = 0; i < values.length; i += step) pts.push(`${8 + (pw * i) / (values.length - 1)},${y + h - ((values[i] - min) / span) * h}`);
+  return (
+    <g>
+      <rect x={8} y={y} width={pw} height={h} fill="#020617" stroke="#334155" strokeWidth={0.6} />
+      <polyline points={pts.join(' ')} fill="none" stroke="#4ade80" strokeWidth={1.3} />
+      <line x1={8 + pw * phase} y1={y} x2={8 + pw * phase} y2={y + h} stroke="#facc15" strokeWidth={1} />
+      <text x={w - 8} y={y + 8} fontSize={8} textAnchor="end" fill="#94a3b8" fontFamily={LABEL_FONT}>
+        {formatEng(max, 'V')}
+      </text>
+      <text x={w - 8} y={y + h} fontSize={8} textAnchor="end" fill="#94a3b8" fontFamily={LABEL_FONT}>
+        {formatEng(min, 'V')}
+      </text>
+    </g>
+  );
+}
+
+function Probe({ doc, values, conn, z, series, phase }: { doc: Doc; values: LiveValues; conn: Connectivity; z: number; series: LiveSeries | null; phase: number }) {
   const { itemId, at } = useLiveHover();
   const it = itemId ? doc.items.find((i) => i.id === itemId) : undefined;
   if (!it || !at) return null;
   const rows: string[] = [];
+  let trace: number[] | undefined;
   if (it.kind === 'line') {
     const n = conn.netOfWire.get(it.id);
     const v = n === undefined ? undefined : values.netVoltage.get(n);
     if (v === undefined) return null;
     rows.push(`U = ${formatEng(v, 'V')}`);
+    if (series) trace = netTrace(series, n);
   } else if (it.kind === 'symbol') {
     const nets = it.pins.map((_, i) => conn.netOfPin.get(pinKey(it.id, i)));
+    if (series && it.pins.length === 2) {
+      const a = netTrace(series, nets[0]);
+      const b = netTrace(series, nets[1]);
+      if (a && b) trace = a.map((x, k) => x - b[k]);
+    }
     const volts = nets.map((n) => (n === undefined ? undefined : values.netVoltage.get(n)));
     const i = values.deviceCurrent.get(it.id);
     if (it.pins.length === 2 && volts[0] !== undefined && volts[1] !== undefined) {
@@ -191,10 +233,12 @@ function Probe({ doc, values, conn, z }: { doc: Doc; values: LiveValues; conn: C
     rows.unshift(it.name);
   } else return null;
   const s = 1 / Math.max(z, 0.25);
-  const w = Math.max(...rows.map((r) => r.length)) * 6.4 + 16;
+  const w = Math.max(trace ? 196 : 0, Math.max(...rows.map((r) => r.length)) * 6.4 + 16);
+  const textH = rows.length * 15 + 8;
   return (
     <g pointerEvents="none" transform={`translate(${at.x + 14 * s} ${at.y + 14 * s}) scale(${s})`}>
-      <rect width={w} height={rows.length * 15 + 8} rx={6} fill="#0f172a" fillOpacity={0.92} stroke="#facc15" strokeOpacity={0.6} />
+      <rect width={w} height={textH + (trace ? 46 : 0)} rx={6} fill="#0f172a" fillOpacity={0.92} stroke="#facc15" strokeOpacity={0.6} />
+      {trace && trace.length > 1 && <Trace values={trace} phase={phase} y={textH} w={w} />}
       {rows.map((r, k) => (
         <text key={k} x={8} y={17 + k * 15} fontSize={11} fill={k === 0 && it.kind === 'symbol' ? '#ffffff' : '#fde047'} fontWeight={k === 0 ? 700 : 500} fontFamily={LABEL_FONT}>
           {r}
@@ -300,7 +344,7 @@ export const LiveOverlay = memo(function LiveOverlay({ doc, docId, z, showLabels
       {symbols.filter(isPot).map((s) => (
         <PotSlider key={s.id} s={s} z={z} />
       ))}
-      <Probe doc={series ? series.doc : doc} values={values} conn={series ? seriesConn : conn} z={z} />
+      <Probe doc={series ? series.doc : doc} values={values} conn={series ? seriesConn : conn} z={z} series={series} phase={play.phase} />
       {series && (
         <g pointerEvents="none" transform={`translate(16 ${-10 - 18 / z}) scale(${1 / Math.max(z, 0.25)})`}>
           <rect x={0} y={0} width={150} height={18} rx={9} fill="#0f172a" fillOpacity={0.85} />
