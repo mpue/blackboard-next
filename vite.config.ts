@@ -2,6 +2,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+// The ESP32 files are cached on first use under their URL: a content hash in
+// the URL makes a new build fetch new files instead of keeping the old ones.
+const esp32Version = createHash('sha256')
+  .update(Buffer.concat(['esp32sim.wasm', 'esp32_rev300_rom.elf', 'micropython-esp32.bin'].map((f) => readFileSync(new URL(`public/esp32/${f}`, import.meta.url)))))
+  .digest('hex')
+  .slice(0, 12);
 
 // Relative base so the very same build runs from a web server, a sub path,
 // the Tauri webview or a file share.
@@ -14,6 +23,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 25_000,
   },
   worker: { format: 'es' },
+  define: { __ESP32_VERSION__: JSON.stringify(esp32Version) },
   plugins: [
     react(),
     tailwindcss(),
@@ -50,7 +60,8 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.pathname.includes('/esp32/'),
             handler: 'CacheFirst',
-            options: { cacheName: 'esp32-emulator' },
+            // three files per version: keep the current and the previous one
+            options: { cacheName: 'esp32-emulator', expiration: { maxEntries: 6 } },
           },
         ],
       },

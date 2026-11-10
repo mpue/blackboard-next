@@ -104,9 +104,10 @@ function start(id: string, docId: string, s: SymbolItem): Runner {
   const p = s.properties ?? {};
   if (esp32) {
     const base = new URL('esp32/', document.baseURI).href;
+    const version = __ESP32_VERSION__;
     const load: Esp32Request = p.firmware
-      ? { type: 'load', base, io: MODELS.esp32.io, firmware: p.firmware, offset: Number(p.firmwareOffset ?? 0) }
-      : { type: 'load', base, io: MODELS.esp32.io, script: p.script ?? '' };
+      ? { type: 'load', base, version, io: MODELS.esp32.io, firmware: p.firmware, offset: Number(p.firmwareOffset ?? 0) }
+      : { type: 'load', base, version, io: MODELS.esp32.io, script: p.script ?? '' };
     worker.postMessage(load);
   } else send(r, { type: 'load', hex: p.firmware ?? '', frequency: mcuClock(s) });
   patch(id, { status: 'unpowered', drives: {}, error: undefined, seconds: 0 });

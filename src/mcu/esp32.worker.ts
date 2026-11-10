@@ -13,6 +13,8 @@ export type Esp32Request =
       type: 'load';
       /** URL of the directory with esp32sim.wasm, the ROM and MicroPython */
       base: string;
+      /** content hash of those files, so a new build is not served from an old cache */
+      version: string;
       io: IoPin[];
       /** packed flash image (esp32Firmware.ts) and its offset; without it MicroPython runs `script` */
       firmware?: string;
@@ -104,10 +106,11 @@ async function fetchBytes(url: string): Promise<Uint8Array> {
 async function load(m: Extract<Esp32Request, { type: 'load' }>) {
   io = m.io;
   script = m.script;
+  const url = (file: string) => `${m.base}${file}?v=${m.version}`;
   const [wasm, romBytes, mp] = await Promise.all([
-    rt ? null : fetchBytes(`${m.base}esp32sim.wasm`),
-    rom ? rom : fetchBytes(`${m.base}esp32_rev300_rom.elf`),
-    m.firmware ? null : fetchBytes(`${m.base}micropython-esp32.bin`),
+    rt ? null : fetchBytes(url('esp32sim.wasm')),
+    rom ? rom : fetchBytes(url('esp32_rev300_rom.elf')),
+    m.firmware ? null : fetchBytes(url('micropython-esp32.bin')),
   ]);
   if (wasm) rt = await Esp32Runtime.create(wasm);
   rom = romBytes;
