@@ -3,8 +3,10 @@
 // static hosting) the app works as before and shows no cloud functions.
 
 import { createAuthClient } from 'better-auth/react';
+import { apiUrl } from './api.ts';
+import type { PlanSettings } from './plans.ts';
 
-export const apiUrl = (path: string) => new URL(`api/${path}`, document.baseURI).href;
+export { apiUrl };
 
 export const authClient = createAuthClient({ baseURL: apiUrl('auth') });
 
@@ -13,6 +15,7 @@ export const useSession = authClient.useSession;
 export interface ServerConfig {
   google: boolean;
   maxProjectBytes: number;
+  plans?: PlanSettings;
 }
 
 let config: Promise<ServerConfig | null> | undefined;
@@ -28,3 +31,4 @@ export function serverConfig(): Promise<ServerConfig | null> {
 /** Address of the landing page (sign in, account), and of the editor. */
 export const landingUrl = (params = '') => new URL(`./${params}`, document.baseURI).href;
 export const editorUrl = (params = '') => new URL(`./?app${params ? `&${params}` : ''}`, document.baseURI).href;
+export const adminUrl = () => new URL('./?admin', document.baseURI).href;

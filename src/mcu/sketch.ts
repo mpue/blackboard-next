@@ -37,6 +37,13 @@ export interface CompileResult {
   diagnostics: Diagnostic[];
   log: string;
   ms: number;
+  /** today's compiles of the account; limit null: no daily limit */
+  usage?: CompileUsage;
+}
+
+export interface CompileUsage {
+  used: number;
+  limit: number | null;
 }
 
 /** what the compiler service accepts as a file name */
@@ -124,30 +131,68 @@ export function templateFiles(id: TemplateId, wire?: string): SourceFile[] {
 
 // ---- compiling ----
 
-export type CompileProblem = 'offline' | 'unavailable' | 'rate' | 'busy' | 'rejected';
+/**
+ * Why there is no result: no connection or compiler, or the account – not
+ * signed in ('login'), the desktop key wrong ('key'), the plan has no compiler
+ * ('plan'), the launch phase is over ('payment'), today's compiles used up ('quota').
+ */
+export type CompileProblem = 'offline' | 'unavailable' | 'rate' | 'busy' | 'rejected' | 'login' | 'key' | 'plan' | 'payment' | 'quota';
 
 export class CompileError extends Error {
   readonly problem: CompileProblem;
+  readonly usage?: CompileUsage;
 
-  constructor(problem: CompileProblem, detail = '') {
+  constructor(problem: CompileProblem, detail = '', usage?: CompileUsage) {
     super(detail ? `${problem}: ${detail}` : problem);
     this.problem = problem;
+    this.usage = usage;
   }
 }
 
 /** The web app compiles on its own server; the desktop app on the public one. */
-const compileUrl = () => (isTauri() ? 'https://pueski.de/blackboard/api/compile' : new URL('api/compile', document.baseURI).href);
+export const PUBLIC_SITE = 'https://pueski.de/blackboard/';
+const compileUrl = () => (isTauri() ? `${PUBLIC_SITE}api/compile` : new URL('api/compile', document.baseURI).href);
+
+const KEY = 'blackboard.compileKey';
+/** The desktop app compiles with the key of an account (made in the account on the web). */
+export function compileKey(): string {
+  try {
+    return localStorage.getItem(KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+export function setCompileKey(key: string) {
+  try {
+    if (key) localStorage.setItem(KEY, key);
+    else localStorage.removeItem(KEY);
+  } catch {
+    // no storage: the key is gone after a restart
+  }
+}
 
 /** Compiles for an ATmega328P at `clock` Hz; a program with errors resolves (ok false), a missing compiler throws a CompileError. */
 export async function compileSketch(files: SourceFile[], clock: number): Promise<CompileResult> {
   let r: Response;
   try {
-    r = await fetch(compileUrl(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ files, clock }) });
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (isTauri() && compileKey()) headers.authorization = `Bearer ${compileKey()}`;
+    r = await fetch(compileUrl(), { method: 'POST', headers, body: JSON.stringify({ files, clock }) });
   } catch {
     throw new CompileError(navigator.onLine ? 'unavailable' : 'offline');
   }
-  const json = (r.headers.get('content-type') ?? '').includes('json') ? ((await r.json().catch(() => null)) as (CompileResult & { error?: string }) | null) : null;
-  if (r.ok && json && typeof json.ok === 'boolean') return json;
+  const json = (r.headers.get('content-type') ?? '').includes('json')
+    ? ((await r.json().catch(() => null)) as (CompileResult & { error?: string; used?: number; limit?: number }) | null)
+    : null;
+  if (r.ok && json && typeof json.ok === 'boolean') {
+    const used = r.headers.get('x-compile-used');
+    const limit = r.headers.get('x-compile-limit');
+    return used === null ? json : { ...json, usage: { used: Number(used), limit: limit === null ? null : Number(limit) } };
+  }
+  if (r.status === 401) throw new CompileError(json?.error === 'key' ? 'key' : 'login');
+  if (r.status === 402) throw new CompileError('payment');
+  if (r.status === 403 && json?.error === 'plan') throw new CompileError('plan');
+  if (r.status === 429 && json?.error === 'quota') throw new CompileError('quota', '', { used: json.used ?? 0, limit: json.limit ?? 0 });
   if (r.status === 429) throw new CompileError('rate');
   if (r.status === 503 && json?.error === 'busy') throw new CompileError('busy');
   if (r.status === 400 || r.status === 413) throw new CompileError('rejected', json?.error);

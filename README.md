@@ -133,7 +133,9 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   hover. *Upload* (Ctrl+Enter) compiles on the server, puts the HEX onto the chip and
   starts the live simulation; *Verify* (Ctrl+B) only compiles. Errors are marked in the
   text, memory use is shown, and the HEX and the source can be saved. The source is
-  stored in the chip next to its HEX
+  stored in the chip next to its HEX. The online compiler needs an account with a plan
+  that includes it (see *Plans*); the panel says so before the first compile and shows
+  today's compiles
 - Coupled to ngspice through the operating point: outputs drive the circuit through
   their 25 Ω drivers, pull-ups are 35 kΩ, inputs read the node voltages (Schmitt
   trigger levels), A0–A5 feed the ADC, the chip resets below 2.7 V. PWM pins are
@@ -240,8 +242,11 @@ arduino-cli 1.5.1 with the Arduino AVR core 1.8.6 (avr-gcc 7.3, as in the Arduin
 and the libraries LiquidCrystal, Servo and Stepper (EEPROM, Wire, SPI and SoftwareSerial
 come with the core). `POST /compile` takes `{ files: [{ name, content }], clock }` and
 answers with the HEX, the memory use and gcc's messages. A program without a `.ino` file
-is plain C/C++ with its own `main()`. The API passes `/api/compile` on to it (at most
-`MAX_COMPILES` per visitor in ten minutes); the desktop app compiles on the public server.
+is plain C/C++ with its own `main()`. The API passes `/api/compile` on to signed-in
+accounts whose plan has the compiler, counts the compiles per day (`server/plans.ts`) and
+allows at most `MAX_COMPILES` per account in ten minutes. The desktop app compiles on the
+public server with the account's key (`Authorization: Bearer bbk_…`, made in the account
+on the web, stored only as a hash).
 
 It compiles code from the web, so it runs in a container of its own: nothing secret in it,
 no network (an internal Docker network, only the API reaches it), read-only file system,
@@ -294,9 +299,42 @@ only for the password and restarts the API. The live instance runs at https://pu
 
 ### Plans
 
-Free / Edu costs nothing; commercial use needs the Individual Commercial subscription
-(29 € per month), sold through a Stripe payment link (`CHECKOUT_URL` in
-`src/landing/Pricing.tsx`; a signed-in user's id goes along as `client_reference_id`).
+- **Free / Edu**: every feature, without an account, except the online compiler
+- **Professional**: the online compiler with a daily limit (60). Free of charge with an
+  account until the day before `proFreeUntil` (1 February 2027), then 6 € per month
+- **Individual Commercial**: commercial use, the compiler without a daily limit, 29 € per month
+
+New accounts get Professional. Prices, the end of the free start, the daily limit and the
+Stripe payment links are settings of the admin page (stored in the database, served with
+`/api/config`); a signed-in user's id and address go along with the link as
+`client_reference_id` and `prefilled_email`. After a payment the admin sets the plan and
+"paid until" of the account by hand.
+
+### Admin page and newsletter
+
+`./?admin` is the admin page, for accounts in `ADMIN_EMAILS` (server.env, once the address
+is confirmed) or with the role `admin`: an overview, the accounts (plan, paid until, note,
+admin rights, blocking, sign-out everywhere, password and confirmation mails, deleting with
+all projects), the newsletter and the plan settings. Blocking uses Better Auth's admin
+plugin: a blocked account cannot sign in and its desktop key stops working.
+
+The newsletter has double opt-in: the landing page sends a mail with a confirmation link
+(unconfirmed sign-ups are deleted after seven days); signed-in users subscribe from their
+account in one step. Issues are written in a little Markdown with an optional English
+version, previewed exactly as the mail looks, sent to yourself as a test and then to every
+confirmed subscriber in the background (`NEWSLETTER_PER_MINUTE`, it goes on after a
+restart). Every mail has an unsubscribe link and a one-click `List-Unsubscribe` header
+(RFC 8058); unsubscribing deletes the address. No tracking pixels, no tracked links.
+
+### Search engines
+
+`index.html` has the description, Open Graph and Twitter tags, a preview image
+(`public/og.jpg`, 1200×630), JSON-LD (`WebApplication`) and a plain-text version of the
+landing page inside `#root` for crawlers without JavaScript (the editor and the admin page
+hide it). The build fills in `SITE_URL` (default `https://pueski.de/blackboard/`) and writes
+`sitemap.xml` and `robots.txt`; the editor's addresses are `noindex`. Crawlers only read
+`robots.txt` at the root of a host, so on a sub path the sitemap goes into the root
+`robots.txt` or Search Console.
 
 ### Desktop app (Tauri)
 
@@ -314,10 +352,12 @@ npm run tauri build   # installers in src-tauri/target/release/bundle/
 ```
 library/                   the classic BlackBoard library: parts, symbols, models (XML), samples
 scripts/build-library.ts   library/ -> public/library/*.json, public/samples/
-server/                    accounts and cloud projects (Node, Better Auth, SQLite), /api/compile
+server/                    accounts, plans, cloud projects, newsletter, admin API (Node, Better
+                           Auth, SQLite), /api/compile
 compiler/                  C/C++ -> Intel HEX for the ATmega328P (arduino-cli, own container)
-src/landing/               landing page, sign-in dialogs, plans, legal pages
-src/account/               auth client, cloud projects in the editor
+src/landing/               landing page, sign-in dialogs, plans, newsletter, legal pages
+src/admin/                 admin page (?admin): accounts, newsletter, plan settings
+src/account/               auth client, plans, cloud projects in the editor
 src/io/                    XML reader/writer, legacy BoardBean format, .bb archives, KiCad
 src/model/                 document model, item operations, engineering values
 src/geometry/              transforms, bounds, hit testing, pin positions

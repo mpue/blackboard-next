@@ -8,12 +8,26 @@ import { download, exportFile, openFiles, type FileType } from '../platform/file
 import { setLiveMode, setLiveValues, useLive } from '../store/live.ts';
 import { toast } from '../store/store.ts';
 import { t } from '../i18n/i18n.ts';
-import { CompileError, compileSketch, FILE_NAME, flashSketch, mainFile, MAX_FILES, SOURCE_EXTENSIONS, type CompileProblem, type CompileResult, type SourceFile } from '../mcu/sketch.ts';
+import {
+  CompileError,
+  compileSketch,
+  FILE_NAME,
+  flashSketch,
+  mainFile,
+  MAX_FILES,
+  SOURCE_EXTENSIONS,
+  type CompileProblem,
+  type CompileResult,
+  type CompileUsage,
+  type SourceFile,
+} from '../mcu/sketch.ts';
 
 export interface CompileRun {
   busy: boolean;
   result?: CompileResult;
   problem?: CompileProblem;
+  /** today's compiles, after the last answer that had them */
+  usage?: CompileUsage;
   /** the result went onto the chip */
   uploaded?: boolean;
 }
@@ -30,6 +44,12 @@ export const openCode = (docId: string, chipId: string) => useCode.setState({ op
 export const closeCode = () => useCode.setState({ open: null });
 
 const setRun = (chipId: string, run: CompileRun) => useCode.setState((s) => ({ runs: { ...s.runs, [chipId]: run } }));
+/** forgets the last answer, e.g. after a new key, so the panel asks the account again */
+export const clearRun = (chipId: string) =>
+  useCode.setState((s) => {
+    const { [chipId]: _, ...runs } = s.runs;
+    return { runs };
+  });
 
 export const HEX_TYPE: FileType = { description: 'Intel HEX', extensions: ['.hex'], mime: 'text/plain' };
 export const SOURCE_TYPE: FileType = { description: 'C/C++', extensions: SOURCE_EXTENSIONS, mime: 'text/plain' };
@@ -59,11 +79,11 @@ export async function compileChip(docId: string, chipId: string, files: SourceFi
       if (useLive.getState().mode !== 'dc') setLiveMode('dc');
       setLiveValues(true);
     }
-    setRun(chipId, { busy: false, result, uploaded: upload && result.ok });
+    setRun(chipId, { busy: false, result, usage: result.usage, uploaded: upload && result.ok });
     return result.ok ? result : undefined;
   } catch (e) {
     const problem = e instanceof CompileError ? e.problem : 'unavailable';
-    setRun(chipId, { busy: false, problem });
+    setRun(chipId, { busy: false, problem, usage: e instanceof CompileError ? e.usage : undefined });
     return undefined;
   }
 }

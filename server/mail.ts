@@ -1,6 +1,6 @@
-// E-mails of the accounts (confirmation, password reset, shared projects),
-// over SMTP; without SMTP settings they are written to the log instead, so a
-// development setup works without a mail server.
+// E-mails of the accounts (confirmation, password reset, shared projects) and
+// the newsletter, over SMTP; without SMTP settings they are written to the log
+// instead, so a development setup works without a mail server.
 
 import nodemailer from 'nodemailer';
 import type { Config } from './config.ts';
@@ -10,6 +10,8 @@ export interface Mail {
   subject: string;
   text: string;
   html: string;
+  /** e.g. List-Unsubscribe of the newsletter */
+  headers?: Record<string, string>;
 }
 
 export type Mailer = (mail: Mail) => Promise<void>;
@@ -21,11 +23,11 @@ export function createMailer(config: Config, log: (line: string) => void = conso
   const { host, port, secure, user, pass, from } = config.smtp;
   const transport = nodemailer.createTransport({ host, port, secure, auth: user ? { user, pass } : undefined });
   return async (m) => {
-    await transport.sendMail({ from, to: m.to, subject: m.subject, text: m.text, html: m.html });
+    await transport.sendMail({ from, to: m.to, subject: m.subject, text: m.text, html: m.html, headers: m.headers });
   };
 }
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** A short mail with one button, in German and English. */
 export function buttonMail(to: string, subject: string, lines: string[], button: string, url: string): Mail {

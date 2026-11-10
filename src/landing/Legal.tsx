@@ -3,6 +3,7 @@
 // The texts describe what the BlackBoard server actually stores (server/).
 
 import type { ReactNode } from 'react';
+import { lastFreeDay, longDate, type PlanSettings } from '../account/plans.ts';
 import type { Lang } from './strings.ts';
 
 /** Operator of the site */
@@ -66,7 +67,23 @@ function Privacy() {
       <P>
         Für ein Konto speichern wir Name, E-Mail-Adresse, das Passwort (nur als sicherer Hash, nie im Klartext) und den Zeitpunkt der Registrierung. Für angemeldete Sitzungen speichern wir
         zusätzlich IP-Adresse und Browserkennung der Sitzung, um Missbrauch zu erkennen. Die Verarbeitung dient der Bereitstellung des Kontos (Art. 6 Abs. 1 lit. b DSGVO). Zur Bestätigung
-        der E-Mail-Adresse, zum Zurücksetzen des Passworts und um dich über geteilte Projekte zu informieren, senden wir E-Mails an deine Adresse.
+        der E-Mail-Adresse, zum Zurücksetzen des Passworts und um dich über geteilte Projekte zu informieren, senden wir E-Mails an deine Adresse. Zum Konto gehört außerdem der Tarif
+        (Free / Edu, Professional oder Individual Commercial) mit dem Zeitraum, für den er bezahlt ist.
+      </P>
+      <H>Online-Compiler</H>
+      <P>
+        Wenn du im Code-Editor „Prüfen“ oder „Hochladen“ wählst, schickt der Editor deinen Quelltext an unseren Server. Er wird dort in einem abgeschotteten Container ohne
+        Internetzugang übersetzt; Quelltext und Ergebnis werden danach sofort gelöscht und nicht gespeichert. Wir speichern nur, wie oft dein Konto an einem Tag übersetzt hat, um das
+        Tageslimit deines Tarifs einzuhalten. Für die Desktop-App kannst du einen Schlüssel erzeugen; wir speichern ihn nur als Hash, zusammen mit dem Zeitpunkt der Erzeugung und der
+        letzten Nutzung. Die Verarbeitung dient der Bereitstellung des Online-Compilers (Art. 6 Abs. 1 lit. b DSGVO).
+      </P>
+      <H>Newsletter</H>
+      <P>
+        Den Newsletter schicken wir nur mit deiner Einwilligung (Art. 6 Abs. 1 lit. a DSGVO). Meldest du dich auf der Startseite an, bekommst du zuerst eine E-Mail mit einem
+        Bestätigungslink (Double-Opt-in); erst nach dem Klick bist du angemeldet. Mit einem Konto meldest du dich in deinem Konto an; deine Adresse ist dort schon bestätigt. Wir speichern
+        deine E-Mail-Adresse, die Sprache und die Zeitpunkte von Anmeldung und Bestätigung, um die Einwilligung nachweisen zu können. Der Newsletter enthält keine Zählpixel und keine
+        verfolgten Links. Du kannst die Einwilligung jederzeit widerrufen: mit dem Abmeldelink in jeder Ausgabe, in deinem Konto oder per E-Mail an uns. Beim Abmelden löschen wir deine
+        Adresse aus der Liste; nicht bestätigte Anmeldungen löschen wir nach sieben Tagen.
       </P>
       <H>Anmeldung mit Google</H>
       <P>
@@ -81,7 +98,7 @@ function Privacy() {
       </P>
       <H>Abonnement und Zahlung</H>
       <P>
-        Für das Abo Individual Commercial wirst du zu unserem Zahlungsdienstleister Stripe (Stripe Payments Europe, Limited, 1 Grand Canal Street Lower, Grand Canal Dock, Dublin, D02 H210,
+        Für ein kostenpflichtiges Abo (Professional nach der kostenlosen Startphase, Individual Commercial) wirst du zu unserem Zahlungsdienstleister Stripe (Stripe Payments Europe, Limited, 1 Grand Canal Street Lower, Grand Canal Dock, Dublin, D02 H210,
         Irland) weitergeleitet. Stripe verarbeitet deine Zahlungsdaten selbst; wir erhalten Name, E-Mail-Adresse, Rechnungsadresse und den Status der Zahlung, aber keine vollständigen
         Kartendaten. Bist du angemeldet, geben wir Stripe die interne Kennung deines Kontos mit, damit das Abo deinem Konto zugeordnet werden kann. Die Verarbeitung dient der Durchführung
         des Vertrags (Art. 6 Abs. 1 lit. b DSGVO); Rechnungsdaten bewahren wir so lange auf, wie es das Steuerrecht vorschreibt. Für die Verarbeitung bei Stripe gilt dessen
@@ -94,13 +111,14 @@ function Privacy() {
       </P>
       <H>Speicherdauer</H>
       <P>
-        Kontodaten und Projekte speichern wir, bis du dein Konto löschst. Sitzungen laufen nach spätestens sieben Tagen ohne Nutzung ab. Links in Bestätigungs- und Passwort-Mails gelten eine
-        Stunde.
+        Kontodaten, Tarif, die Zahl der Übersetzungen und Projekte speichern wir, bis du dein Konto löschst. Sitzungen laufen nach spätestens sieben Tagen ohne Nutzung ab. Links in
+        Bestätigungs- und Passwort-Mails gelten eine Stunde. Newsletter-Adressen speichern wir, bis du dich abmeldest.
       </P>
       <H>Deine Rechte</H>
       <P>
-        Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO). Dein Konto samt aller Projekte und
-        Freigaben kannst du selbst löschen (Startseite → Konto → Konto löschen). Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren.
+        Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie das Recht, eine
+        Einwilligung jederzeit für die Zukunft zu widerrufen (Art. 7 Abs. 3 DSGVO). Dein Konto samt aller Projekte, Freigaben und deinem Newsletter-Abo kannst du selbst löschen
+        (Startseite → Konto → Konto löschen). Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren.
       </P>
     </>
   );
@@ -109,8 +127,8 @@ function Privacy() {
 const address = () => `${OPERATOR.name}, ${OPERATOR.address.join(', ')}`;
 const Stand = () => <p className="mt-2 text-[13px] text-slate-500">Stand: November 2026</p>;
 
-/** Terms of use: everyone, with or without account (Free / Edu and the rules for commercial use) */
-function Terms() {
+/** Terms of use: everyone, with or without account (the plans and the rules for commercial use) */
+function Terms({ plans }: { plans: PlanSettings }) {
   return (
     <>
       <h1 className="text-[28px] font-bold text-white">Nutzungsbedingungen</h1>
@@ -119,6 +137,22 @@ function Terms() {
       <P>
         Diese Nutzungsbedingungen gelten für die Nutzung von BlackBoard – der Web-App, der installierbaren App und der Desktop-Anwendung – und des BlackBoard-Kontos. Anbieter ist {address()}{' '}
         (siehe Impressum). Für das kostenpflichtige Abo Individual Commercial gelten zusätzlich die AGB.
+      </P>
+      <H>§ 1a Tarife und Online-Compiler</H>
+      <P>
+        (1) Alle Funktionen von BlackBoard stehen ohne Konto und in jedem Tarif zur Verfügung – mit Ausnahme des Online-Compilers, der im Code-Editor C- und C++-Quelltext auf dem Server des
+        Anbieters übersetzt. HEX-Dateien aus anderen Werkzeugen lassen sich immer laden.
+      </P>
+      <P>
+        (2) Professional: Mit einem Konto ist der Online-Compiler enthalten, derzeit mit bis zu {plans.proDailyCompiles} Übersetzungen pro Tag. Bis zum {longDate(lastFreeDay(plans), 'de')}{' '}
+        ist Professional kostenlos. Ab dem {longDate(plans.proFreeUntil, 'de')} kostet Professional {plans.proPrice} € im Monat; der Online-Compiler steht dann nur mit einem bezahlten Abo
+        zur Verfügung. Über die Bedingungen des Abos informiert der Anbieter die Kontoinhaber rechtzeitig vorher per E-Mail. Ohne Abo bleiben Konto, Cloud-Projekte und alle anderen
+        Funktionen erhalten.
+      </P>
+      <P>(3) Individual Commercial enthält den Online-Compiler ohne Tageslimit (siehe AGB).</P>
+      <P>
+        (4) Zum Schutz des Dienstes darf der Anbieter technische Grenzen setzen, etwa für die Zahl der Übersetzungen in kurzer Zeit, die Größe des Quelltexts und die Dauer einer
+        Übersetzung. Der Schlüssel für die Desktop-App ist wie ein Passwort geheim zu halten.
       </P>
       <H>§ 2 Nutzungsrecht</H>
       <P>(1) Der Anbieter räumt dir ein einfaches, nicht übertragbares Recht ein, BlackBoard nach diesen Bedingungen zu nutzen.</P>
@@ -136,7 +170,7 @@ function Terms() {
         BlackBoard“ genannt.
       </P>
       <H>§ 3 Konto</H>
-      <P>(1) Für den Editor brauchst du kein Konto. Das Konto ist kostenlos; du brauchst es für Projekte in der Cloud und zum Teilen.</P>
+      <P>(1) Für den Editor brauchst du kein Konto. Das Konto ist kostenlos; du brauchst es für Projekte in der Cloud, zum Teilen und für den Online-Compiler.</P>
       <P>(2) Deine Angaben müssen zutreffen. Halte dein Passwort geheim. Jedes Konto gehört einer Person.</P>
       <P>(3) Minderjährige brauchen die Zustimmung ihrer Erziehungsberechtigten.</P>
       <H>§ 4 Cloud-Projekte und Teilen</H>
@@ -216,8 +250,9 @@ function Agb() {
         (3) Die Cloud-Funktionen stehen nach den Nutzungsbedingungen zur Verfügung. Der Anbieter bemüht sich um eine hohe Verfügbarkeit, schuldet aber keine bestimmte; Wartungen kündigt er
         nach Möglichkeit vorher an. Der Editor selbst arbeitet auch ohne Verbindung zum Server.
       </P>
+      <P>(4) Das Abo enthält den Online-Compiler des Code-Editors ohne Tageslimit; technische Grenzen zum Schutz des Dienstes nach den Nutzungsbedingungen bleiben unberührt.</P>
       <P>
-        (4) Der Anbieter entwickelt BlackBoard weiter. Schränkt eine Änderung den Kern der Leistung – Entwurf, Simulation und Platinen – wesentlich ein, kann der Kunde mit sofortiger
+        (5) Der Anbieter entwickelt BlackBoard weiter. Schränkt eine Änderung den Kern der Leistung – Entwurf, Simulation und Platinen – wesentlich ein, kann der Kunde mit sofortiger
         Wirkung kündigen.
       </P>
       <H>§ 4 Preise und Zahlung</H>
@@ -238,7 +273,7 @@ function Agb() {
       </P>
       <P>(3) Das Recht zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt.</P>
       <P>
-        (4) Mit dem Ende des Abos endet das Recht zur gewerblichen Nutzung; Konto und Cloud-Projekte bleiben nach den Nutzungsbedingungen erhalten. Kündigt der Kunde nach § 3 Abs. 4,
+        (4) Mit dem Ende des Abos endet das Recht zur gewerblichen Nutzung; Konto und Cloud-Projekte bleiben nach den Nutzungsbedingungen erhalten. Kündigt der Kunde nach § 3 Abs. 5,
         erstattet der Anbieter den bereits bezahlten Betrag für die Zeit danach anteilig.
       </P>
       <H>§ 6 Mängel</H>
@@ -287,11 +322,11 @@ function Agb() {
 export const LEGAL_PAGES = ['impressum', 'datenschutz', 'agb', 'nutzungsbedingungen'] as const;
 export type LegalPageId = (typeof LEGAL_PAGES)[number];
 
-export function LegalPage({ page, lang }: { page: LegalPageId; lang: Lang }) {
+export function LegalPage({ page, lang, plans }: { page: LegalPageId; lang: Lang; plans: PlanSettings }) {
   return (
     <article className="mx-auto max-w-[760px] px-5 py-14 text-[15px]">
       {lang === 'en' && <p className="mb-6 rounded-lg bg-white/5 p-3 text-[13px] text-slate-400">The legal texts are binding in German; here is the German text.</p>}
-      {page === 'impressum' ? <Imprint /> : page === 'datenschutz' ? <Privacy /> : page === 'agb' ? <Agb /> : <Terms />}
+      {page === 'impressum' ? <Imprint /> : page === 'datenschutz' ? <Privacy /> : page === 'agb' ? <Agb /> : <Terms plans={plans} />}
     </article>
   );
 }

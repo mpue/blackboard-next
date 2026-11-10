@@ -1,18 +1,24 @@
 // The landing page of the web version: what BlackBoard does, the way into the
-// editor (no account needed) and the account (cloud projects, sharing).
+// editor (no account needed), the plans, the newsletter and the account (cloud
+// projects, sharing, plan). The links of the newsletter mails land here too.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, ArrowRight, CircuitBoard, Cloud, Cpu, Gauge, Grid3x3, Lock, LogIn, Share2, UserPlus, Waves, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertCircle, ArrowRight, CircuitBoard, Cloud, Cpu, Gauge, Grid3x3, Lock, LogIn, Share2, UserPlus, Waves, CheckCircle2 } from 'lucide-react';
 import { Logo } from '../ui/Logo.tsx';
 import { authClient, editorUrl, serverConfig } from '../account/auth.ts';
+import { confirmNewsletter, DEFAULT_PLANS, unsubscribeNewsletter, type PlanSettings } from '../account/plans.ts';
 import { AuthDialog, type AuthMode } from './AuthDialog.tsx';
 import { LEGAL_PAGES, LegalPage, type LegalPageId } from './Legal.tsx';
 import { Pricing } from './Pricing.tsx';
+import { Newsletter } from './Newsletter.tsx';
 import { landingLang, setLandingLang, translator, type LandingKey, type Lang } from './strings.ts';
 
 type Page = 'home' | LegalPageId;
 
 const asPage = (p: string | null): Page => (LEGAL_PAGES.includes(p as LegalPageId) ? (p as LegalPageId) : 'home');
+
+/** the public address of the landing page (index.html); the legal pages are pages of their own for search engines */
+const CANONICAL = document.querySelector('link[rel="canonical"]')?.getAttribute('href') ?? '';
 
 const FEATURES: { icon: typeof Cpu; key: 'boards' | 'spice' | 'live' | 'bench' | 'mcu' | 'pcb' }[] = [
   { icon: Grid3x3, key: 'boards' },
@@ -63,19 +69,39 @@ export function Landing() {
     return null;
   });
   const next = params.get('next') === 'app' ? 'app' : undefined;
-  const [banner, setBanner] = useState<string | null>(() =>
-    params.has('verified') ? t('auth.verified') : params.has('subscribed') ? t('pricing.thanks') : params.has('authError') ? t('err.generic', { message: params.get('error') ?? 'Google' }) : null,
+  const [banner, setBanner] = useState<{ text: string; ok: boolean } | null>(() =>
+    params.has('verified')
+      ? { text: t('auth.verified'), ok: true }
+      : params.has('subscribed')
+        ? { text: t('pricing.thanks'), ok: true }
+        : params.has('authError')
+          ? { text: t('err.generic', { message: params.get('error') ?? 'Google' }), ok: false }
+          : null,
   );
   const [cloud, setCloud] = useState(true);
+  const [plans, setPlans] = useState<PlanSettings>(DEFAULT_PLANS);
   const session = authClient.useSession();
   const user = session.data?.user;
 
   useEffect(() => {
     document.title = lang === 'de' ? 'BlackBoard – Schaltungen entwerfen, simulieren und verstehen' : 'BlackBoard – design, simulate and understand circuits';
     document.documentElement.lang = lang;
+    document.querySelector('meta[name="description"]')?.setAttribute('content', t('meta.description'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
   useEffect(() => {
-    void serverConfig().then((c) => setCloud(!!c));
+    void serverConfig().then((c) => {
+      setCloud(!!c);
+      if (c?.plans) setPlans(c.plans);
+    });
+    // the links in the newsletter mails (the page posts them, so link scanners in mail programs do not)
+    const token = params.get('token') ?? '';
+    if (params.get('newsletter') === 'confirm')
+      void confirmNewsletter(token).then(
+        () => setBanner({ text: t('news.confirmed'), ok: true }),
+        () => setBanner({ text: t('news.invalid'), ok: false }),
+      );
+    if (params.get('newsletter') === 'unsubscribe') void unsubscribeNewsletter(token).finally(() => setBanner({ text: t('news.unsubscribed'), ok: true }));
     // after confirming the address or signing in from the editor: back to it
     if ((params.has('verified') || params.has('signedIn')) && next === 'app') location.replace(editorUrl());
     // the address keeps only the page
@@ -83,6 +109,9 @@ export function Landing() {
     if (location.search !== keep) history.replaceState(null, '', `${location.pathname}${keep}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (CANONICAL) document.querySelector('link[rel="canonical"]')?.setAttribute('href', page === 'home' ? CANONICAL : `${CANONICAL}?page=${page}`);
+  }, [page]);
   useEffect(() => {
     if (!banner) return;
     const id = setTimeout(() => setBanner(null), 6000);
@@ -159,7 +188,7 @@ export function Landing() {
       </nav>
 
       {page !== 'home' ? (
-        <LegalPage page={page} lang={lang} />
+        <LegalPage page={page} lang={lang} plans={plans} />
       ) : (
         <main>
           {/* hero */}
@@ -184,7 +213,7 @@ export function Landing() {
               {cloud && <p className="mt-5 text-[14px] text-slate-500">{t('hero.note')}</p>}
               <div className="relative mx-auto mt-14 max-w-[1040px]">
                 <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-indigo-500/30 via-sky-500/20 to-emerald-500/30 blur-2xl" />
-                <Shot src="landing/hero.webp" alt="BlackBoard" className="relative" />
+                <Shot src="landing/hero.webp" alt={t('hero.alt')} className="relative" />
               </div>
             </Section>
           </div>
@@ -281,8 +310,14 @@ export function Landing() {
           )}
 
           <Section id="pricing" className="py-20">
-            <Pricing t={t} userId={user?.id} onAgb={() => open('agb')} />
+            <Pricing t={t} lang={lang} plans={plans} user={user} onSignUp={() => setDialog({ mode: 'signUp' })} onAgb={() => open('agb')} />
           </Section>
+
+          {cloud && (
+            <Section id="newsletter" className="py-12">
+              <Newsletter t={t} lang={lang} user={user} onPrivacy={() => open('datenschutz')} />
+            </Section>
+          )}
 
           {/* call to action */}
           <Section className="py-20 text-center">
@@ -320,10 +355,27 @@ export function Landing() {
         </div>
       </footer>
 
-      {dialog && <AuthDialog mode={dialog.mode} token={dialog.token} next={next} t={t} onClose={() => setDialog(null)} onPrivacy={() => open('datenschutz')} onTerms={() => open('nutzungsbedingungen')} />}
+      {dialog && (
+        <AuthDialog
+          mode={dialog.mode}
+          token={dialog.token}
+          next={next}
+          t={t}
+          lang={lang}
+          plans={plans}
+          onClose={() => setDialog(null)}
+          onPrivacy={() => open('datenschutz')}
+          onTerms={() => open('nutzungsbedingungen')}
+          onPlans={() => {
+            setDialog(null);
+            if (page !== 'home') open('home');
+            setTimeout(() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }), 0);
+          }}
+        />
+      )}
       {banner && (
-        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-[14px] text-white shadow-2xl">
-          <CheckCircle2 size={17} className="text-emerald-400" /> {banner}
+        <div className="fixed bottom-5 left-1/2 z-50 flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-[14px] text-white shadow-2xl">
+          {banner.ok ? <CheckCircle2 size={17} className="shrink-0 text-emerald-400" /> : <AlertCircle size={17} className="shrink-0 text-amber-400" />} {banner.text}
         </div>
       )}
     </div>

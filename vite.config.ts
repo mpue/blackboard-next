@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -12,6 +12,31 @@ const esp32Version = createHash('sha256')
   .update(Buffer.concat(['esp32sim.wasm', 'esp32_rev300_rom.elf', 'micropython-esp32.bin'].map((f) => readFileSync(new URL(`public/esp32/${f}`, import.meta.url)))))
   .digest('hex')
   .slice(0, 12);
+
+// Where the web version is public, for search engines and link previews: the
+// canonical address and og:image in index.html, sitemap.xml and robots.txt.
+const SITE_URL = (process.env.SITE_URL ?? 'https://pueski.de/blackboard/').replace(/\/?$/, '/');
+
+function seo(): Plugin {
+  const pages = ['', '?page=impressum', '?page=datenschutz', '?page=nutzungsbedingungen', '?page=agb'];
+  const today = new Date().toISOString().slice(0, 10);
+  const xml = (s: string) => s.replace(/&/g, '&amp;');
+  return {
+    name: 'blackboard-seo',
+    transformIndexHtml: { order: 'pre', handler: (html) => html.replaceAll('%SITE_URL%', SITE_URL) },
+    generateBundle() {
+      const urls = pages.map((p) => `  <url><loc>${xml(SITE_URL + p)}</loc><lastmod>${today}</lastmod><priority>${p ? '0.2' : '1.0'}</priority></url>`);
+      this.emitFile({
+        type: 'asset',
+        fileName: 'sitemap.xml',
+        source: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`,
+      });
+      // crawlers read robots.txt only at the root of a host; under a sub path this one is for reference
+      const path = new URL(SITE_URL).pathname;
+      this.emitFile({ type: 'asset', fileName: 'robots.txt', source: `User-agent: *\nAllow: ${path}\nDisallow: ${path}api/\n\nSitemap: ${SITE_URL}sitemap.xml\n` });
+    },
+  };
+}
 
 // Relative base so the very same build runs from a web server, a sub path,
 // the Tauri webview or a file share.
@@ -30,6 +55,7 @@ export default defineConfig({
   test: { exclude: ['**/node_modules/**', 'server/**', 'compiler/**', 'dist/**'] },
   define: { __ESP32_VERSION__: JSON.stringify(esp32Version) },
   plugins: [
+    seo(),
     react(),
     tailwindcss(),
     VitePWA({

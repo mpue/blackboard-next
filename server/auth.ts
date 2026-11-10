@@ -1,14 +1,17 @@
 // Accounts with Better Auth: e-mail and password with confirmation mail and
 // password reset, Google sign-in when configured, sessions in the SQLite file.
+// The admin plugin adds the role and blocking (a blocked account cannot sign
+// in); the admin page itself is admin.ts.
 
 import type { DatabaseSync } from 'node:sqlite';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
+import { admin } from 'better-auth/plugins';
 import type { Config } from './config.ts';
 import { buttonMail, type Mailer } from './mail.ts';
 
 /** The accounts, with their tables created or updated first. */
-export async function createAuth(config: Config, db: DatabaseSync, mail: Mailer, beforeDeleteUser: (userId: string) => void) {
+export async function createAuth(config: Config, db: DatabaseSync, mail: Mailer, beforeDeleteUser: (user: { id: string; email: string }) => void) {
   const options = {
     database: db,
     baseURL: config.origin,
@@ -54,12 +57,17 @@ export async function createAuth(config: Config, db: DatabaseSync, mail: Mailer,
     user: {
       deleteUser: {
         enabled: true,
-        beforeDelete: async (user) => beforeDeleteUser(user.id),
+        beforeDelete: async (user) => beforeDeleteUser(user),
       },
     },
+    plugins: [admin()],
   } satisfies BetterAuthOptions;
   await (await getMigrations(options)).runMigrations();
   return betterAuth(options);
 }
 
 export type Auth = Awaited<ReturnType<typeof createAuth>>;
+
+/** an admin: by role, or by an address in ADMIN_EMAILS once it is confirmed */
+export const isAdmin = (config: Config, u: { email: string; emailVerified: boolean | number; role?: string | null }) =>
+  u.role === 'admin' || (!!u.emailVerified && config.adminEmails.includes(u.email.toLowerCase()));

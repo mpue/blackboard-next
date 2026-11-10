@@ -12,9 +12,10 @@ import { openMonitor } from '../mcu/controller.ts';
 import { mcuClock } from '../mcu/pinout.ts';
 import { encodeSketch, exampleOf, FILE_NAME, mainFile, MAX_FILES, sketchFiles, storeSketch, templateFiles, TEMPLATES, type Diagnostic, type SourceFile, type TemplateId } from '../mcu/sketch.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
-import { closeCode, compileChip, pickSource, saveHex, saveSource, useCode, type CompileRun } from './codeState.ts';
+import { clearRun, closeCode, compileChip, pickSource, saveHex, saveSource, useCode, type CompileRun } from './codeState.ts';
 import { CodeEditor, type JumpTarget } from './CodeEditor.tsx';
 import { McuStatus } from './McuFields.tsx';
+import { AccessActions, isAccountProblem, problemText, useCompileAccess } from './CompileAccess.tsx';
 import { IconButton, cx } from './primitives.tsx';
 
 const WIDTH_KEY = 'blackboard.code.width';
@@ -329,6 +330,7 @@ function Panel({ docId, chip, phone }: { docId: string; chip: SymbolItem; phone:
           setActive(d.file);
           setJump((j) => ({ file: d.file, line: d.line, column: d.column, n: (j?.n ?? 0) + 1 }));
         }}
+        onKeySaved={() => clearRun(chip.id)}
       />
     </aside>
   );
@@ -352,7 +354,7 @@ function Meter({ label, used, max, locale }: { label: string; used: number; max:
 
 const ICONS = { error: AlertCircle, warning: AlertTriangle, note: Info };
 
-function Output({ run, chip, clock, onPick }: { run: CompileRun | undefined; chip: SymbolItem; clock: number; onPick: (d: Diagnostic) => void }) {
+function Output({ run, chip, clock, onPick, onKeySaved }: { run: CompileRun | undefined; chip: SymbolItem; clock: number; onPick: (d: Diagnostic) => void; onKeySaved: () => void }) {
   const t = useT();
   const r = run?.result;
   const errors = r?.diagnostics.filter((d) => d.severity === 'error').length ?? 0;
@@ -361,6 +363,10 @@ function Output({ run, chip, clock, onPick }: { run: CompileRun | undefined; chi
   const mhz = (clock / 1e6).toLocaleString(locale);
   const seconds = r ? (r.ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1, minimumFractionDigits: 1 }) : '';
   const messages = r?.diagnostics ?? [];
+  const [access, recheck] = useCompileAccess();
+  const usage = run?.usage ?? access.usage;
+  // what the account allows: after a compile from its answer, before from the server
+  const accountProblem = run?.busy ? undefined : run?.problem ? (isAccountProblem(run.problem) ? run.problem : undefined) : !r ? access.problem : undefined;
 
   let tone: 'ok' | 'bad' | 'busy' | 'idle' = 'idle';
   let text = t('code.noRun');
@@ -369,7 +375,9 @@ function Output({ run, chip, clock, onPick }: { run: CompileRun | undefined; chi
     text = t('code.compiling');
   } else if (run?.problem) {
     tone = 'bad';
-    text = t(`code.problem.${run.problem}`);
+    text = problemText(t, run.problem, run.usage);
+  } else if (!r && access.problem) {
+    text = problemText(t, access.problem);
   } else if (r?.ok) {
     tone = 'ok';
     text = run?.uploaded ? t('code.okUploaded', { s: seconds, ref: chip.name, mhz }) : t('code.ok', { s: seconds, mhz });
@@ -393,8 +401,22 @@ function Output({ run, chip, clock, onPick }: { run: CompileRun | undefined; chi
         <span className={cx('min-w-0 flex-1', tone === 'idle' && 'text-muted')}>
           {text}
           {warnings > 0 && !run?.busy && <span className="ml-1.5 text-amber-600 dark:text-amber-400">· {t('code.warnings', { n: warnings })}</span>}
+          {usage && usage.limit !== null && !run?.busy && !accountProblem && (
+            <span className="mt-0.5 block text-[11px] text-muted">{t('code.usage', { used: String(usage.used), limit: String(usage.limit) })}</span>
+          )}
         </span>
       </div>
+      {accountProblem && (
+        <div className="px-3 pb-2 pl-[30px]">
+          <AccessActions
+            problem={accountProblem}
+            onKey={() => {
+              recheck();
+              onKeySaved();
+            }}
+          />
+        </div>
+      )}
       {r?.ok && r.flash && !run?.busy && (
         <div className="flex gap-3 px-3 pb-2">
           <Meter label={t('code.flash')} used={r.flash.used} max={r.flash.max} locale={locale} />

@@ -3,11 +3,65 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="description" content="BlackBoard Circuit Designer – Lochraster, Streifenraster und Schaltpläne mit NGSpice-Simulation" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>BlackBoard – Schaltungen entwerfen, simulieren und verstehen</title>
+    <meta
+      name="description"
+      content="Elektronik im Browser: Lochraster, Streifenraster, Schaltpläne und Platinen mit SPICE-Simulation, Messgeräten und Mikrocontrollern (Arduino, ESP32), die echte Firmware ausführen. Kostenlos, ohne Anmeldung."
+    />
+    <meta name="author" content="Matthias Püski" />
+    <!-- %SITE_URL% is filled in at build time (vite.config.ts) -->
+    <link rel="canonical" href="%SITE_URL%" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BlackBoard Next" />
+    <meta property="og:locale" content="de_DE" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:url" content="%SITE_URL%" />
+    <meta property="og:title" content="BlackBoard – Schaltungen entwerfen, simulieren und verstehen" />
+    <meta property="og:description" content="Lochraster, Schaltplan, SPICE-Simulation, Mikrocontroller mit echter Firmware und Platinen in 3D – kostenlos im Browser." />
+    <meta property="og:image" content="%SITE_URL%og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Der BlackBoard-Editor mit einem ATmega328P im Schaltplan" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
-    <title>BlackBoard Circuit Designer</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "BlackBoard Next",
+        "alternateName": "BlackBoard Circuit Designer",
+        "url": "%SITE_URL%",
+        "image": "%SITE_URL%og.jpg",
+        "description": "Editor für Lochraster, Streifenraster, Schaltpläne und Platinen mit SPICE-Simulation, Messgeräten und Mikrocontrollern, die echte Firmware ausführen.",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Web, Windows, macOS, Linux",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "inLanguage": ["de", "en"],
+        "author": { "@type": "Person", "name": "Matthias Püski", "url": "https://pueski.de/" },
+        "offers": { "@type": "Offer", "name": "Free / Edu", "price": "0", "priceCurrency": "EUR" },
+        "featureList": [
+          "Lochraster und Streifenraster",
+          "Schaltplan mit SPICE-Simulation (NGSpice)",
+          "Live-Werte, Oszilloskop, Multimeter, Funktionsgenerator",
+          "ATmega328P und ESP32 mit echter Firmware, Arduino und MicroPython",
+          "C/C++-Code-Editor mit Online-Compiler",
+          "Platinen mit Autorouter und 3D-Ansicht",
+          "Cloud-Projekte und Teilen"
+        ]
+      }
+    </script>
+    <style>
+      /* the text below is for search engines and for the moment before the app starts; the editor and the admin page never show it */
+      .bb-app #bb-static { display: none; }
+      #bb-static { min-height: 100vh; background: #020617; color: #94a3b8; font: 17px/1.6 system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 128px 20px 64px; text-align: center; }
+      #bb-static h1 { color: #fff; font-size: clamp(36px, 6vw, 60px); line-height: 1.1; margin: 0 auto 24px; max-width: 900px; letter-spacing: -0.02em; }
+      #bb-static p, #bb-static ul { max-width: 720px; margin: 0 auto 16px; }
+      #bb-static ul { text-align: left; }
+      #bb-static h2 { color: #e2e8f0; font-size: 22px; margin: 48px auto 12px; }
+      #bb-static a { color: #a5b4fc; }
+    </style>
     <script>
       // apply the theme before first paint to avoid a flash
       try {
@@ -15,10 +69,41 @@
         const dark = s.theme === 'dark' || ((!s.theme || s.theme === 'system') && matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');
       } catch {}
+      // the editor and the admin page (see main.tsx) do not show the text of the landing page
+      if ('__TAURI_INTERNALS__' in window || /[?&](app|demo|lesson|sample|view|project|admin)(=|&|$)/.test(location.search)) document.documentElement.classList.add('bb-app');
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="bb-static">
+        <h1>Schaltungen entwerfen, simulieren und verstehen.</h1>
+        <p>
+          BlackBoard plant Lochraster, Streifenraster, Schaltpläne und Platinen – mit echter SPICE-Simulation, Messgeräten wie im Labor und Mikrocontrollern, die ihre Firmware wirklich
+          ausführen. Kostenlos im Browser, ohne Anmeldung.
+        </p>
+        <p><a href="./?app">Editor öffnen</a> · <a href="./?app&amp;demo=mcu">Demo: Mikrocontroller</a> · <a href="./?app&amp;demo=pcb&amp;view=3d">Demo: Platine in 3D</a></p>
+        <h2>Funktionen</h2>
+        <ul>
+          <li>Lochraster und Streifenraster planen wie auf dem Labortisch, kompatibel mit BlackBoard 1.x</li>
+          <li>Schaltplan mit NGSpice-Simulation direkt im Browser und einem Simulations-Check in Alltagssprache</li>
+          <li>Live-Werte in der Schaltung, Oszilloskop, Multimeter und Funktionsgenerator</li>
+          <li>ATmega328P (Arduino Uno) und ESP32 mit echter Firmware, Arduino-Sketche und MicroPython, HD44780-Displays</li>
+          <li>Code-Editor für C und C++ mit Autovervollständigung und Online-Compiler, der das Programm sofort auf den Chip lädt</li>
+          <li>Platinen mit Design-Regel-Prüfung, Autorouter und 3D-Ansicht</li>
+          <li>Cloud-Projekte und Teilen mit einem kostenlosen Konto</li>
+        </ul>
+        <h2>Tarife</h2>
+        <ul>
+          <li>Free / Edu: kostenlos für private Projekte, Schule, Ausbildung, Studium und Lehre</li>
+          <li>Professional: mit dem Online-Compiler für C/C++, in der Startphase kostenlos mit einem Konto</li>
+          <li>Individual Commercial: für die gewerbliche Nutzung, Online-Compiler ohne Tageslimit</li>
+        </ul>
+        <p>
+          <a href="./?page=impressum">Impressum</a> · <a href="./?page=datenschutz">Datenschutz</a> · <a href="./?page=nutzungsbedingungen">Nutzungsbedingungen</a> ·
+          <a href="./?page=agb">AGB</a>
+        </p>
+      </div>
+    </div>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { CheckCircle2, Loader2, LogOut, Mail, Trash2, X } from 'lucide-react';
 import { authClient, landingUrl, editorUrl, serverConfig } from '../account/auth.ts';
-import type { T } from './strings.ts';
+import type { PlanSettings } from '../account/plans.ts';
+import { AccountPlan } from './AccountPlan.tsx';
+import type { Lang, T } from './strings.ts';
 
 export type AuthMode = 'signIn' | 'signUp' | 'forgot' | 'reset' | 'account';
 
@@ -38,19 +40,25 @@ function GoogleIcon() {
 export function AuthDialog({
   mode: start,
   t,
+  lang,
+  plans,
   token,
   next,
   onClose,
   onPrivacy,
   onTerms,
+  onPlans,
 }: {
   mode: AuthMode;
   t: T;
+  lang: Lang;
+  plans: PlanSettings;
   token?: string;
   next?: 'app';
   onClose: () => void;
   onPrivacy: () => void;
   onTerms: () => void;
+  onPlans: () => void;
 }) {
   // a text with {terms} and {privacy} as links to those pages
   const withLinks = (key: 'auth.consent' | 'auth.googleNote') =>
@@ -165,7 +173,12 @@ export function AuthDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-[400px] rounded-2xl border border-white/10 bg-slate-900 p-6 text-slate-200 shadow-2xl shadow-indigo-950/50">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="max-h-[calc(100dvh-32px)] w-full max-w-[420px] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 p-6 text-slate-200 shadow-2xl shadow-indigo-950/50"
+      >
         <header className="mb-5 flex items-center justify-between">
           <h2 className="text-[19px] font-semibold text-white">{title}</h2>
           <button className="rounded-md p-1 text-slate-400 hover:bg-white/10 hover:text-white" onClick={onClose} aria-label={t('account.cancel')}>
@@ -204,6 +217,7 @@ export function AuthDialog({
                 <span className="block truncate text-slate-400">{session.data?.user.email}</span>
               </span>
             </div>
+            <AccountPlan t={t} lang={lang} plans={plans} onPlans={onPlans} />
             <button className={primary} onClick={() => (location.href = editorUrl())}>
               {t('nav.editor')}
             </button>

@@ -19,8 +19,12 @@ export interface Config {
   maxProjectsPerUser: number;
   /** the compile service (compiler/) */
   compilerUrl: string;
-  /** compiles per visitor in ten minutes */
+  /** compiles per account in ten minutes, against runaway scripts (the daily limit of a plan comes on top) */
   maxCompiles: number;
+  /** addresses that are admins once confirmed (lower case) */
+  adminEmails: string[];
+  /** newsletter mails per minute */
+  newsletterPerMinute: number;
 }
 
 /** The session secret: from AUTH_SECRET, else made once and kept in the data directory. */
@@ -58,5 +62,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxProjectsPerUser: Number(env.MAX_PROJECTS ?? 200),
     compilerUrl: (env.COMPILER_URL ?? 'http://localhost:8789').replace(/\/+$/, ''),
     maxCompiles: Number(env.MAX_COMPILES ?? 60),
+    adminEmails: (env.ADMIN_EMAILS ?? '')
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+    newsletterPerMinute: Number(env.NEWSLETTER_PER_MINUTE ?? 20),
   };
 }
