@@ -1,7 +1,7 @@
 // Session persistence in IndexedDB: open documents survive reloads and
-// crashes, the user symbol library lives here as well.
+// crashes, the user symbol and part libraries live here as well.
 
-import type { Doc, SymbolDef } from '../model/types.ts';
+import type { Doc, PartDef, SymbolDef } from '../model/types.ts';
 
 const DB = 'blackboard';
 const STORE = 'kv';
@@ -75,6 +75,23 @@ export async function saveUserSymbols(symbols: SymbolDef[]) {
 export async function loadUserSymbols(): Promise<SymbolDef[]> {
   try {
     return (await get<SymbolDef[]>('userSymbols')) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** user parts keep their images as data URLs */
+export async function saveUserParts(parts: PartDef[]) {
+  try {
+    await put('userParts', parts);
+  } catch {
+    /* best effort */
+  }
+}
+
+export async function loadUserParts(): Promise<PartDef[]> {
+  try {
+    return (await get<PartDef[]>('userParts')) ?? [];
   } catch {
     return [];
   }

@@ -27,7 +27,7 @@ export function ContextMenu({ state, onClose }: { state: ContextMenuState; onClo
         [c.cut, c.copy, c.paste, c.duplicate, c.delete],
         [c.rotateCW, c.rotateCCW, c.flipH, c.flipV],
         [c.front, c.back],
-        [c.makeSymbol, c.breakSymbol],
+        [c.makeSymbol, c.breakSymbol, c.makePart, c.editPart],
       ]
     : [[c.paste, c.selectAll], [c.wire, c.text], [c.fit, c.grid, c.snap, c.magnet, c.mirror]];
   const parent = ref.current?.parentElement;

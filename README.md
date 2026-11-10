@@ -36,6 +36,13 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
 - Measure tool (mm and grid units)
 - Symbol editor: combine shapes into a symbol (wire ends marked with a dot become
   pins), edit pins, break symbols apart, keep your own symbol library
+- Part editor (*Tools → New part*): own parts from a picture (photo, drawing, SVG) with
+  the pins set by clicking on the leads and the size on the hole raster; library parts can
+  be copied and changed; *Edit → Create part from selection* turns a drawing into a part
+  (wire ends with a dot become pins). Own parts are kept in the browser and travel inside
+  `.bb` files
+- Scale designer (*Tools → Scale designer*): round scales for knobs, potentiometers and
+  meters with major and minor ticks, numbers, an arc and a centre hole
 - Instrument bench (Simulation → Bench): oscilloscope, multimeter and function
   generator are symbols (library category *Instruments*) that are wired like real
   instruments. Generator COM and scope GND are earthed, the multimeter floats; in the

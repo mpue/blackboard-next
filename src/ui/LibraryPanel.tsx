@@ -14,6 +14,7 @@ const USER_FOOTPRINTS = 'User';
 import { ShapeView } from '../render/shapes.tsx';
 import { inflate, shapeBounds, unionRect, type Rect } from '../geometry/geom.ts';
 import { saveUserSymbols } from '../platform/persist.ts';
+import { removeUserPart } from '../editor/partActions.ts';
 import { INSTRUMENT_DEFS } from '../spice/instruments.ts';
 import { LABEL_DEFS } from '../spice/labels.ts';
 import { BUILTIN_SYMBOLS } from '../spice/builtinSymbols.ts';
@@ -62,7 +63,7 @@ export function LibraryPanel() {
         ['models', 'lib.models', lib.models.length],
       ]
     : [
-        ['parts', 'lib.parts', lib.parts.length],
+        ['parts', 'lib.parts', lib.parts.length + lib.userParts.length],
         ['symbols', 'lib.symbols', lib.symbols.length + lib.userSymbols.length],
         ['models', 'lib.models', lib.models.length],
       ];
@@ -94,7 +95,7 @@ export function LibraryPanel() {
         ) : !lib.loaded ? (
           <p className="p-4 text-muted">{lib.error ?? t('lib.loading')}</p>
         ) : tab === 'parts' ? (
-          <PartsList parts={lib.parts} q={q} />
+          <PartsList parts={lib.parts} user={lib.userParts} q={q} />
         ) : tab === 'symbols' ? (
           <SymbolsList symbols={lib.symbols} user={lib.userSymbols} q={q} />
         ) : (
@@ -137,6 +138,7 @@ function Tile({
   onEdit?: () => void;
   dark?: boolean;
 }) {
+  const t = useT();
   const active = useStore((s) => s.tool === 'place' && s.placement !== null && samePlacement(s.placement, placement));
   return (
     <div className="group relative">
@@ -160,8 +162,8 @@ function Tile({
       </button>
       {(onRemove || onEdit) && (
         <span className="absolute right-0.5 top-0.5 hidden gap-0.5 group-hover:flex">
-          {onEdit && <IconButton icon={PenLine} label="edit" className="h-6 w-6 bg-panel" size={12} onClick={onEdit} />}
-          {onRemove && <IconButton icon={Trash2} label="remove" className="h-6 w-6 bg-panel" size={12} onClick={onRemove} />}
+          {onEdit && <IconButton icon={PenLine} label={t('lib.edit')} className="h-6 w-6 bg-panel" size={12} onClick={onEdit} />}
+          {onRemove && <IconButton icon={Trash2} label={t('lib.removeUser')} className="h-6 w-6 bg-panel" size={12} onClick={onRemove} />}
         </span>
       )}
     </div>
@@ -239,26 +241,47 @@ const FootprintsList = memo(function FootprintsList({ q }: { q: string }) {
   );
 });
 
-const PartsList = memo(function PartsList({ parts, q }: { parts: PartDef[]; q: string }) {
+const USER_PARTS = 'User';
+
+const PartsList = memo(function PartsList({ parts, user, q }: { parts: PartDef[]; user: PartDef[]; q: string }) {
   const t = useT();
   const groups = useMemo(() => {
     const m = new Map<string, PartDef[]>();
+    const hit = (p: PartDef) => !q || `${p.name} ${p.description} ${p.packageType} ${p.file}`.toLowerCase().includes(q);
+    const mine = user.filter(hit);
+    if (mine.length) m.set(USER_PARTS, mine);
     for (const p of parts) {
-      if (q && !`${p.name} ${p.description} ${p.packageType} ${p.file}`.toLowerCase().includes(q)) continue;
+      if (!hit(p)) continue;
       const g = packageGroup(p);
       m.set(g, [...(m.get(g) ?? []), p]);
     }
-    return [...m.entries()].sort((a, b) => (a[0] === 'Miscellaneous' ? 1 : b[0] === 'Miscellaneous' ? -1 : a[0].localeCompare(b[0])));
-  }, [parts, q]);
-  if (!groups.length) return <p className="p-4 text-muted">{t('lib.empty')}</p>;
-  // alphabetical in the language shown, "Miscellaneous" last
-  const shelves = [...groups].sort((a, b) => (a[0] === 'Miscellaneous' ? 1 : b[0] === 'Miscellaneous' ? -1 : t(`shelf.${a[0]}` as I18nKey).localeCompare(t(`shelf.${b[0]}` as I18nKey))));
+    return [...m.entries()];
+  }, [parts, user, q]);
+  // own parts first, then alphabetical in the language shown, "Miscellaneous" last
+  const rank = (g: string) => (g === USER_PARTS ? 0 : g === 'Miscellaneous' ? 2 : 1);
+  const shelves = [...groups].sort((a, b) => rank(a[0]) - rank(b[0]) || t(`shelf.${a[0]}` as I18nKey).localeCompare(t(`shelf.${b[0]}` as I18nKey)));
   return (
     <>
+      <div className="border-b border-line/60 p-2">
+        <button
+          className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-line text-[12px] text-muted hover:border-accent hover:text-accent"
+          onClick={() => openDialog({ kind: 'partEditor' })}
+        >
+          <Plus size={14} /> {t('part.newPart')}
+        </button>
+      </div>
+      {!shelves.length && <p className="p-4 text-muted">{t('lib.empty')}</p>}
       {shelves.map(([g, list]) => (
-        <Group key={g} title={t(`shelf.${g}` as I18nKey)} count={list.length} defaultOpen={!!q}>
+        <Group key={g} title={t(`shelf.${g}` as I18nKey)} count={list.length} defaultOpen={!!q || g === USER_PARTS}>
           {list.map((p) => (
-            <Tile key={p.file} title={p.name} subtitle={p.description} placement={{ kind: 'part', ref: p.file }}>
+            <Tile
+              key={p.file}
+              title={p.name}
+              subtitle={p.description}
+              placement={{ kind: 'part', ref: p.file }}
+              onEdit={() => openDialog({ kind: 'partEditor', def: p })}
+              onRemove={g === USER_PARTS ? () => removeUserPart(p.file) : undefined}
+            >
               <img src={p.image} alt="" loading="lazy" className="max-h-full max-w-full object-contain" draggable={false} />
             </Tile>
           ))}

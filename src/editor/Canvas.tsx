@@ -117,6 +117,7 @@ export function Canvas() {
   const placement = useStore((s) => s.placement);
   const drawStyle = useStore((s) => s.drawStyle);
   const libraryParts = useStore((s) => s.library.parts);
+  const userParts = useStore((s) => s.library.userParts);
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -132,7 +133,7 @@ export function Canvas() {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
 
-  const libByFile = useMemo(() => new Map(libraryParts.map((p) => [p.file, p])), [libraryParts]);
+  const libByFile = useMemo(() => new Map([...libraryParts, ...userParts].map((p) => [p.file, p])), [libraryParts, userParts]);
   const zoneFills = useZoneFills(ds?.doc);
   const pcb = usePcbDerived(ds?.doc, zoneFills.fills);
   const drcRes = useDrc((st) => (ds && st.open ? st.results[ds.id] : undefined));

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Plus, Trash2, ArrowUp, ArrowDown, CopyPlus, Minus } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Plus, Trash2, ArrowUp, ArrowDown, CopyPlus, Minus, PenLine } from 'lucide-react';
 import type { Draft } from 'immer';
 import {
   activeDoc,
@@ -7,6 +7,7 @@ import {
   deleteLayer,
   duplicateLayer,
   moveLayer,
+  openDialog,
   selectedItems,
   setCurrentLayer,
   updateDrawStyle,
@@ -20,7 +21,7 @@ import { isBoardLayer, isPcbItem, MM_PER_UNIT } from '../model/types.ts';
 import { PcbItemFields, SymbolFootprintField, TrackWidthField } from './PcbProperties.tsx';
 import { formatOhm, parseEng } from '../model/ops.ts';
 import { resistorBands } from '../render/resistorColors.ts';
-import { Check, Field, IconButton, NumberInput, Section, Select, TextArea, TextInput, cx } from './primitives.tsx';
+import { Check, ColorInput, Field, IconButton, NumberInput, Section, Select, TextArea, TextInput, cx } from './primitives.tsx';
 import { isMcu } from '../mcu/pinout.ts';
 import { McuFields } from './McuFields.tsx';
 
@@ -90,19 +91,6 @@ function edit(items: Item[], fn: (it: Draft<Item>) => void) {
   updateItems(
     items.map((i) => i.id),
     fn,
-  );
-}
-
-function ColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <>
-      <input type="color" className="bb-color" value={value} onChange={(e) => onChange(e.target.value)} aria-label="color" />
-      <div className="flex flex-wrap gap-1">
-        {['#000000', '#1d4ed8', '#dc2626', '#16a34a', '#ca8a04', '#9333ea', '#6b7280'].map((c) => (
-          <button key={c} className={cx('h-4 w-4 rounded-full border border-black/10', value === c && 'ring-2 ring-accent ring-offset-1 ring-offset-panel')} style={{ background: c }} onClick={() => onChange(c)} aria-label={c} />
-        ))}
-      </div>
-    </>
   );
 }
 
@@ -304,6 +292,9 @@ function PartFields({ item }: { item: Item & { kind: 'part' } }) {
             {t('props.package')}: {def.packageType || '–'} · {t('props.pins')}: {def.pins.length}
           </div>
           {def.author && <div className="text-[10.5px] text-muted">{[def.author, def.license].filter(Boolean).join(' · ')}</div>}
+          <button className="mt-0.5 flex items-center gap-1 justify-self-start text-[11.5px] text-accent hover:underline" onClick={() => openDialog({ kind: 'partEditor', def, itemId: item.id })}>
+            <PenLine size={12} /> {t('edit.editPart')}
+          </button>
         </div>
       )}
     </>

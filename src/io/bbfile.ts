@@ -70,6 +70,7 @@ function mimeOf(name: string): string {
   if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
   if (ext === 'gif') return 'image/gif';
   if (ext === 'svg') return 'image/svg+xml';
+  if (ext === 'webp') return 'image/webp';
   return 'image/png';
 }
 

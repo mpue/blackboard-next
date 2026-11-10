@@ -1,4 +1,4 @@
-import { activeDoc, closeDoc, isDirty, markSaved, openDoc, toast, useStore, type DocState } from '../store/store.ts';
+import { activeDoc, closeDoc, isDirty, markSaved, openDoc, toast, useStore, type DocState, type Settings } from '../store/store.ts';
 import { dataUrl, fetchBytes, readBoardArchive, writeBoardArchive } from '../io/bbfile.ts';
 import { zoneFillsOf } from './zoneFills.ts';
 import { zoneFillPath } from '../pcb/zones.ts';
@@ -75,22 +75,25 @@ export function closeWithConfirm(ds: DocState) {
 const baseName = (ds: DocState) => ds.fileName.replace(/\.bbs?$/i, '');
 
 /** Standalone SVG of the document (no overlays) with all images inlined. */
-export async function documentSvg(ds: DocState): Promise<string> {
+export function documentSvg(ds: DocState): Promise<string> {
+  return svgOfDoc(ds.doc, ds.mirror);
+}
+
+export async function svgOfDoc(source: Doc, mirror: boolean, settings: Settings = useStore.getState().settings): Promise<string> {
   const [{ renderToStaticMarkup }, { DocumentSvg }] = await Promise.all([import('react-dom/server'), import('../render/DocumentSvg.tsx')]);
-  const settings = useStore.getState().settings;
   const images = new Map<string, string>();
   const inline = async (url: string) => {
     if (url.startsWith('data:') || images.has(url)) return;
     images.set(url, dataUrl(await fetchBytes(url), url));
   };
-  await Promise.all(Object.values(ds.doc.parts).map((p) => inline(p.image)));
+  await Promise.all(Object.values(source.parts).map((p) => inline(p.image)));
   const doc: Doc = {
-    ...ds.doc,
-    parts: Object.fromEntries(Object.entries(ds.doc.parts).map(([k, p]) => [k, { ...p, image: images.get(p.image) ?? p.image }])),
+    ...source,
+    parts: Object.fromEntries(Object.entries(source.parts).map(([k, p]) => [k, { ...p, image: images.get(p.image) ?? p.image }])),
   };
   const fills = doc.type === 'PCB' ? zoneFillsOf(doc) : undefined;
   const zoneFills = fills ? new Map([...fills].map(([id, mp]) => [id, zoneFillPath(mp)])) : undefined;
-  const svg = renderToStaticMarkup(DocumentSvg({ doc, settings, mirror: ds.mirror, zoneFills }));
+  const svg = renderToStaticMarkup(DocumentSvg({ doc, settings, mirror, zoneFills }));
   return `<?xml version="1.0" encoding="UTF-8"?>\n${svg}`;
 }
 

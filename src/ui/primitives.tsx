@@ -177,6 +177,19 @@ export function Select<T extends string | number>({ value, options, onChange }: 
   );
 }
 
+export function ColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <>
+      <input type="color" className="bb-color" value={value} onChange={(e) => onChange(e.target.value)} aria-label="color" />
+      <div className="flex flex-wrap gap-1">
+        {['#000000', '#1d4ed8', '#dc2626', '#16a34a', '#ca8a04', '#9333ea', '#6b7280'].map((c) => (
+          <button key={c} className={cx('h-4 w-4 rounded-full border border-black/10', value === c && 'ring-2 ring-accent ring-offset-1 ring-offset-panel')} style={{ background: c }} onClick={() => onChange(c)} aria-label={c} />
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function Check({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <label className="flex cursor-pointer items-center gap-2 text-[12px]">

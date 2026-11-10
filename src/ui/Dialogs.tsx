@@ -24,6 +24,8 @@ import { DesignRulesDialog } from './DesignRulesDialog.tsx';
 const CloudDialog = lazy(() => import('./CloudDialog.tsx').then((m) => ({ default: m.CloudDialog })));
 // the footprint editor is only loaded when it is opened
 const FootprintEditor = lazy(() => import('../pcb/editor/FootprintEditor.tsx'));
+const PartEditor = lazy(() => import('./PartEditor.tsx').then((m) => ({ default: m.PartEditor })));
+const ScaleDesigner = lazy(() => import('./ScaleDesigner.tsx').then((m) => ({ default: m.ScaleDesigner })));
 
 /** Opens the microcontroller demo with the live values running. */
 export async function openMcuDemo() {
@@ -87,6 +89,18 @@ export function Dialogs() {
       return <DesignRulesDialog onClose={close} />;
     case 'footprintEditor':
       return <FootprintEditorHost itemId={dialog.itemId} def={dialog.def} onClose={close} />;
+    case 'partEditor':
+      return (
+        <Suspense fallback={null}>
+          <PartEditor initial={dialog.def} itemId={dialog.itemId} onClose={close} />
+        </Suspense>
+      );
+    case 'scaleDesigner':
+      return (
+        <Suspense fallback={null}>
+          <ScaleDesigner onClose={close} />
+        </Suspense>
+      );
   }
 }
 

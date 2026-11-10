@@ -66,6 +66,34 @@ describe('legacy .bb archives', () => {
     expect(again.doc.items.length).toBe(doc.items.length);
   });
 
+  it('carries parts of the user library inside the archive', async () => {
+    const { createDoc } = await import('../store/store.ts');
+    const { fetchBytes } = await import('./bbfile.ts');
+    const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16"/>').toString('base64')}`;
+    const part = {
+      file: 'user-p1.xml',
+      name: 'Relais',
+      description: 'Mein Relais',
+      packageType: 'DIL',
+      designator: 'K',
+      author: 'Ich',
+      width: 32,
+      height: 16,
+      imageName: 'user-p1.svg',
+      image: svg,
+      pins: [
+        { num: 1, x: 8, y: 8, name: 'A' },
+        { num: 2, x: 24, y: 8, name: 'B' },
+      ],
+    };
+    const doc = createDoc('HOLES', 320, 160);
+    doc.parts[part.file] = part;
+    doc.items.push({ id: 'p', kind: 'part', layer: doc.layers[0].id, x: 16, y: 16, rotation: 0, name: 'K1', ref: part.file });
+    const again = readBoardArchive(await writeBoardArchive(doc, 'relais.bb', fetchBytes), 'relais.bb', noLibrary);
+    expect(again.missingParts).toEqual([]);
+    expect(again.doc.parts[part.file]).toEqual(part);
+  });
+
   it('keeps PCB data in an extension that legacy readers ignore', async () => {
     const { createPcbDoc } = await import('../pcb/defaults.ts');
     const { fetchBytes } = await import('./bbfile.ts');

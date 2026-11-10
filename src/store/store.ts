@@ -82,6 +82,8 @@ export interface Library {
   symbols: SymbolDef[];
   models: SpiceModel[];
   userSymbols: SymbolDef[];
+  /** parts made with the part editor (IndexedDB); their files start with "user-" */
+  userParts: PartDef[];
   /** footprints drawn with the footprint editor (IndexedDB) */
   userFootprints: FootprintDef[];
 }
@@ -114,6 +116,8 @@ interface State {
     | { kind: 'boardProps' }
     | { kind: 'symbolFromSelection' }
     | { kind: 'pcbRules' }
+    | { kind: 'scaleDesigner' }
+    | { kind: 'partEditor'; def?: PartDef; itemId?: string }
     | { kind: 'footprintEditor'; itemId?: string; def?: FootprintDef };
 }
 
@@ -168,7 +172,7 @@ export const useStore = create<State>()(() => ({
     shapeStyle: 'OUTLINED',
     fontSize: 14,
   }),
-  library: { loaded: false, parts: [], symbols: [], models: [], userSymbols: [], userFootprints: [] },
+  library: { loaded: false, parts: [], symbols: [], models: [], userSymbols: [], userParts: [], userFootprints: [] },
   clipboard: [],
   clipboardParts: {},
   toasts: [],

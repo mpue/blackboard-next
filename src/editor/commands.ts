@@ -63,6 +63,8 @@ import {
   Eraser,
   PenLine,
   Pentagon,
+  CircleGauge,
+  PackagePlus,
 } from 'lucide-react';
 import {
   activeDoc,
@@ -91,6 +93,7 @@ import type { I18nKey } from '../i18n/i18n.ts';
 import { isSchematicDoc } from '../model/types.ts';
 import { exportBom, exportNetlist, exportPng, exportSvg, openFromDisk, printActive, saveActive } from './fileActions.ts';
 import { breakSymbols } from './symbolActions.ts';
+import { editSelectedPart, partFromSelection } from './partActions.ts';
 import {
   addMountingHoles,
   annotateSchematic,
@@ -185,6 +188,18 @@ export const commands = {
       return !!ds && ds.doc.items.some((i) => i.kind === 'symbol' && ds.selection.includes(i.id));
     },
   },
+  makePart: { id: 'makePart', label: 'edit.makePart', run: () => void partFromSelection(), enabled: () => hasSel() && !isPcb() },
+  editPart: {
+    id: 'editPart',
+    label: 'edit.editPart',
+    run: editSelectedPart,
+    enabled: () => {
+      const ds = activeDoc();
+      return !!ds && ds.selection.length === 1 && ds.doc.items.some((i) => i.kind === 'part' && i.id === ds.selection[0]);
+    },
+  },
+  newPart: { id: 'newPart', label: 'part.newPart', icon: PackagePlus, run: () => openDialog({ kind: 'partEditor' }) },
+  scaleDesigner: { id: 'scaleDesigner', label: 'scale.menu', icon: CircleGauge, run: () => openDialog({ kind: 'scaleDesigner' }), enabled: () => hasDoc() && !isPcb() },
 
   zoomIn: { id: 'zoomIn', label: 'view.zoomIn', icon: ZoomIn, shortcut: '+', run: () => zoomCenter(1.25), enabled: hasDoc },
   zoomOut: { id: 'zoomOut', label: 'view.zoomOut', icon: ZoomOut, shortcut: '−', run: () => zoomCenter(0.8), enabled: hasDoc },
