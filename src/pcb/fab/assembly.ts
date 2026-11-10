@@ -1,6 +1,8 @@
 // Assembly outputs: pick and place (centroid) file and bill of materials.
 
-import type { Doc } from '../../model/types.ts';
+import type { Doc, FootprintItem } from '../../model/types.ts';
+import type { Pt } from '../../geometry/geom.ts';
+import { footprintToWorld } from '../geometry.ts';
 import { toMm } from '../units.ts';
 import { footprintsOf } from './layers.ts';
 
@@ -16,14 +18,28 @@ export function placementRotation(rotation: number): number {
   return rounded >= 360 ? 0 : rounded;
 }
 
-/** Footprint origins in mm, origin at the lower left board corner (Y up). */
+/**
+ * Part centre (centre of the pads; the origin for parts without pads) in
+ * world coordinates: assembly houses place by centroid, while THT
+ * footprints have their origin on pad 1.
+ */
+export function placementCentre(fp: FootprintItem): Pt {
+  const pads = fp.footprint.pads.filter((p) => !p.npth).map((p) => footprintToWorld(fp, p));
+  if (!pads.length) return { x: fp.x, y: fp.y };
+  const xs = pads.map((p) => p.x);
+  const ys = pads.map((p) => p.y);
+  return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+}
+
+/** Part centres in mm, origin at the lower left board corner (Y up). */
 export function pickAndPlaceCsv(doc: Doc): string {
   const rows = footprintsOf(doc)
     .slice()
     .sort((a, b) => natural.compare(a.name, b.name))
-    .map((fp) =>
-      [q(fp.name), q(fp.value ?? ''), q(fp.footprint.id), fix(toMm(fp.x), 4), fix(toMm(doc.height - fp.y), 4), String(placementRotation(fp.rotation)), fp.side].join(','),
-    );
+    .map((fp) => {
+      const c = placementCentre(fp);
+      return [q(fp.name), q(fp.value ?? ''), q(fp.footprint.id), fix(toMm(c.x), 4), fix(toMm(doc.height - c.y), 4), String(placementRotation(fp.rotation)), fp.side].join(',');
+    });
   return ['Designator,Value,Package,PosX,PosY,Rotation,Side', ...rows].join('\n') + '\n';
 }
 

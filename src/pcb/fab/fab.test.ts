@@ -256,7 +256,8 @@ describe('assembly', () => {
     expect(lines[0]).toBe('Designator,Value,Package,PosX,PosY,Rotation,Side');
     expect(lines.slice(1).map((l) => l.split(',')[0])).toEqual(['"C1"', '"H1"', '"R1"', '"R2"', '"R10"']);
     expect(lines).toContain('"C1","100n","C_0805",50.0000,40.0000,270,bottom');
-    expect(lines).toContain('"R1","10k","R_Axial_P7.62mm",12.7000,54.6000,0,top');
+    // through-hole parts are placed by their centre, not by pad 1
+    expect(lines).toContain('"R1","10k","R_Axial_P7.62mm",16.5100,54.6000,0,top');
     expect(lines.find((l) => l.startsWith('"R10"'))).toContain(',270,top');
   });
 

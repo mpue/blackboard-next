@@ -35,7 +35,7 @@ const DESCRIPTIONS: [string, string][] = [
   ['-Edge_Cuts.gm1', 'Board outline (profile)'],
   ['-PTH.drl', 'Plated holes: THT pads and vias (Excellon)'],
   ['-NPTH.drl', 'Non plated holes (Excellon)'],
-  ['-pos.csv', 'Pick and place: footprint origins in mm, rotation counter clockwise'],
+  ['-pos.csv', 'Pick and place: part centres in mm, rotation counter clockwise'],
   ['-bom.csv', 'Bill of materials, grouped by value and footprint'],
 ];
 
