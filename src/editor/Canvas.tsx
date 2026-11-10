@@ -53,6 +53,7 @@ import { defaultRules } from '../pcb/defaults.ts';
 import { mm } from '../pcb/units.ts';
 import { outlineBounds } from '../pcb/outline.ts';
 import { netKeys, usePcbDerived, type PcbDerived } from './pcbDerived.ts';
+import type { RatsLine } from '../pcb/connectivity.ts';
 import { useZoneFills } from './zoneFills.ts';
 import { useDrc } from '../ui/drcState.ts';
 import { usePcbStats } from '../ui/PcbStatus.tsx';
@@ -134,7 +135,9 @@ export function Canvas() {
   const drcFocus = useDrc((st) => st.focused);
   const pcbRef = useRef<PcbDerived | undefined>(undefined);
   pcbRef.current = pcb;
-  useEffect(() => usePcbStats.setState({ unrouted: pcb?.rats.length ?? 0 }), [pcb]);
+  // a changed ratsnest (routing, undo, edits) ends the highlight of the airwire shown last
+  useEffect(() => usePcbStats.setState({ unrouted: pcb?.rats.length ?? 0, rats: pcb?.rats ?? [], focus: undefined }), [pcb]);
+  const ratFocus = usePcbStats((st) => st.focus);
   const lookup = useCallback((ref: string): PartDef | undefined => ds?.doc.parts[ref] ?? libByFile.get(ref), [ds?.doc.parts, libByFile]);
 
   // ---- size / fit ------------------------------------------------------------------------
@@ -1032,12 +1035,8 @@ export function Canvas() {
                   .map((l) => <line key={l.id} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#22c55e" strokeOpacity={0.75} strokeWidth={l.thickness + 6 / z} strokeLinecap="round" />)}
               {preview.net?.pins.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={6 / z + 2} fill="#22c55e" fillOpacity={0.8} />)}
 
-              {pcb && settings.showRatsnest && !settings.pcbRealistic && (
-                <g>
-                  {pcb.rats.map((r, i) => (
-                    <line key={i} x1={r.a.x} y1={r.a.y} x2={r.b.x} y2={r.b.y} stroke="#9fd6ff" strokeOpacity={0.85} strokeWidth={1 / z} />
-                  ))}
-                </g>
+              {pcb && settings.showRatsnest && pcb.rats.length > 0 && (
+                <Ratsnest rats={pcb.rats} z={z} focus={ratFocus} />
               )}
               {drcRes && (
                 <g>
@@ -1147,6 +1146,50 @@ export function Canvas() {
 function endAttachments(doc: Doc, id: string, end: 1 | 2): Attachment[] {
   if (!useStore.getState().settings.magnetic && doc.type !== 'PCB') return [];
   return collectAttachments(doc, new Set([id]), [{ itemId: id, kind: 'end', end }]);
+}
+
+/**
+ * Airwires of the connections that still need copper: yellow, dashed and slowly
+ * moving with a dark halo so they stay visible on substrate, copper and pads.
+ */
+function Ratsnest({ rats, z, focus }: { rats: RatsLine[]; z: number; focus?: number }) {
+  const dash = 12 / z;
+  const f = focus !== undefined ? rats[focus] : undefined;
+  return (
+    <g strokeLinecap="round">
+      {rats.map((r, i) => (
+        <line key={'h' + i} x1={r.a.x} y1={r.a.y} x2={r.b.x} y2={r.b.y} stroke="#000" strokeOpacity={0.55} strokeWidth={4 / z} />
+      ))}
+      {rats.map((r, i) => (
+        <line
+          key={'l' + i}
+          x1={r.a.x}
+          y1={r.a.y}
+          x2={r.b.x}
+          y2={r.b.y}
+          stroke="#fde047"
+          strokeWidth={1.8 / z}
+          strokeDasharray={`${dash * 0.6} ${dash * 0.4}`}
+          className="bb-rats"
+          style={{ ['--bb-dash' as string]: `${dash}` }}
+        />
+      ))}
+      {rats.flatMap((r, i) =>
+        [r.a, r.b].map((p, k) => <circle key={`c${i}${k}`} cx={p.x} cy={p.y} r={4 / z} fill="none" stroke="#fde047" strokeWidth={1.5 / z} />),
+      )}
+      {f && (
+        <g>
+          <line x1={f.a.x} y1={f.a.y} x2={f.b.x} y2={f.b.y} stroke="#fb923c" strokeWidth={4 / z} strokeOpacity={0.9} />
+          {[f.a, f.b].map((p, k) => (
+            <g key={k}>
+              <circle cx={p.x} cy={p.y} r={9 / z} fill="none" stroke="#fb923c" strokeWidth={2.5 / z} />
+              <circle cx={p.x} cy={p.y} r={9 / z} fill="none" stroke="#fb923c" strokeWidth={2.5 / z} className="bb-ping" />
+            </g>
+          ))}
+        </g>
+      )}
+    </g>
+  );
 }
 
 function rectAttrs(r: Rect) {

@@ -1,5 +1,6 @@
 // Runs the autorouter in a worker and adds its tracks and vias as one undo step.
 
+import { showNextUnrouted } from '../ui/PcbStatus.tsx';
 import { create } from 'zustand';
 import type { Draft } from 'immer';
 import type { Item } from '../model/types.ts';
@@ -48,6 +49,8 @@ export function runAutorouter() {
       });
     }
     toast(failed.length ? t('route.partial', { routed, failed: failed.length }) : t('route.done', { routed }), failed.length ? 'info' : 'success');
+    // the canvas publishes the new ratsnest after rendering the routed board
+    if (failed.length) setTimeout(showNextUnrouted, 150);
   };
   worker.onerror = (e) => {
     cancelAutoroute();

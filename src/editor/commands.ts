@@ -375,7 +375,7 @@ const bindings: KeyBinding[] = [
   B('3', c.view3d, { pcb: true }),
   B('d', c.drc, { pcb: true, shift: true }),
   B('d', c.erc, { shift: true }),
-  B('#', c.realistic, { pcb: true, shift: true }),
+  B('3', c.realistic, { pcb: true, shift: true }),
   B('§', c.realistic, { pcb: true, shift: true }),
   B('?', c.shortcuts, { shift: true }),
 ];
@@ -384,7 +384,8 @@ export function handleShortcut(e: KeyboardEvent): boolean {
   const el = e.target as HTMLElement | null;
   if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return false;
   if (useStore.getState().dialog) return false;
-  const key = e.key.toLowerCase();
+  // digits by physical key: Shift+3 is '#' on US but '§' on German keyboards
+  const key = /^Digit\d$/.test(e.code) ? e.code.slice(5) : e.key.toLowerCase();
   const mod = e.ctrlKey || e.metaKey;
   const pcb = isPcb();
   const matches = (x: KeyBinding) => x.key === key && !!x.mod === mod && (x.key === '?' || !!x.shift === e.shiftKey) && !e.altKey;

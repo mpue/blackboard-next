@@ -66,7 +66,10 @@ function MenuDropdown({ items, onClose }: { items: MenuEntry[]; onClose: () => v
   useStore((s) => s.tool);
   useStore((s) => s.clipboard);
   return (
-    <div className="bb-pop absolute left-0 top-full z-50 mt-1 min-w-[260px] rounded-lg border border-line bg-panel p-1 shadow-xl" role="menu">
+    <div
+      className="bb-pop bb-scroll absolute left-0 top-full z-50 mt-1 max-h-[calc(100vh-64px)] w-max min-w-[260px] max-w-[calc(100vw-16px)] overflow-y-auto rounded-lg border border-line bg-panel p-1 shadow-xl"
+      role="menu"
+    >
       {items.map((it, i) => {
         if (it === 'sep') return <div key={i} className="my-1 h-px bg-line" />;
         if ('radio' in it) {
@@ -82,7 +85,7 @@ function MenuDropdown({ items, onClose }: { items: MenuEntry[]; onClose: () => v
               }}
             >
               <span className="flex w-4 justify-center">{it.checked && <Check size={14} />}</span>
-              {it.radio}
+              <span className="whitespace-nowrap">{it.radio}</span>
             </button>
           );
         }
@@ -102,8 +105,8 @@ function MenuDropdown({ items, onClose }: { items: MenuEntry[]; onClose: () => v
             }}
           >
             <span className="flex w-4 justify-center text-muted">{checked ? <Check size={14} className="text-accent" /> : Icon ? <Icon size={14} /> : null}</span>
-            <span className="flex-1">{t(it.label)}</span>
-            {it.shortcut && <span className="ml-6 text-[11px] text-muted">{it.shortcut}</span>}
+            <span className="flex-1 whitespace-nowrap">{t(it.label)}</span>
+            {it.shortcut && <span className="ml-6 whitespace-nowrap text-[11px] text-muted">{it.shortcut}</span>}
           </button>
         );
       })}
