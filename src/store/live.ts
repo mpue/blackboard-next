@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { isSchematicDoc, type Doc } from '../model/types.ts';
 import { activeDoc, useStore } from './store.ts';
 import { simulate } from '../spice/simulator.ts';
-import { liveValues, opNetlist, tranNetlist, type LiveValues } from '../spice/live.ts';
+import { averageOperatingPoints, liveValues, opNetlist, tranNetlist, type LiveValues } from '../spice/live.ts';
 import type { NetlistResult } from '../spice/netlist.ts';
+import type { Drives } from '../mcu/pinout.ts';
 
 // "Live values": while switched on, every edit of a schematic re-runs the
 // simulation and the editor shows voltages, currents and current flow -
@@ -36,6 +37,23 @@ interface LiveState {
 
 export const useLive = create<LiveState>()(() => ({ on: false, mode: 'dc', status: 'idle', error: '', docId: null, key: '', values: null, series: null }));
 
+/** Microcontrollers taking part in the operating point (see src/mcu/controller.ts). */
+export interface LiveCoupling {
+  /**
+   * Pin drives of the running chips of a document: one set, or several with
+   * their weights when PWM pins are taken high and low in turn.
+   */
+  variants(docId: string): { mcu: Map<string, Drives>; weight: number }[] | undefined;
+  /** the operating point that was just calculated */
+  result(docId: string, doc: Doc, nl: NetlistResult, vectors: Map<string, number>): void;
+}
+
+let coupling: LiveCoupling | undefined;
+
+export function setLiveCoupling(c: LiveCoupling | undefined) {
+  coupling = c;
+}
+
 let running = false;
 let again = false;
 
@@ -48,25 +66,34 @@ export async function runLive(): Promise<void> {
   if (!ds || !isSchematicDoc(ds.doc) || !useLive.getState().on) return;
   const { mode } = useLive.getState();
   const models = useStore.getState().library.models;
-  const nl = mode === 'tran' ? tranNetlist(ds.doc, ds.fileName, models) : opNetlist(ds.doc, ds.fileName, models);
+  const variants = mode === 'dc' ? (coupling?.variants(ds.id) ?? [{ mcu: undefined, weight: 1 }]) : [{ mcu: undefined, weight: 1 }];
+  const nls = variants.map((v) => (mode === 'tran' ? tranNetlist(ds.doc, ds.fileName, models) : opNetlist(ds.doc, ds.fileName, models, v.mcu)));
+  const nl = nls[0];
+  const key = nls.map((n) => n.netlist).join('\n');
   const st = useLive.getState();
-  if (st.docId === ds.id && st.key === nl.netlist && st.status === 'done') return;
+  if (st.docId === ds.id && st.key === key && st.status === 'done') return;
   if (nl.errors.length) {
-    useLive.setState({ status: 'error', error: nl.errors.map((e) => e.key).join(', '), docId: ds.id, key: nl.netlist, values: null, series: null });
+    useLive.setState({ status: 'error', error: nl.errors.map((e) => e.key).join(', '), docId: ds.id, key, values: null, series: null });
     return;
   }
   running = true;
-  useLive.setState({ status: 'running', docId: ds.id, key: nl.netlist, ...(st.docId === ds.id ? {} : { values: null, series: null }) });
+  useLive.setState({ status: 'running', docId: ds.id, key, ...(st.docId === ds.id ? {} : { values: null, series: null }) });
   try {
-    const res = await simulate(nl.netlist, mode === 'tran' ? 30_000 : 20_000);
-    if (mode === 'tran') {
+    if (mode === 'dc') {
+      const runs: { nl: NetlistResult; vectors: Map<string, number>; weight: number }[] = [];
+      for (let i = 0; i < nls.length; i++) {
+        const res = await simulate(nls[i].netlist, 20_000);
+        runs.push({ nl: nls[i], weight: variants[i].weight, vectors: new Map(res.result.data.map((d) => [d.name.toLowerCase(), Number((d.values as number[])[0])])) });
+      }
+      const avg = averageOperatingPoints(runs);
+      // the document may have changed meanwhile: map onto the version that was simulated
+      useLive.setState({ status: 'done', error: '', values: liveValues(ds.doc, avg.nl, avg.vectors), series: null });
+      coupling?.result(ds.id, ds.doc, avg.nl, avg.vectors);
+    } else {
+      const res = await simulate(nl.netlist, 30_000);
       const [x, ...rest] = res.result.data;
       const vectors = new Map(rest.map((d) => [d.name.toLowerCase(), (d.values as number[]).map(Number)]));
       useLive.setState({ status: 'done', error: '', values: null, series: { doc: ds.doc, nl, time: (x.values as number[]).map(Number), vectors } });
-    } else {
-      const vectors = new Map(res.result.data.map((d) => [d.name.toLowerCase(), Number((d.values as number[])[0])]));
-      // the document may have changed meanwhile: map onto the version that was simulated
-      useLive.setState({ status: 'done', error: '', values: liveValues(ds.doc, nl, vectors), series: null });
     }
   } catch (e) {
     useLive.setState({ status: 'error', error: (e as Error).message, values: null, series: null });

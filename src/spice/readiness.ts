@@ -6,6 +6,7 @@ import type { Doc, SpiceModel, SpiceType, SymbolItem } from '../model/types.ts';
 import { buildNetlist, isGround, lampOf, spiceValue, switchOf, type NetlistResult, type NetlistWarning } from './netlist.ts';
 import { instrumentOf } from './instruments.ts';
 import { globalNetKey } from './labels.ts';
+import { GND_PINS, isMcu, mcuFirmware, VCC_PIN } from '../mcu/pinout.ts';
 
 export type IssueKind =
   | 'empty'
@@ -16,7 +17,10 @@ export type IssueKind =
   | 'pins'
   | 'noModel'
   | 'unconnected'
-  | 'supplyAssumed';
+  | 'supplyAssumed'
+  | 'mcuFirmware'
+  | 'mcuPower'
+  | 'mcuLiveOnly';
 
 export interface SimIssue {
   kind: IssueKind;
@@ -72,7 +76,7 @@ export function guessType(s: SymbolItem): SpiceType | undefined {
 
 /** Symbols that are meant to be electrical parts (not marks, labels, instruments or plugs). */
 function isPart(s: SymbolItem): boolean {
-  if (s.pins.length < 2 || isGround(s) || instrumentOf(s) || globalNetKey(s) || switchOf(s) || lampOf(s)) return false;
+  if (s.pins.length < 2 || isGround(s) || instrumentOf(s) || globalNetKey(s) || switchOf(s) || lampOf(s) || isMcu(s)) return false;
   return true;
 }
 
@@ -91,7 +95,7 @@ export function checkSimulation(doc: Doc, models: SpiceModel[] = []): Readiness 
   for (const s of symbols) byName.set(s.name, [...(byName.get(s.name) ?? []), s]);
   const symbolOf = (name: string) => byName.get(name)?.shift();
 
-  if (!parts.length && !symbols.some((s) => instrumentOf(s) || switchOf(s) || lampOf(s))) {
+  if (!parts.length && !symbols.some((s) => instrumentOf(s) || switchOf(s) || lampOf(s) || isMcu(s))) {
     issues.push({ kind: 'empty', severity: 'info' });
     return { issues, netlist: net };
   }
@@ -115,6 +119,14 @@ export function checkSimulation(doc: Doc, models: SpiceModel[] = []): Readiness 
     if (w.key === 'unconnected') issues.push({ kind: 'unconnected', severity: 'warning', id: s?.id, ref: w.name });
     else if (w.key === 'subckt') issues.push({ kind: 'noModel', severity: 'error', id: s?.id, ref: w.name });
     else issues.push({ kind: 'pins', severity: 'error', id: s?.id, ref: w.name, detail: w.key });
+  }
+
+  for (const m of net.mcus) {
+    const s = symbols.find((x) => x.id === m.symbolId);
+    if (!s) continue;
+    if (m.nodes[VCC_PIN] === undefined || !GND_PINS.some((g) => m.nodes[g] !== undefined)) issues.push({ kind: 'mcuPower', severity: 'warning', id: s.id, ref: s.name });
+    if (!mcuFirmware(s)) issues.push({ kind: 'mcuFirmware', severity: 'warning', id: s.id, ref: s.name });
+    issues.push({ kind: 'mcuLiveOnly', severity: 'info', id: s.id, ref: s.name });
   }
 
   for (const sup of net.supplies) if (sup.assumed) issues.push({ kind: 'supplyAssumed', severity: 'info', ref: sup.name, volts: sup.volts });

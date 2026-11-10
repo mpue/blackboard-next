@@ -10,6 +10,7 @@ import { buildNetlist, type NetlistResult } from './netlist.ts';
 import { distToSegment, itemPins, type Pt } from '../geometry/geom.ts';
 import { partLookup } from '../model/ops.ts';
 import type { SpiceModel } from '../model/types.ts';
+import type { Drives } from '../mcu/pinout.ts';
 
 export interface FlowSegment {
   /** current flows from a to b */
@@ -65,14 +66,29 @@ function saves(nl: NetlistResult): string[] {
  */
 const SHUNT = '.options rshunt=1e12';
 
-/** Netlist for the operating point analysis, with the device currents saved. */
-export function opNetlist(doc: Doc, title: string, models: SpiceModel[]): NetlistResult {
-  const nl = buildNetlist(doc, title, models, { analysis: '.op' });
+/** Netlist for the operating point analysis, with the device currents saved (and running microcontrollers). */
+export function opNetlist(doc: Doc, title: string, models: SpiceModel[], mcu?: Map<string, Drives>): NetlistResult {
+  const nl = buildNetlist(doc, title, models, { analysis: '.op', mcu });
   const save: string[] = [SHUNT];
   const extra = saves(nl);
   for (let i = 0; i < extra.length; i += 8) save.push(`.save all ${extra.slice(i, i + 8).join(' ')}`);
   nl.netlist = nl.netlist.replace(/^\.op\s*$/m, `${save.join('\n')}\n.op`);
   return nl;
+}
+
+/**
+ * Weighted mean of several operating points of the same schematic (the states
+ * of PWM pins): node voltages and device currents are averaged, a device that
+ * exists in only some of them counts with 0 elsewhere. The result describes
+ * all elements, so currents of the high and the low state both show up.
+ */
+export function averageOperatingPoints(runs: { nl: NetlistResult; vectors: Map<string, number>; weight: number }[]): { nl: NetlistResult; vectors: Map<string, number> } {
+  if (runs.length === 1) return runs[0];
+  const vectors = new Map<string, number>();
+  for (const { vectors: v, weight } of runs) for (const [k, x] of v) vectors.set(k, (vectors.get(k) ?? 0) + weight * x);
+  const elements = new Map<string, NetlistResult['elements'][number]>();
+  for (const { nl } of runs) for (const e of nl.elements) if (!elements.has(e.name)) elements.set(e.name, e);
+  return { nl: { ...runs[0].nl, elements: [...elements.values()] }, vectors };
 }
 
 /** Analysis window for the slow motion view: the schematic's own .tran or 20 ms. */

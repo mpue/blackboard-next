@@ -7,7 +7,7 @@ import { itemPins, type Pt } from '../geometry/geom.ts';
 import { uid } from '../model/id.ts';
 import { INSTRUMENT_DEFS } from './instruments.ts';
 
-function placeWithPin(def: SymbolDef, name: string, pinNum: number, at: Pt, layer: string, rotation = 0): SymbolItem {
+export function placeWithPin(def: SymbolDef, name: string, pinNum: number, at: Pt, layer: string, rotation = 0): SymbolItem {
   const s = symbolItemFromDef(def, 0, 0, layer, name);
   s.rotation = rotation;
   const p = itemPins(s, () => undefined).find((x) => x.pin.num === pinNum)!;
@@ -16,7 +16,7 @@ function placeWithPin(def: SymbolDef, name: string, pinNum: number, at: Pt, laye
   return s;
 }
 
-const pinOf = (s: SymbolItem, num: number): Pt => {
+export const pinOf = (s: SymbolItem, num: number): Pt => {
   const p = itemPins(s, () => undefined).find((x) => x.pin.num === num)!;
   return { x: Math.round(p.x), y: Math.round(p.y) };
 };

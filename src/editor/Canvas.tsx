@@ -42,6 +42,8 @@ import { netAt, type Net } from '../spice/connectivity.ts';
 import { ContextMenu, type ContextMenuState } from './ContextMenu.tsx';
 import { InstrumentOverlays } from './InstrumentOverlays.tsx';
 import { LiveProblems } from '../ui/LiveProblems.tsx';
+import { SerialMonitor } from '../ui/SerialMonitor.tsx';
+import { McuOverlay } from './McuOverlay.tsx';
 import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import { takeDragPayload } from './dragPayload.ts';
 import { useT } from '../i18n/i18n.ts';
@@ -1026,6 +1028,7 @@ export function Canvas() {
 
             {doc.type !== 'PCB' && isSchematicDoc(doc) && <Junctions doc={doc} />}
             <InstrumentOverlays doc={doc} docId={ds.id} />
+            {doc.type !== 'PCB' && <McuOverlay doc={doc} />}
             {doc.type !== 'PCB' && <LiveOverlay doc={doc} docId={ds.id} z={z} showLabels={settings.showValues} />}
 
             {/* overlays */}
@@ -1139,6 +1142,7 @@ export function Canvas() {
         <div className="pointer-events-none absolute left-3 top-3 rounded-md bg-red-500/90 px-2 py-1 text-xs font-semibold text-white shadow">{t('status.solderSide')}</div>
       )}
       <LiveProblems />
+      <SerialMonitor />
       {menu && <ContextMenu state={menu} onClose={() => setMenu(null)} />}
     </div>
   );

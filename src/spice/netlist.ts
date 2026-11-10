@@ -5,6 +5,7 @@ import { computeConnectivity, pinKey } from './connectivity.ts';
 import { globalNetKey } from './labels.ts';
 import { parseEng } from '../model/ops.ts';
 import { dmmMode, earthedPinIndex, fgenSettings, fgenSource, instrumentOf, type Probes } from './instruments.ts';
+import { GND_PINS, isMcu, PIN_OHMS, PULLUP_OHMS, SUPPLY_OHMS, VCC_PIN, type Drives } from '../mcu/pinout.ts';
 
 export interface NetlistResult {
   netlist: string;
@@ -22,6 +23,8 @@ export interface NetlistResult {
   supplies: { name: string; volts: number; assumed: boolean; node: string; element: string }[];
   /** emitted elements: symbol, SPICE element name and its terminals in SPICE order (symbol pin index + node) */
   elements: { symbolId: string; name: string; type: NonNullable<SymbolItem['spiceType']>; pins: { index: number; node: string }[] }[];
+  /** microcontrollers: SPICE node of every connected pin (by pin number) */
+  mcus: { symbolId: string; ref: string; nodes: Record<number, string> }[];
 }
 
 export type NetlistWarning = {
@@ -145,6 +148,8 @@ export interface NetlistOptions {
   uic?: boolean;
   /** replaces the analyses of the schematic (used by the instrument bench) */
   analysis?: string;
+  /** pins of running microcontrollers (symbol id -> drives); without, their pins are inputs */
+  mcu?: Map<string, Drives>;
 }
 
 // ---- built-in models ----------------------------------------------------------------------------
@@ -261,6 +266,7 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     nodeOfNet: new Map(),
     supplies: [],
     elements: [],
+    mcus: [],
   };
   const symbols = doc.items.filter((i): i is SymbolItem => i.kind === 'symbol');
   const conn = computeConnectivity(doc);
@@ -483,6 +489,45 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     const name = elementName(s, 'R', used);
     lines.push(`${name} ${node(s, 0)} ${node(s, 1)} ${parseFloat(lamp.ohms.toPrecision(6))}`);
     res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [0, 1].map((index) => ({ index, node: node(s, index) })) });
+  }
+
+  // microcontrollers draw their supply current; while the firmware runs, the pins drive the circuit
+  for (const s of symbols) {
+    if (!isMcu(s)) continue;
+    // pins with something attached (every pin has a net of its own, even an open one)
+    const nodes: Record<number, string> = {};
+    s.pins.forEach((p, i) => {
+      const n = conn.netOfPin.get(pinKey(s.id, i));
+      if (n !== undefined && (conn.nets[n].pins.length > 1 || conn.nets[n].wires.length > 0)) nodes[p.num] = node(s, i);
+    });
+    res.mcus.push({ symbolId: s.id, ref: s.name, nodes });
+    const gndPin = GND_PINS.find((n) => nodes[n] !== undefined);
+    if (nodes[VCC_PIN] === undefined || gndPin === undefined) continue;
+    const resistor = (suffix: string, a: number, b: number, ohms: number) => {
+      const name = elementName({ ...s, name: `${s.name}_${suffix}` }, 'R', used);
+      lines.push(`${name} ${nodes[a]} ${nodes[b]} ${ohms}`);
+      res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [a, b].map((num) => ({ index: byNum(s, num), node: nodes[num] })) });
+    };
+    resistor('VCC', VCC_PIN, gndPin, SUPPLY_OHMS);
+    // both GND pins are connected inside the chip
+    for (const g of GND_PINS) if (g !== gndPin && nodes[g] !== undefined && nodes[g] !== nodes[gndPin]) resistor(`GND${g}`, g, gndPin, 0.01);
+    for (const [key, d] of Object.entries(opts.mcu?.get(s.id) ?? {})) {
+      const num = Number(key);
+      if (nodes[num] === undefined || d === 'Z') continue;
+      // the state is in the name, so averaged operating points (PWM) keep high and low apart
+      if (d === 'H') resistor(`P${num}H`, num, VCC_PIN, PIN_OHMS);
+      else if (d === 'L') resistor(`P${num}L`, num, gndPin, PIN_OHMS);
+      else if (d === 'PU') resistor(`P${num}U`, num, VCC_PIN, PULLUP_OHMS);
+      else {
+        // PWM switches faster than the circuit is recalculated: its average, duty x VCC behind the pin driver
+        const e = elementName({ ...s, name: `${s.name}_P${num}` }, 'E', used);
+        const r = elementName({ ...s, name: `${s.name}_P${num}` }, 'R', used);
+        const mid = String(next++);
+        lines.push(`${e} ${mid} ${nodes[gndPin]} ${nodes[VCC_PIN]} ${nodes[gndPin]} ${d}`);
+        lines.push(`${r} ${nodes[num]} ${mid} ${PIN_OHMS}`);
+        res.elements.push({ symbolId: s.id, name: r, type: 'RESISTOR', pins: [{ index: byNum(s, num), node: nodes[num] }] });
+      }
+    }
   }
 
   // supply symbols drive their rail like a lab supply, unless a real source already does

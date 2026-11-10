@@ -21,6 +21,8 @@ import { PcbItemFields, SymbolFootprintField, TrackWidthField } from './PcbPrope
 import { formatOhm, parseEng } from '../model/ops.ts';
 import { resistorBands } from '../render/resistorColors.ts';
 import { Check, Field, IconButton, NumberInput, Section, Select, TextArea, TextInput, cx } from './primitives.tsx';
+import { isMcu } from '../mcu/pinout.ts';
+import { McuFields } from './McuFields.tsx';
 
 const ComponentInfoCard = lazy(() => import('../learn/ComponentInfoCard.tsx').then((m) => ({ default: m.ComponentInfoCard })));
 
@@ -336,13 +338,17 @@ function SymbolFields({ item }: { item: SymbolItem }) {
         <Check checked={item.mirrorV} onChange={(v) => set((s) => (s.mirrorV = v))} label="↕" />
       </div>
       {item.pins.length > 0 && <SymbolFootprintField item={item} />}
-      <Field label={t('props.spiceType')}>
-        <Select
-          value={item.spiceType ?? ''}
-          options={[{ value: '', label: '–' }, ...SPICE_TYPES.map((v) => ({ value: v, label: v }))]}
-          onChange={(v) => set((s) => (v ? (s.spiceType = v as SpiceType) : delete s.spiceType))}
-        />
-      </Field>
+      {isMcu(item) ? (
+        <McuFields item={item} />
+      ) : (
+        <Field label={t('props.spiceType')}>
+          <Select
+            value={item.spiceType ?? ''}
+            options={[{ value: '', label: '–' }, ...SPICE_TYPES.map((v) => ({ value: v, label: v }))]}
+            onChange={(v) => set((s) => (v ? (s.spiceType = v as SpiceType) : delete s.spiceType))}
+          />
+        </Field>
+      )}
       {(needsModel || item.model) && (
         <Field label={t('props.model')}>
           <Select

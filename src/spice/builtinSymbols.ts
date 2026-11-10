@@ -1,7 +1,8 @@
 // Built-in symbols with SPICE models that the classic library lacks or has
 // broken: an NE555 that keeps oscillating in long transient runs.
 
-import type { LineGeom, SymbolDef, TextGeom } from '../model/types.ts';
+import type { LineGeom, Pin, SymbolDef, SymbolShape, TextGeom } from '../model/types.ts';
+import { PINOUT } from '../mcu/pinout.ts';
 
 /**
  * Simplified behavioural model of the NE555: the internal 3 x 5 kΩ divider,
@@ -104,4 +105,58 @@ export const NE555_SYMBOL: SymbolDef = {
   ],
 };
 
-export const BUILTIN_SYMBOLS: SymbolDef[] = [NE555_SYMBOL];
+/** Arduino pins with PWM ("~" on the board) */
+const PWM_PINS = new Set(['D3', 'D5', 'D6', 'D9', 'D10', 'D11']);
+
+/**
+ * ATmega328P (Arduino Uno / Nano) with DIP-28 pin numbers, drawn by function:
+ * supply on top, ground below, reset and crystal on the left, the ports on
+ * the right in Arduino order (D0..D7, D8..D13, A0..A5). Runs firmware in the
+ * live values (see src/mcu).
+ */
+function atmega328pSymbol(): SymbolDef {
+  const W = 208;
+  const H = 480;
+  const pins: Pin[] = [];
+  const shapes: SymbolShape[] = [{ kind: 'box', x: 32, y: 32, w: 144, h: 416, color: '#000000', thickness: 2, style: 'OUTLINED' }];
+  const add = (num: number, x: number, y: number, side: 'left' | 'right' | 'top' | 'bottom', text: string, name = text) => {
+    pins.push({ num, x, y, name, orientation: side === 'left' || side === 'top' ? 'TOP_LEFT' : 'BOTTOM_RIGHT' });
+    if (side === 'left') shapes.push(pinLine(0, y, 32, y), label(37, y + 3.5, text, 9), label(14, y - 3, String(num), 8));
+    if (side === 'right') shapes.push(pinLine(176, y, W, y), label(172 - text.length * 5.1, y + 3.5, text, 9), label(184, y - 3, String(num), 8));
+    if (side === 'top') shapes.push(pinLine(x, 0, x, 32), label(x - text.length * 2.7, 46, text, 9), label(x + 3, 20, String(num), 8));
+    if (side === 'bottom') shapes.push(pinLine(x, 448, x, H), label(x - text.length * 2.7, 441, text, 9), label(x + 3, 468, String(num), 8));
+  };
+  add(7, 64, 0, 'top', 'VCC');
+  add(20, 96, 0, 'top', 'AVCC');
+  add(21, 128, 0, 'top', 'AREF');
+  add(8, 80, H, 'bottom', 'GND');
+  add(22, 112, H, 'bottom', 'GND');
+  add(1, 0, 80, 'left', 'RESET');
+  add(9, 0, 144, 'left', 'XTAL1');
+  add(10, 0, 176, 'left', 'XTAL2');
+  const ports = Object.entries(PINOUT)
+    .flatMap(([n, f]) => (f.kind === 'io' ? [{ num: Number(n), ...f }] : []))
+    .sort((a, b) => 'DBC'.indexOf(a.port) - 'DBC'.indexOf(b.port) || a.bit - b.bit);
+  ports.forEach((p, i) => {
+    // D0..D7, gap, D8..D13, gap, A0..A5
+    const y = 64 + 16 * (i + (p.port === 'D' ? 0 : p.port === 'B' ? 1 : 2));
+    add(p.num, W, y, 'right', `P${p.port}${p.bit} ${PWM_PINS.has(p.arduino) ? '~' : ''}${p.arduino}`, p.arduino);
+  });
+  shapes.push(label(44, 262, 'U1', 13, 'NAME'), label(44, 280, 'ATmega328P', 11, 'VALUE'));
+  return {
+    name: 'ATmega328P',
+    filename: 'ATmega328P.xml',
+    category: 'Microcontrollers',
+    width: W,
+    height: H,
+    value: 'ATmega328P',
+    customModel: false,
+    properties: { prefix: 'U', mcu: 'atmega328p', clock: '16000000' },
+    pins,
+    shapes,
+  };
+}
+
+export const ATMEGA328P_SYMBOL = atmega328pSymbol();
+
+export const BUILTIN_SYMBOLS: SymbolDef[] = [NE555_SYMBOL, ATMEGA328P_SYMBOL];

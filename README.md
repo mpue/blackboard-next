@@ -106,6 +106,28 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   operated directly in the schematic
 - LEDs, Zener diodes and generic transistors without a SPICE model get built-in
   textbook models (LEDs by colour)
+- **Simulation check**: missing ground or source, unusable values, symbols without
+  SPICE type, open pins and missing models in plain words, each with a one-click fix;
+  the analysis is picked in words (time response, frequency response, operating
+  point) and ngspice errors are explained
+
+### Microcontrollers
+
+- **ATmega328P** (Arduino Uno / Nano) in the library, running real firmware in the
+  live values: the [avr8js](https://github.com/wokwi/avr8js) emulator (MIT) runs in a
+  web worker in real time, with ports, timers/PWM, ADC, USART, SPI, TWI and EEPROM
+- Firmware is an Intel HEX file (Arduino IDE: *Sketch → Export compiled binary*) or one
+  of the examples (blink, push button, running light, PWM dimmer, serial echo); it is
+  stored in the schematic
+- Coupled to ngspice through the operating point: outputs drive the circuit through
+  their 25 Ω drivers, pull-ups are 35 kΩ, inputs read the node voltages (Schmitt
+  trigger levels), A0–A5 feed the ADC, the chip resets below 2.7 V. PWM pins are
+  averaged over their high and low state, so a LED dims correctly
+- Pin levels and PWM duty cycles are shown on the chip; serial monitor with input
+- Limits: the coupling runs at the rate of the operating point (tens of times per
+  second), so analog interplay faster than that (PWM through an RC filter back into
+  the ADC) is only averaged; in the analyses of the simulation panel the pins are
+  open inputs
 
 ### Schematics
 
@@ -144,7 +166,7 @@ app for offline use, and "save" falls back to downloading the file.
 
 ### Direct links
 
-`?lesson=<id>` starts a lesson, `?demo=pcb|bench` opens a demo,
+`?lesson=<id>` starts a lesson, `?demo=pcb|bench|mcu` opens a demo,
 `?sample=schematics/<file>.bb` a sample, `?view=3d|realistic|live|slowmo` adds a view —
 e.g. `…/?lesson=led-resistor` or `…/?demo=pcb&view=3d`.
 
@@ -205,6 +227,7 @@ src/geometry/              transforms, bounds, hit testing, pin positions
 src/render/                SVG rendering of boards, parts, symbols, resistors, diodes
 src/editor/                canvas interaction, commands & shortcuts, file actions
 src/spice/                 connectivity (union-find), netlist, ngspice web worker, live values
+src/mcu/                   ATmega328P on avr8js (web worker), Intel HEX, examples, coupling
 src/pcb/                   PCB: footprints, copper geometry, connectivity, ratsnest, DRC,
                            zones, schematic -> PCB, autorouter, fabrication outputs (fab/)
 src/pcb3d/                 3D board viewer (three.js, loaded on demand)

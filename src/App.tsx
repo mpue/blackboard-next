@@ -13,6 +13,7 @@ import { DrcPanel } from './ui/DrcPanel.tsx';
 import { useDrc } from './ui/drcState.ts';
 import { installCrossProbing } from './editor/crossProbe.ts';
 import { installLiveUpdates } from './store/live.ts';
+import { installMcus } from './mcu/controller.ts';
 import { Board3DHost } from './ui/Board3DHost.tsx';
 import { useLearn } from './learn/state.ts';
 import { useApplyTheme } from './ui/theme.ts';
@@ -75,6 +76,9 @@ async function openDeepLink() {
   } else if (demo === 'pcb') {
     const { openPcbDemo } = await import('./editor/pcbActions.ts');
     await openPcbDemo();
+  } else if (demo === 'mcu') {
+    const { openMcuDemo } = await import('./ui/Dialogs.tsx');
+    await openMcuDemo();
   } else if (demo === 'bench') {
     const { openBenchDemo } = await import('./ui/Dialogs.tsx');
     openBenchDemo();
@@ -178,6 +182,7 @@ export function App() {
 
   useEffect(installCrossProbing, []);
   useEffect(installLiveUpdates, []);
+  useEffect(installMcus, []);
 
   useEffect(() => {
     if (window.innerWidth < 900) updateSettings({ leftPanel: false, rightPanel: false });

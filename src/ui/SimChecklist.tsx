@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CircleX, Info, Crosshair, Plus, Wand2 } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, CircleX, Cpu, Info, Crosshair, Plus, Wand2 } from 'lucide-react';
 import type { Draft } from 'immer';
 import { activeDoc, startPlacement, updateItems, useStore } from '../store/store.ts';
 import type { Item, SpiceType, SymbolDef } from '../model/types.ts';
@@ -8,6 +8,8 @@ import { spiceValue } from '../spice/netlist.ts';
 import { LABEL_DEFS } from '../spice/labels.ts';
 import { INSTRUMENT_DEFS } from '../spice/instruments.ts';
 import { showItem } from '../editor/showItem.ts';
+import { setLiveMode, setLiveValues, useLive } from '../store/live.ts';
+import { loadExample } from '../mcu/firmwareActions.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { cx } from './primitives.tsx';
 
@@ -62,6 +64,7 @@ function ValueFix({ issue }: { issue: SimIssue }) {
 
 function IssueRow({ issue, symbols }: { issue: SimIssue; symbols: SymbolDef[] }) {
   const t = useT();
+  const liveDc = useLive((s) => s.on && s.mode === 'dc');
   const Icon = issue.severity === 'error' ? CircleX : issue.severity === 'warning' ? AlertTriangle : Info;
   const typeName = issue.guess ? t(`type.${issue.guess}` as I18nKey) : '';
   const text =
@@ -99,7 +102,23 @@ function IssueRow({ issue, symbols }: { issue: SimIssue; symbols: SymbolDef[] })
               </FixButton>
             </>
           )}
-          {issue.id && (
+          {issue.kind === 'mcuFirmware' && issue.id && (
+            <FixButton icon={Cpu} onClick={() => void loadExample(issue.id!, 'blink')}>
+              {t('fix.mcuExample')}
+            </FixButton>
+          )}
+          {issue.kind === 'mcuLiveOnly' && !liveDc && (
+            <FixButton
+              icon={Activity}
+              onClick={() => {
+                setLiveMode('dc');
+                setLiveValues(true);
+              }}
+            >
+              {t('fix.liveOn')}
+            </FixButton>
+          )}
+          {issue.id && issue.kind !== 'mcuLiveOnly' && (
             <FixButton icon={Crosshair} onClick={() => showItem(issue.id!)}>
               {t('fix.show')}
             </FixButton>
