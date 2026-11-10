@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 import { openDoc, setLibrary, toast, updateSettings, useStore } from './store/store.ts';
 import { handleShortcut } from './editor/commands.ts';
 import { openBytes } from './editor/fileActions.ts';
@@ -22,6 +22,19 @@ import { isDirty } from './store/store.ts';
 
 // lessons and the component guide are loaded when the learning panel opens
 const LearnPanel = lazy(() => import('./learn/LearnPanel.tsx').then((m) => ({ default: m.LearnPanel })));
+
+const PHONE = '(max-width: 767px)';
+
+function usePhone(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia(PHONE);
+      m.addEventListener('change', cb);
+      return () => m.removeEventListener('change', cb);
+    },
+    () => window.matchMedia(PHONE).matches,
+  );
+}
 
 async function loadLibrary() {
   try {
@@ -152,6 +165,13 @@ export function App() {
   const simOpen = useStore((s) => s.simulationOpen);
   const drcOpen = useDrc((s) => s.open);
   const learnOpen = useLearn((s) => s.open);
+  // on phones the learning panel sits below the canvas instead of beside it
+  const phone = usePhone();
+  const learnPanel = (
+    <Suspense fallback={<aside className="w-80 shrink-0 border-l border-line bg-panel" />}>
+      <LearnPanel />
+    </Suspense>
+  );
   const isPcb = useStore((s) => s.docs.find((d) => d.id === s.active)?.doc.type === 'PCB');
 
   useEffect(installCrossProbing, []);
@@ -179,18 +199,20 @@ export function App() {
                 <Canvas />
                 <Board3DHost />
               </div>
+              {learnOpen && phone && learnPanel}
               {drcOpen && <DrcPanel />}
               {simOpen && !isPcb && <SimulationPanel key={active} />}
             </>
           ) : (
-            <Welcome />
+            <>
+              <div className="min-h-0 flex-1">
+                <Welcome />
+              </div>
+              {learnOpen && phone && learnPanel}
+            </>
           )}
         </main>
-        {learnOpen && (
-          <Suspense fallback={<aside className="w-80 shrink-0 border-l border-line bg-panel" />}>
-            <LearnPanel />
-          </Suspense>
-        )}
+        {learnOpen && !phone && learnPanel}
         {hasDocs && right && <RightPanel />}
       </div>
       <StatusBar />

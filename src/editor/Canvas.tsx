@@ -136,7 +136,8 @@ export function Canvas() {
   const fitIfNeeded = useCallback(() => {
     const el = wrapRef.current;
     const d = activeDoc();
-    if (el && d && !d.fitted && el.clientWidth > 0 && el.clientHeight > 0) fitToView(el.clientWidth, el.clientHeight);
+    // not while panels squeeze the canvas during start-up (phones hide them a moment later)
+    if (el && d && !d.fitted && el.clientWidth > 120 && el.clientHeight > 120) fitToView(el.clientWidth, el.clientHeight);
   }, []);
 
   useEffect(() => {

@@ -131,6 +131,11 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const tr = useL10n();
   const step = useLearn((s) => s.step);
   const docId = useLearn((s) => s.docId);
+  // the panel takes room from the canvas: fit the lesson schematic into what is left
+  useEffect(() => {
+    const id = requestAnimationFrame(() => window.dispatchEvent(new Event('bb:fit')));
+    return () => cancelAnimationFrame(id);
+  }, [lesson.id, docId]);
   const onLessonDoc = useStore((s) => s.active === docId);
   const next = LESSONS[LESSONS.indexOf(lesson) + 1];
   const finished = step >= lesson.steps.length;
@@ -228,7 +233,7 @@ export function LearnPanel() {
   const lesson = LESSONS.find((l) => l.id === lessonId);
   return (
     <aside
-      className="flex w-80 shrink-0 flex-col border-l border-line bg-panel max-md:absolute max-md:inset-y-11 max-md:right-0 max-md:z-30 max-md:w-full max-md:shadow-2xl"
+      className="flex w-80 shrink-0 flex-col border-l border-line bg-panel max-md:h-[52%] max-md:w-full max-md:border-l-0 max-md:border-t"
       aria-label={t('learn.title')}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
