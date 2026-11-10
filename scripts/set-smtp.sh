@@ -37,6 +37,18 @@ chmod 600 server.env
 sed -i '/^#* *SMTP_\(HOST\|PORT\|SECURE\|USER\|PASS\|FROM\)=/d' server.env
 printf \"SMTP_HOST='%s'\nSMTP_PORT='%s'\nSMTP_USER='%s'\nSMTP_PASS='%s'\nSMTP_FROM='%s'\n\" '$SMTP_HOST' '$SMTP_PORT' '$SMTP_USER' \"\$pass\" '$SMTP_FROM' >> server.env
 docker compose up -d --force-recreate api >/dev/null 2>&1
-sleep 4
-docker compose logs api --tail 1"
-echo "Steht oben 'SMTP on', gehen die Mails jetzt raus."
+sleep 4"
+
+echo "==> prüfe die Anmeldung bei $SMTP_HOST"
+ssh "$DEPLOY_HOST" "cd '$DEPLOY_DIR' && docker compose exec -T api node --input-type=module" <<'EOF'
+import nodemailer from 'nodemailer';
+const e = process.env;
+const t = nodemailer.createTransport({ host: e.SMTP_HOST, port: Number(e.SMTP_PORT), secure: e.SMTP_PORT === '465', auth: { user: e.SMTP_USER, pass: e.SMTP_PASS } });
+try {
+  await t.verify();
+  console.log('Anmeldung ok: die Mails gehen jetzt raus.');
+} catch (err) {
+  console.log(`Anmeldung fehlgeschlagen: ${err.response ?? err.message}`);
+  process.exitCode = 1;
+}
+EOF
