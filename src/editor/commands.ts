@@ -61,6 +61,7 @@ import {
   Wand2,
   Box,
   Eraser,
+  PenLine,
 } from 'lucide-react';
 import {
   activeDoc,
@@ -233,6 +234,20 @@ export const commands = {
   erc: { id: 'erc', label: 'erc.title', icon: ShieldCheck, shortcut: 'Shift+D', run: () => setDrcOpen(true), enabled: isSchematic },
   exportGerber: { id: 'exportGerber', label: 'pcb.exportGerber', icon: Factory, run: () => void exportFabrication(), enabled: isPcb },
   exportEtching: { id: 'exportEtching', label: 'pcb.exportEtching', icon: Printer, run: () => void exportEtching(), enabled: isPcb },
+  newFootprint: { id: 'newFootprint', label: 'fpe.newFootprint', icon: PenLine, run: () => openDialog({ kind: 'footprintEditor' }) },
+  editFootprint: {
+    id: 'editFootprint',
+    label: 'fpe.editFootprint',
+    run: () => {
+      const ds = activeDoc();
+      const fp = ds?.doc.items.find((i) => i.kind === 'footprint' && ds.selection.includes(i.id));
+      if (fp?.kind === 'footprint') openDialog({ kind: 'footprintEditor', itemId: fp.id, def: fp.footprint });
+    },
+    enabled: () => {
+      const ds = activeDoc();
+      return !!ds && ds.doc.type === 'PCB' && ds.selection.length === 1 && ds.doc.items.some((i) => i.kind === 'footprint' && i.id === ds.selection[0]);
+    },
+  },
   view3d: { id: 'view3d', label: 'view3d.toggle', icon: Box, shortcut: '3', run: () => setView3d(!useView3d.getState().open), enabled: isPcb, checked: () => useView3d.getState().open },
   pcbRules: { id: 'pcbRules', label: 'pcb.rules', icon: SlidersHorizontal, run: () => openDialog({ kind: 'pcbRules' }), enabled: isPcb },
   realistic: { id: 'realistic', label: 'pcb.realistic', icon: ScanEye, shortcut: 'Shift+3', run: toggle('pcbRealistic'), checked: () => useStore.getState().settings.pcbRealistic },

@@ -7,7 +7,7 @@ import { computeConnectivity, pinKey } from './connectivity.ts';
 import { isGround, spiceValue } from './netlist.ts';
 import { instrumentOf } from './instruments.ts';
 import { symbolToWorld, itemBounds, type Pt } from '../geometry/geom.ts';
-import { extractPcbNetlist } from '../pcb/fromSchematic.ts';
+import { extractPcbNetlist, type FootprintLookup } from '../pcb/fromSchematic.ts';
 import { footprintById } from '../pcb/footprints/index.ts';
 import { globalNetKey } from './labels.ts';
 
@@ -31,7 +31,7 @@ function isComponent(s: SymbolItem): boolean {
   return s.pins.length > 0 && !isGround(s) && !instrumentOf(s) && !globalNetKey(s) && !(s.pins.length === 1 && POWER.test(s.name.trim()));
 }
 
-export function runErc(doc: Doc): ErcViolation[] {
+export function runErc(doc: Doc, lookup: FootprintLookup = footprintById): ErcViolation[] {
   const out: ErcViolation[] = [];
   const conn = computeConnectivity(doc);
   const symbols = doc.items.filter((i): i is SymbolItem => i.kind === 'symbol');
@@ -67,7 +67,7 @@ export function runErc(doc: Doc): ErcViolation[] {
 
   // parts that will not make it onto a PCB as drawn
   const byName = new Map(symbols.map((s) => [s.name, s]));
-  for (const w of extractPcbNetlist(doc, footprintById).warnings) {
+  for (const w of extractPcbNetlist(doc, lookup).warnings) {
     if (w.key !== 'noFootprint' && w.key !== 'pinMismatch') continue;
     const s = byName.get(w.ref);
     if (!s) continue;

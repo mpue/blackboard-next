@@ -4,6 +4,7 @@ import { activeDoc, select, setView, useStore } from '../store/store.ts';
 import { useT } from '../i18n/i18n.ts';
 import { runDrc, type DrcViolation } from '../pcb/drc.ts';
 import { runErc, type ErcViolation } from '../spice/erc.ts';
+import { findFootprint } from '../editor/footprintLookup.ts';
 import { fmtMm } from '../pcb/units.ts';
 import { zoneFillsOf } from '../editor/zoneFills.ts';
 import { isSchematicDoc } from '../model/types.ts';
@@ -30,7 +31,7 @@ export function runDrcForActive() {
   if (ds.doc.type === 'PCB') {
     rows = runDrc(ds.doc, { zoneFills: zoneFillsOf(ds.doc) }).map((v) => ({ id: v.id, severity: v.severity, at: v.at, items: v.items, text: drcMessage(translate, v) }));
   } else if (isSchematicDoc(ds.doc)) {
-    rows = runErc(ds.doc).map((v) => ({ id: v.id, severity: v.severity, at: v.at, items: v.items, text: ercMessage(translate, v) }));
+    rows = runErc(ds.doc, findFootprint).map((v) => ({ id: v.id, severity: v.severity, at: v.at, items: v.items, text: ercMessage(translate, v) }));
   } else return;
   setDrcResult(ds.id, ds.doc.items, rows);
 }

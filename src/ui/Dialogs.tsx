@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity, Cpu, GraduationCap } from 'lucide-react';
 import { setLearnOpen } from '../learn/state.ts';
 import { openPcbDemo } from '../editor/pcbActions.ts';
-import { activeDoc, newDocument, openDialog, openDoc, setSimulationOpen, updateDoc, updatePcbSettings, useStore } from '../store/store.ts';
-import type { BoardType } from '../model/types.ts';
+import { activeDoc, newDocument, openDialog, openDoc, setLibrary, setSimulationOpen, toast, updateDoc, updateItems, updatePcbSettings, useStore } from '../store/store.ts';
+import { withUserFootprint, saveUserFootprints } from '../platform/userFootprints.ts';
+import { LABELS_DE } from '../pcb/editor/labels.ts';
+import type { BoardType, FootprintDef } from '../model/types.ts';
 import { MM_PER_UNIT, RASTER } from '../model/types.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { commands, MOD, type Command } from '../editor/commands.ts';
@@ -16,6 +18,9 @@ import { Logo } from './Logo.tsx';
 import { buildBenchDemo } from '../spice/benchDemo.ts';
 import { mm, toMm } from '../pcb/units.ts';
 import { DesignRulesDialog } from './DesignRulesDialog.tsx';
+
+// the footprint editor is only loaded when it is opened
+const FootprintEditor = lazy(() => import('../pcb/editor/FootprintEditor.tsx'));
 
 /** Opens the generated instrument bench demo with the bench panel. */
 export function openBenchDemo() {
@@ -43,7 +48,39 @@ export function Dialogs() {
       return <SymbolDialog onClose={close} />;
     case 'pcbRules':
       return <DesignRulesDialog onClose={close} />;
+    case 'footprintEditor':
+      return <FootprintEditorHost itemId={dialog.itemId} def={dialog.def} onClose={close} />;
   }
+}
+
+/** The footprint editor; saved footprints go to the user library (and onto the edited board footprint). */
+function FootprintEditorHost({ itemId, def, onClose }: { itemId?: string; def?: FootprintDef; onClose: () => void }) {
+  const t = useT();
+  const lang = useStore((s) => s.settings.lang);
+  return (
+    <Suspense fallback={null}>
+      <FootprintEditor
+        initial={def}
+        labels={lang === 'de' ? LABELS_DE : undefined}
+        categoryName={(c: string) => t(`fpcat.${c}` as I18nKey)}
+        onClose={onClose}
+        onSave={(saved: FootprintDef) => {
+          if (itemId) {
+            updateItems([itemId], (it) => {
+              if (it.kind !== 'footprint') return;
+              it.footprint = saved;
+              for (const k of Object.keys(it.nets)) if (!saved.pads.some((p) => p.num === k)) delete it.nets[k];
+            });
+          }
+          const next = withUserFootprint(useStore.getState().library.userFootprints, saved);
+          setLibrary({ userFootprints: next });
+          void saveUserFootprints(next);
+          toast(t('fpe.saved', { id: saved.id }), 'success');
+          onClose();
+        }}
+      />
+    </Suspense>
+  );
 }
 
 const TYPES: { type: BoardType; icon: typeof CircuitBoard; w: number; h: number }[] = [

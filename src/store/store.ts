@@ -73,6 +73,8 @@ export interface Library {
   symbols: SymbolDef[];
   models: SpiceModel[];
   userSymbols: SymbolDef[];
+  /** footprints drawn with the footprint editor (IndexedDB) */
+  userFootprints: FootprintDef[];
 }
 
 export interface Toast {
@@ -101,7 +103,8 @@ interface State {
     | { kind: 'samples' }
     | { kind: 'boardProps' }
     | { kind: 'symbolFromSelection' }
-    | { kind: 'pcbRules' };
+    | { kind: 'pcbRules' }
+    | { kind: 'footprintEditor'; itemId?: string; def?: FootprintDef };
 }
 
 const SETTINGS_KEY = 'blackboard.settings.v1';
@@ -155,7 +158,7 @@ export const useStore = create<State>()(() => ({
     shapeStyle: 'OUTLINED',
     fontSize: 14,
   }),
-  library: { loaded: false, parts: [], symbols: [], models: [], userSymbols: [] },
+  library: { loaded: false, parts: [], symbols: [], models: [], userSymbols: [], userFootprints: [] },
   clipboard: [],
   clipboardParts: {},
   toasts: [],

@@ -5,7 +5,7 @@ import type { Doc, FootprintDef, FootprintItem, Item } from '../model/types.ts';
 import { activeDoc, commit, openDoc, select, toast, useStore } from '../store/store.ts';
 import { t } from '../i18n/i18n.ts';
 import { annotate, extractPcbNetlist, type FromSchematicWarning, type PcbComponent } from '../pcb/fromSchematic.ts';
-import { footprintById } from '../pcb/footprints/index.ts';
+import { findFootprint } from './footprintLookup.ts';
 import { createPcbDoc } from '../pcb/defaults.ts';
 import { makeFootprintItem } from '../pcb/place.ts';
 import { isPowerNet } from '../pcb/geometry.ts';
@@ -118,10 +118,10 @@ export function createPcbFromSchematic() {
     toast(t('pcb.notSchematic'), 'error');
     return;
   }
-  const netlist = extractPcbNetlist(ds.doc, footprintById);
+  const netlist = extractPcbNetlist(ds.doc, findFootprint);
   const doc = createPcbDoc();
   const fps = netlist.components.flatMap((c) => {
-    const def = footprintById(c.footprintId);
+    const def = findFootprint(c.footprintId);
     return def ? [footprintFor(doc, c, def)] : [];
   });
   if (!fps.length) {
@@ -151,7 +151,7 @@ export function updatePcbFromSchematic() {
     toast(t('pcb.noSchematic', { name: name || '…' }), 'error');
     return;
   }
-  const netlist = extractPcbNetlist(sch.doc, footprintById);
+  const netlist = extractPcbNetlist(sch.doc, findFootprint);
   const refs = new Set(netlist.components.map((c) => c.ref));
   let added = 0;
   let removed = 0;
@@ -160,7 +160,7 @@ export function updatePcbFromSchematic() {
   commit((d) => {
     const byName = new Map(d.items.filter((i): i is Draft<FootprintItem> => i.kind === 'footprint').map((fp) => [fp.name, fp]));
     for (const c of netlist.components) {
-      const def = footprintById(c.footprintId);
+      const def = findFootprint(c.footprintId);
       if (!def) continue;
       const target = footprintFor(d as Doc, c, def);
       const fp = byName.get(c.ref);

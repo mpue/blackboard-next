@@ -4,9 +4,11 @@
 import { useMemo } from 'react';
 import type { Draft } from 'immer';
 import type { CopperSide, FootprintItem, Item, PcbItem, SymbolItem, TrackItem, ViaItem, ZoneItem } from '../model/types.ts';
-import { activeDoc, updateItems, useStore } from '../store/store.ts';
+import { activeDoc, openDialog, updateItems, useStore } from '../store/store.ts';
+import { PenLine } from 'lucide-react';
 import { useT } from '../i18n/i18n.ts';
-import { FOOTPRINTS, footprintById } from '../pcb/footprints/index.ts';
+import { FOOTPRINTS } from '../pcb/footprints/index.ts';
+import { findFootprint } from '../editor/footprintLookup.ts';
 import { guessFootprint } from '../pcb/fromSchematic.ts';
 import { copperLayerFor } from '../pcb/place.ts';
 import { mm, toMm } from '../pcb/units.ts';
@@ -23,7 +25,8 @@ function MmInput({ value, min = 0, step = 0.05, onCommit }: { value: number; min
 
 /** Text input with a datalist of all footprint ids. */
 export function FootprintInput({ value, placeholder, onCommit }: { value: string; placeholder?: string; onCommit: (id: string) => void }) {
-  const ids = useMemo(() => FOOTPRINTS.map((f) => f.id), []);
+  const user = useStore((s) => s.library.userFootprints);
+  const ids = useMemo(() => [...user.map((f) => f.id), ...FOOTPRINTS.map((f) => f.id)], [user]);
   return (
     <>
       <input
@@ -91,11 +94,16 @@ function FootprintFields({ item }: { item: FootprintItem }) {
       <Field label={t('props.value')}>
         <TextInput value={item.value} onCommit={(v) => edit(item, (i) => (i.value = v))} />
       </Field>
+      <div className="flex justify-end">
+        <button className="flex items-center gap-1 text-[12px] text-accent hover:underline" onClick={() => openDialog({ kind: 'footprintEditor', itemId: item.id, def: item.footprint })}>
+          <PenLine size={12} /> {t('fpe.editFootprint')}
+        </button>
+      </div>
       <Field label={t('props.footprint')}>
         <FootprintInput
           value={item.footprint.id}
           onCommit={(id) => {
-            const def = footprintById(id);
+            const def = findFootprint(id);
             if (def) edit(item, (i) => (i.footprint = structuredClone(def)));
           }}
         />

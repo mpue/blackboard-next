@@ -1,12 +1,15 @@
 import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Search, Trash2, Copy } from 'lucide-react';
-import { activeDoc, setLibrary, startPlacement, toast, useStore, type Placement } from '../store/store.ts';
+import { ChevronRight, Search, Trash2, Copy, Plus, PenLine } from 'lucide-react';
+import { activeDoc, openDialog, setLibrary, startPlacement, toast, useStore, type Placement } from '../store/store.ts';
+import { saveUserFootprints, withoutUserFootprint } from '../platform/userFootprints.ts';
 import { setDragPayload } from '../editor/dragPayload.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import type { FootprintDef, PartDef, SpiceModel, SymbolDef } from '../model/types.ts';
 import { FOOTPRINT_CATEGORIES, FOOTPRINTS, searchFootprints } from '../pcb/footprints/index.ts';
 import { footprintBoundsLocal, FootprintThumb } from './FootprintThumb.tsx';
 import { footprintFromPart, LEGACY_CATEGORY } from '../pcb/fromParts.ts';
+
+const USER_FOOTPRINTS = 'User';
 import { ShapeView } from '../render/shapes.tsx';
 import { inflate, shapeBounds, unionRect, type Rect } from '../geometry/geom.ts';
 import { saveUserSymbols } from '../platform/persist.ts';
@@ -53,7 +56,7 @@ export function LibraryPanel() {
   useEffect(() => setTab((cur) => (pcb ? 'footprints' : cur === 'footprints' ? 'parts' : cur)), [pcb]);
   const tabs: [Tab, I18nKey, number][] = pcb
     ? [
-        ['footprints', 'lib.footprints', FOOTPRINTS.length],
+        ['footprints', 'lib.footprints', FOOTPRINTS.length + lib.userFootprints.length],
         ['models', 'lib.models', lib.models.length],
       ]
     : [
@@ -121,6 +124,7 @@ function Tile({
   placement,
   children,
   onRemove,
+  onEdit,
   dark,
 }: {
   title: string;
@@ -128,6 +132,7 @@ function Tile({
   placement: Placement;
   children: React.ReactNode;
   onRemove?: () => void;
+  onEdit?: () => void;
   dark?: boolean;
 }) {
   const active = useStore((s) => s.tool === 'place' && s.placement !== null && samePlacement(s.placement, placement));
@@ -151,9 +156,10 @@ function Tile({
         <div className={cx('flex min-h-0 w-full flex-1 items-center justify-center rounded-md p-1', dark ? 'bg-[#0f1913]' : 'bg-white/90 dark:bg-white/[0.92]')}>{children}</div>
         <span className="w-full truncate text-[10.5px] leading-tight">{title}</span>
       </button>
-      {onRemove && (
-        <span className="absolute right-0.5 top-0.5 hidden group-hover:block">
-          <IconButton icon={Trash2} label="remove" className="h-6 w-6 bg-panel" size={12} onClick={onRemove} />
+      {(onRemove || onEdit) && (
+        <span className="absolute right-0.5 top-0.5 hidden gap-0.5 group-hover:flex">
+          {onEdit && <IconButton icon={PenLine} label="edit" className="h-6 w-6 bg-panel" size={12} onClick={onEdit} />}
+          {onRemove && <IconButton icon={Trash2} label="remove" className="h-6 w-6 bg-panel" size={12} onClick={onRemove} />}
         </span>
       )}
     </div>
@@ -170,6 +176,7 @@ function samePlacement(a: Placement, b: Placement) {
 const FootprintsList = memo(function FootprintsList({ q }: { q: string }) {
   const t = useT();
   const parts = useStore((s) => s.library.parts);
+  const user = useStore((s) => s.library.userFootprints);
   const groups = useMemo(() => {
     const list = q ? searchFootprints(q) : FOOTPRINTS;
     const m = new Map<string, FootprintDef[]>();
@@ -180,16 +187,39 @@ const FootprintsList = memo(function FootprintsList({ q }: { q: string }) {
       .map(footprintFromPart)
       .filter((f): f is FootprintDef => !!f);
     if (legacy.length) m.set(LEGACY_CATEGORY, legacy);
-    const order = (c: string) => (c === LEGACY_CATEGORY ? 999 : FOOTPRINT_CATEGORIES.indexOf(c));
+    const mine = user.filter((f) => !q || `${f.id} ${f.name} ${f.description} ${(f.tags ?? []).join(' ')}`.toLowerCase().includes(q));
+    if (mine.length) m.set(USER_FOOTPRINTS, mine);
+    const order = (c: string) => (c === USER_FOOTPRINTS ? -1 : c === LEGACY_CATEGORY ? 999 : FOOTPRINT_CATEGORIES.indexOf(c));
     return [...m.entries()].sort((a, b) => order(a[0]) - order(b[0]));
-  }, [q, parts]);
-  if (!groups.length) return <p className="p-4 text-muted">{t('lib.empty')}</p>;
+  }, [q, parts, user]);
+  const remove = (id: string) => {
+    const next = withoutUserFootprint(useStore.getState().library.userFootprints, id);
+    setLibrary({ userFootprints: next });
+    void saveUserFootprints(next);
+  };
   return (
     <>
+      <div className="border-b border-line/60 p-2">
+        <button
+          className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-line text-[12px] text-muted hover:border-accent hover:text-accent"
+          onClick={() => openDialog({ kind: 'footprintEditor' })}
+        >
+          <Plus size={14} /> {t('fpe.newFootprint')}
+        </button>
+      </div>
+      {!groups.length && <p className="p-4 text-muted">{t('lib.empty')}</p>}
       {groups.map(([cat, list]) => (
-        <Group key={cat} title={t(`fpcat.${cat}` as I18nKey)} count={list.length} defaultOpen={!!q}>
+        <Group key={cat} title={t(`fpcat.${cat}` as I18nKey)} count={list.length} defaultOpen={!!q || cat === USER_FOOTPRINTS}>
           {list.map((f) => (
-            <Tile key={f.id} title={f.name} subtitle={f.description} placement={{ kind: 'footprint', def: f }} dark>
+            <Tile
+              key={f.id}
+              title={f.name}
+              subtitle={f.description}
+              placement={{ kind: 'footprint', def: f }}
+              dark
+              onRemove={cat === USER_FOOTPRINTS ? () => remove(f.id) : undefined}
+              onEdit={cat === USER_FOOTPRINTS ? () => openDialog({ kind: 'footprintEditor', def: f }) : undefined}
+            >
               <FootprintThumb def={f} box={footprintBoundsLocal(f)} />
             </Tile>
           ))}

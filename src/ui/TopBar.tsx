@@ -52,7 +52,7 @@ function useMenus(): { title: I18nKey; items: MenuEntry[] }[] {
     { title: 'menu.board', items: [c.boardProps, 'sep', c.simulate, c.live, c.liveTran, c.check, c.erc, c.exportNetlist] },
     {
       title: 'menu.pcb',
-      items: [c.annotate, c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, c.autoroute, c.selectConnected, c.unrouteNet, c.unrouteAll, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.view3d, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
+      items: [c.annotate, c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, c.autoroute, c.selectConnected, c.unrouteNet, c.unrouteAll, 'sep', c.newFootprint, c.editFootprint, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.view3d, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
     },
     { title: 'menu.tools', items: [c.select, c.pan, c.wire, c.resistor, c.diode, c.box, c.ellipse, c.text, c.measure, c.check, 'sep', c.track, c.via, c.zone] },
     { title: 'menu.help', items: [c.learn, 'sep', c.shortcuts, c.about] },

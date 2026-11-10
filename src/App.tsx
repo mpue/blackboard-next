@@ -17,6 +17,7 @@ import { Board3DHost } from './ui/Board3DHost.tsx';
 import { useLearn } from './learn/state.ts';
 import { useApplyTheme } from './ui/theme.ts';
 import { loadSession, loadUserSymbols, saveSession } from './platform/persist.ts';
+import { loadUserFootprints } from './platform/userFootprints.ts';
 import type { PartDef, SpiceModel, SymbolDef } from './model/types.ts';
 import { isDirty } from './store/store.ts';
 
@@ -38,13 +39,14 @@ function usePhone(): boolean {
 
 async function loadLibrary() {
   try {
-    const [parts, symbols, models, userSymbols] = await Promise.all([
+    const [parts, symbols, models, userSymbols, userFootprints] = await Promise.all([
       fetch('library/parts.json').then((r) => r.json() as Promise<PartDef[]>),
       fetch('library/symbols.json').then((r) => r.json() as Promise<SymbolDef[]>),
       fetch('library/models.json').then((r) => r.json() as Promise<SpiceModel[]>),
       loadUserSymbols(),
+      loadUserFootprints(),
     ]);
-    setLibrary({ loaded: true, parts, symbols, models, userSymbols });
+    setLibrary({ loaded: true, parts, symbols, models, userSymbols, userFootprints });
   } catch (e) {
     setLibrary({ loaded: false, error: `Bibliothek konnte nicht geladen werden: ${(e as Error).message}` });
   }
