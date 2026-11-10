@@ -251,7 +251,8 @@ the containers there (`DEPLOY_HOST`, default `root@pueski.de`; `DEPLOY_PORT`, de
 `8210`; `DEPLOY_DIR`, default `/opt/blackboard`; `DEPLOY_ORIGIN` and `DEPLOY_PATH`,
 default `https://pueski.de` and `/blackboard`). The secrets of the API live in
 `$DEPLOY_DIR/server.env` (created from `server/.env.example` on the first deploy), the
-database in `$DEPLOY_DIR/data`. The live instance runs at https://pueski.de/blackboard/.
+database in `$DEPLOY_DIR/data`. `scripts/set-smtp.sh` writes the mail settings into it, asks
+only for the password and restarts the API. The live instance runs at https://pueski.de/blackboard/.
 
 ### Plans
 

@@ -5,8 +5,8 @@ import { ArrowRight, Briefcase, CheckCircle2, GraduationCap } from 'lucide-react
 import { editorUrl } from '../account/auth.ts';
 import type { LandingKey, T } from './strings.ts';
 
-/** Stripe payment link of "Individual Commercial" (test mode: swap for the live link before taking real payments) */
-export const CHECKOUT_URL = 'https://buy.stripe.com/test_00w3cw7U0eWb2UKf864Ja00';
+/** Stripe payment link of "Individual Commercial" (live) */
+export const CHECKOUT_URL = 'https://buy.stripe.com/4gM4gzdxz6ac9ht0Sfdby01';
 
 /** the payment link; a signed-in user's id goes along so the payment in Stripe belongs to the account */
 const checkoutUrl = (userId?: string) => (userId ? `${CHECKOUT_URL}?client_reference_id=${encodeURIComponent(userId)}` : CHECKOUT_URL);
