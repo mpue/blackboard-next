@@ -6,10 +6,12 @@ import { useT, type I18nKey } from '../i18n/i18n.ts';
 import type { FootprintDef, PartDef, SpiceModel, SymbolDef } from '../model/types.ts';
 import { FOOTPRINT_CATEGORIES, FOOTPRINTS, searchFootprints } from '../pcb/footprints/index.ts';
 import { footprintBoundsLocal, FootprintThumb } from './FootprintThumb.tsx';
+import { footprintFromPart, LEGACY_CATEGORY } from '../pcb/fromParts.ts';
 import { ShapeView } from '../render/shapes.tsx';
 import { inflate, shapeBounds, unionRect, type Rect } from '../geometry/geom.ts';
 import { saveUserSymbols } from '../platform/persist.ts';
 import { INSTRUMENT_DEFS } from '../spice/instruments.ts';
+import { LABEL_DEFS } from '../spice/labels.ts';
 import { cx, IconButton } from './primitives.tsx';
 
 type Tab = 'parts' | 'symbols' | 'models' | 'footprints';
@@ -42,11 +44,11 @@ function packageGroup(p: PartDef): string {
 
 export function LibraryPanel() {
   const t = useT();
-  const [tab, setTab] = useState<Tab>('parts');
+  const pcb = useStore((s) => activeDoc(s)?.doc.type === 'PCB');
+  const [tab, setTab] = useState<Tab>(pcb ? 'footprints' : 'parts');
   const [query, setQuery] = useState('');
   const q = useDeferredValue(query.trim().toLowerCase());
   const lib = useStore((s) => s.library);
-  const pcb = useStore((s) => activeDoc(s)?.doc.type === 'PCB');
   // PCBs are built from footprints; the other documents from parts and symbols
   useEffect(() => setTab((cur) => (pcb ? 'footprints' : cur === 'footprints' ? 'parts' : cur)), [pcb]);
   const tabs: [Tab, I18nKey, number][] = pcb
@@ -167,12 +169,20 @@ function samePlacement(a: Placement, b: Placement) {
 
 const FootprintsList = memo(function FootprintsList({ q }: { q: string }) {
   const t = useT();
+  const parts = useStore((s) => s.library.parts);
   const groups = useMemo(() => {
     const list = q ? searchFootprints(q) : FOOTPRINTS;
     const m = new Map<string, FootprintDef[]>();
     for (const f of list) m.set(f.category, [...(m.get(f.category) ?? []), f]);
-    return [...m.entries()].sort((a, b) => FOOTPRINT_CATEGORIES.indexOf(a[0]) - FOOTPRINT_CATEGORIES.indexOf(b[0]));
-  }, [q]);
+    // the classic part library, turned into through-hole footprints
+    const legacy = parts
+      .filter((p) => !q || `${p.name} ${p.description} ${p.packageType}`.toLowerCase().includes(q))
+      .map(footprintFromPart)
+      .filter((f): f is FootprintDef => !!f);
+    if (legacy.length) m.set(LEGACY_CATEGORY, legacy);
+    const order = (c: string) => (c === LEGACY_CATEGORY ? 999 : FOOTPRINT_CATEGORIES.indexOf(c));
+    return [...m.entries()].sort((a, b) => order(a[0]) - order(b[0]));
+  }, [q, parts]);
   if (!groups.length) return <p className="p-4 text-muted">{t('lib.empty')}</p>;
   return (
     <>
@@ -231,13 +241,13 @@ export function SymbolThumb({ def, className }: { def: SymbolDef; className?: st
   );
 }
 
-const CATEGORY_ORDER = ['Instruments', 'User', 'Passive', 'Semiconductors', 'Active', 'Digital', 'Sources', 'Switches', 'Connectors', 'Optoelectronics', 'Microcontrollers', 'Acoustic', 'Misc'];
+const CATEGORY_ORDER = ['Instruments', 'Labels', 'User', 'Passive', 'Semiconductors', 'Active', 'Digital', 'Sources', 'Switches', 'Connectors', 'Optoelectronics', 'Microcontrollers', 'Acoustic', 'Misc'];
 
 const SymbolsList = memo(function SymbolsList({ symbols, user, q }: { symbols: SymbolDef[]; user: SymbolDef[]; q: string }) {
   const t = useT();
   const groups = useMemo(() => {
     const m = new Map<string, SymbolDef[]>();
-    for (const s of [...Object.values(INSTRUMENT_DEFS), ...user.map((u) => ({ ...u, category: 'User' })), ...symbols]) {
+    for (const s of [...Object.values(INSTRUMENT_DEFS), ...LABEL_DEFS, ...user.map((u) => ({ ...u, category: 'User' })), ...symbols]) {
       if (q && !`${s.name} ${s.value} ${s.category} ${s.spiceType ?? ''} ${s.filename ?? ''}`.toLowerCase().includes(q)) continue;
       m.set(s.category, [...(m.get(s.category) ?? []), s]);
     }

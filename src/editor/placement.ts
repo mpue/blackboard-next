@@ -80,7 +80,14 @@ export function makePlacedItem(
   const def = placement.def;
   const o = anchorOffset(def.pins, def.width, def.height);
   const special = /^(gnd|vcc|vdd|vss)$/i.test(def.name);
-  const name = special ? def.name.toUpperCase() : nextDesignator(doc, designatorForSymbol(def));
+  const name =
+    def.properties?.power === 'true'
+      ? def.value
+      : def.properties?.netlabel === 'true'
+        ? nextDesignator(doc, 'NET')
+        : special
+          ? def.name.toUpperCase()
+          : nextDesignator(doc, designatorForSymbol(def));
   return symbolItemFromDef(def, s(at.x) - o.x, s(at.y) - o.y, layer, name);
 }
 

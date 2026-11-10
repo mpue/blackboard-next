@@ -18,6 +18,7 @@ import { useT, type I18nKey } from '../i18n/i18n.ts';
 import type { DiodeType, EdgeType, Item, ShapeStyle, SpiceType, SymbolItem, TextType } from '../model/types.ts';
 import { isBoardLayer, isPcbItem, MM_PER_UNIT } from '../model/types.ts';
 import { PcbItemFields, SymbolFootprintField } from './PcbProperties.tsx';
+import { ComponentInfoCard } from '../learn/ComponentInfoCard.tsx';
 import { formatOhm, parseEng } from '../model/ops.ts';
 import { resistorBands } from '../render/resistorColors.ts';
 import { Check, Field, IconButton, NumberInput, Section, Select, TextArea, TextInput, cx } from './primitives.tsx';
@@ -266,6 +267,7 @@ function ItemProperties({ item }: { item: Item }) {
       {item.kind === 'symbol' && <SymbolFields item={item} />}
       {isPcbItem(item) && <PcbItemFields item={item} />}
       {!isPcbItem(item) && <LayerField items={[item]} />}
+      {item.kind === 'symbol' && <ComponentInfoCard item={item} />}
     </Section>
   );
 }

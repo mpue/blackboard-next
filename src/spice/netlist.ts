@@ -140,6 +140,57 @@ export interface NetlistOptions {
   analysis?: string;
 }
 
+// ---- built-in models ----------------------------------------------------------------------------
+
+/**
+ * Many library symbols (all LEDs, Zener diodes, generic transistors) come
+ * without a SPICE model and used to be left out of the simulation. They get
+ * plain textbook models instead: LEDs by colour (forward voltage at 20 mA),
+ * Zener diodes by the voltage in their value ("C5V6" -> 5.6 V).
+ */
+const LED_VF: [RegExp, string, number][] = [
+  [/infrarot|infrared|\bir\b/i, 'IR', 1.25],
+  [/blau|blue|wei(ß|ss)|white|uv/i, 'BLUE', 3.1],
+  [/gr(ü|u)n|green/i, 'GREEN', 2.1],
+  [/gelb|yellow|orange/i, 'YELLOW', 2.0],
+];
+
+function ledModel(s: SymbolItem): { name: string; text: string } {
+  const txt = `${s.symbolName} ${s.value} ${s.filename ?? ''}`;
+  const [, color, vf] = LED_VF.find(([re]) => re.test(txt)) ?? [/./, 'RED', 1.9];
+  // I = IS * exp(V / (N * Vt)) with N = 2 gives 20 mA at the nominal forward voltage
+  const nVt = 2 * 0.025852;
+  const is = 0.02 / Math.exp(vf / nVt);
+  const name = `LED_${color}`;
+  return { name, text: `.model ${name} D(IS=${is.toPrecision(3)} N=2 RS=2 BV=5 IBV=10u CJO=20p)` };
+}
+
+export function builtinModel(s: SymbolItem): { name: string; text: string } | undefined {
+  const txt = `${s.symbolName} ${s.value} ${s.filename ?? ''}`;
+  switch (s.spiceType) {
+    case 'DIODE': {
+      if (/led/i.test(txt)) return ledModel(s);
+      const z = /(?:^|[^\d])(\d+)[v,.](\d*)/i.exec(s.value);
+      if (/z-?diode|zener|zd|bzx|bzy/i.test(txt) && z) {
+        const bv = parseFloat(`${z[1]}.${z[2] || '0'}`);
+        const name = `DZ${String(bv).replace('.', 'V')}`;
+        return { name, text: `.model ${name} D(IS=1e-14 N=1 RS=1 BV=${bv} IBV=5m CJO=50p)` };
+      }
+      return { name: 'D_GENERIC', text: '.model D_GENERIC D(IS=2.52n N=1.752 RS=0.568 BV=100 IBV=100u CJO=4p)' };
+    }
+    case 'NPN':
+      return { name: 'NPN_GENERIC', text: '.model NPN_GENERIC NPN(IS=1.8e-14 BF=300 VAF=80 BR=5 RB=50 RC=1 RE=0.5 CJE=11p CJC=5p TF=0.4n TR=50n)' };
+    case 'PNP':
+      return { name: 'PNP_GENERIC', text: '.model PNP_GENERIC PNP(IS=2e-14 BF=250 VAF=60 BR=5 RB=50 RC=1 RE=0.5 CJE=11p CJC=7p TF=0.5n TR=50n)' };
+    case 'MOSFET':
+      return /p-?(channel|kanal)|pmos|bs250/i.test(txt)
+        ? { name: 'PMOS_GENERIC', text: '.model PMOS_GENERIC PMOS(LEVEL=1 VTO=-2 KP=0.1 LAMBDA=0.01)' }
+        : { name: 'NMOS_GENERIC', text: '.model NMOS_GENERIC NMOS(LEVEL=1 VTO=2 KP=0.1 LAMBDA=0.01)' };
+    default:
+      return undefined;
+  }
+}
+
 // ---- interactive parts ----------------------------------------------------------------------
 
 const SWITCH_RE = /schalter|taster|switch|button|reed/i;
@@ -250,7 +301,12 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
       const guess = libByName.get(s.value.trim().toLowerCase());
       if (guess) m = guess;
     }
-    if (!m || !m.content) return undefined;
+    if (!m || !m.content) {
+      const fallback = builtinModel(s);
+      if (!fallback) return undefined;
+      models.set(fallback.name.toLowerCase(), fallback.text);
+      return fallback.name;
+    }
     const { name, text } = modelText(m);
     models.set(name.toLowerCase(), text);
     return name;

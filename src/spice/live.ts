@@ -59,15 +59,40 @@ function saves(nl: NetlistResult): string[] {
   return out;
 }
 
+/**
+ * While editing, parts are often only half connected: a tiny conductance from
+ * every node to ground keeps the matrix solvable (no "singular matrix").
+ */
+const SHUNT = '.options rshunt=1e12';
+
 /** Netlist for the operating point analysis, with the device currents saved. */
 export function opNetlist(doc: Doc, title: string, models: SpiceModel[]): NetlistResult {
   const nl = buildNetlist(doc, title, models, { analysis: '.op' });
+  const save: string[] = [SHUNT];
   const extra = saves(nl);
-  if (extra.length) {
-    const save: string[] = [];
-    for (let i = 0; i < extra.length; i += 8) save.push(`.save all ${extra.slice(i, i + 8).join(' ')}`);
-    nl.netlist = nl.netlist.replace(/^\.op\s*$/m, `${save.join('\n')}\n.op`);
+  for (let i = 0; i < extra.length; i += 8) save.push(`.save all ${extra.slice(i, i + 8).join(' ')}`);
+  nl.netlist = nl.netlist.replace(/^\.op\s*$/m, `${save.join('\n')}\n.op`);
+  return nl;
+}
+
+/** Analysis window for the slow motion view: the schematic's own .tran or 20 ms. */
+export function transientDirective(doc: Doc): string {
+  for (const it of doc.items) {
+    if (it.kind !== 'text' || it.textType !== 'SPICE_DIRECTIVE') continue;
+    const m = /^\s*\.tran\b.*$/im.exec(it.text.replace(/<[^>]*>/g, ''));
+    if (m) return m[0].trim().replace(/\s+uic\s*$/i, '');
   }
+  return '.tran 20u 20m';
+}
+
+/** Netlist for the slow motion view: a transient analysis with the device currents saved. */
+export function tranNetlist(doc: Doc, title: string, models: SpiceModel[]): NetlistResult {
+  const tran = transientDirective(doc);
+  const nl = buildNetlist(doc, title, models, { analysis: tran, uic: true });
+  const save: string[] = [SHUNT];
+  const extra = saves(nl);
+  for (let i = 0; i < extra.length; i += 8) save.push(`.save all ${extra.slice(i, i + 8).join(' ')}`);
+  nl.netlist = nl.netlist.replace(/^(\.tran\b.*)$/m, `${save.join('\n')}\n$1`);
   return nl;
 }
 

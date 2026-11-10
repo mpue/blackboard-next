@@ -2,11 +2,13 @@
 // positive, red = negative, grey = 0 V), moving dots showing the current flow,
 // voltage and current labels, glowing LEDs and draggable potentiometer wipers.
 
-import { memo, useMemo, type PointerEvent as RPointerEvent } from 'react';
+import { memo, useEffect, useMemo, useState, type PointerEvent as RPointerEvent } from 'react';
 import type { Doc, LineItem, SymbolItem } from '../model/types.ts';
 import { computeConnectivity } from '../spice/connectivity.ts';
 import { isPot, potPosition, switchClosed, switchOf, switchThrow } from '../spice/netlist.ts';
-import { useLive } from '../store/live.ts';
+import { useLive, type LiveSeries } from '../store/live.ts';
+import { liveValues, type LiveValues } from '../spice/live.ts';
+import type { Connectivity } from '../spice/connectivity.ts';
 import { beginGesture, endGesture, gestureUpdate } from '../store/store.ts';
 import { itemBounds, symbolToWorld, type Pt } from '../geometry/geom.ts';
 import { formatEng, partLookup } from '../model/ops.ts';
@@ -113,12 +115,56 @@ function Label({ at, text, color }: { at: Pt; text: string; color: string }) {
   );
 }
 
+/** Seconds the simulated time window takes to play back. */
+const PLAYBACK_SECONDS = 6;
+const PLAYBACK_STEPS = 360;
+
+/** Slow motion: the transient result played back in a loop. */
+function usePlayback(series: LiveSeries | null, conn: Connectivity): { values: LiveValues | null; t: number; phase: number; maxAbs: number; maxI: number } {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (!series) return;
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      setStep(Math.floor((((now - start) / 1000) % PLAYBACK_SECONDS) / PLAYBACK_SECONDS * PLAYBACK_STEPS));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [series]);
+  // scales over the whole run, so colours and speeds do not jump between frames
+  const scale = useMemo(() => {
+    if (!series) return { maxAbs: 0, maxI: 0 };
+    let maxAbs = 0;
+    for (const [name, v] of series.vectors) if (name.startsWith('v(')) for (const x of v) maxAbs = Math.max(maxAbs, Math.abs(x));
+    let maxI = 0;
+    for (const [name, v] of series.vectors) if (name.startsWith('i(')) for (const x of v) maxI = Math.max(maxI, Math.abs(x));
+    return { maxAbs, maxI };
+  }, [series]);
+  const phase = step / PLAYBACK_STEPS;
+  const t = series ? series.time[0] + phase * (series.time[series.time.length - 1] - series.time[0]) : 0;
+  const values = useMemo(() => {
+    if (!series) return null;
+    let i = 0;
+    while (i < series.time.length - 1 && series.time[i + 1] <= t) i++;
+    const vectors = new Map([...series.vectors].map(([k, v]) => [k, v[i]]));
+    return liveValues(series.doc, series.nl, vectors, conn);
+  }, [series, t, conn]);
+  return { values, t, phase, ...scale };
+}
+
 export const LiveOverlay = memo(function LiveOverlay({ doc, docId, z, showLabels }: { doc: Doc; docId: string; z: number; showLabels: boolean }) {
-  const values = useLive((s) => (s.on && s.docId === docId ? s.values : null));
+  const dc = useLive((s) => (s.on && s.docId === docId ? s.values : null));
+  const series = useLive((s) => (s.on && s.docId === docId ? s.series : null));
   const conn = useMemo(() => computeConnectivity(doc), [doc]);
+  const seriesConn = useMemo(() => (series ? computeConnectivity(series.doc) : conn), [series, conn]);
   const lookup = useMemo(() => partLookup(doc), [doc]);
+  const play = usePlayback(series, seriesConn);
+  const values = series ? play.values : dc;
   if (!values) return null;
-  const maxAbs = Math.max(Math.abs(values.minV), Math.abs(values.maxV));
+  const maxAbs = series ? play.maxAbs : Math.max(Math.abs(values.minV), Math.abs(values.maxV));
+  if (series) values.maxI = Math.max(values.maxI, play.maxI);
   const wires = doc.items.filter((i): i is LineItem => i.kind === 'line');
   const symbols = doc.items.filter((i): i is SymbolItem => i.kind === 'symbol');
 
@@ -141,7 +187,8 @@ export const LiveOverlay = memo(function LiveOverlay({ doc, docId, z, showLabels
           return <line key={w.id} x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} stroke={voltageColor(v, maxAbs)} strokeWidth={w.thickness + 1.5} strokeLinecap="round" />;
         })}
         {values.segments.map((s, i) => {
-          if (values.maxI <= 0 || s.i < values.maxI * 1e-3 || s.i < 1e-9) return null;
+          // leakage through open switches (1 GΩ) and nanoamps are no visible current
+          if (values.maxI <= 0 || s.i < values.maxI * 1e-3 || s.i < 1e-7) return null;
           const speed = 25 + 160 * Math.sqrt(s.i / values.maxI);
           return (
             <line
@@ -203,6 +250,16 @@ export const LiveOverlay = memo(function LiveOverlay({ doc, docId, z, showLabels
       {symbols.filter(isPot).map((s) => (
         <PotSlider key={s.id} s={s} z={z} />
       ))}
+      {series && (
+        <g pointerEvents="none" transform={`translate(16 ${-10 - 18 / z}) scale(${1 / Math.max(z, 0.25)})`}>
+          <rect x={0} y={0} width={150} height={18} rx={9} fill="#0f172a" fillOpacity={0.85} />
+          <rect x={58} y={7} width={84} height={4} rx={2} fill="#ffffff" fillOpacity={0.2} />
+          <rect x={58} y={7} width={84 * play.phase} height={4} rx={2} fill="#facc15" />
+          <text x={8} y={13} fontSize={10} fill="#fde047" fontFamily={LABEL_FONT} fontWeight={600}>
+            t = {formatEng(play.t, 's')}
+          </text>
+        </g>
+      )}
     </g>
   );
 });

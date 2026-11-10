@@ -5,6 +5,7 @@ import type { Doc, Item, LineItem } from '../model/types.ts';
 import { RASTER } from '../model/types.ts';
 import { distToSegment, itemBounds, itemPins, type Pt, type WorldPin } from '../geometry/geom.ts';
 import { partLookup } from '../model/ops.ts';
+import { globalNetKey } from './labels.ts';
 
 const WIRE_TOL = 4;
 const PIN_TOL = 3;
@@ -94,6 +95,17 @@ export function computeConnectivity(doc: Doc, opts: { visibleOnly?: boolean } = 
       if (pins[i].pin.itemId === pins[j].pin.itemId) continue;
       if (Math.hypot(pins[i].pin.x - pins[j].pin.x, pins[i].pin.y - pins[j].pin.y) <= PIN_TOL) uf.union(pins[i].node, pins[j].node);
     }
+  }
+  // net labels and supply/ground symbols of the same name are one net without a wire
+  const globalNode = new Map<string, number>();
+  const byId = new Map(items.map((i) => [i.id, i]));
+  for (const p of pins) {
+    const it = byId.get(p.pin.itemId);
+    const key = it?.kind === 'symbol' ? globalNetKey(it) : undefined;
+    if (!key) continue;
+    const first = globalNode.get(key);
+    if (first === undefined) globalNode.set(key, p.node);
+    else uf.union(first, p.node);
   }
   // copper stripes connect everything in a row, interrupted by breaks
   if (doc.type === 'STRIPES') {

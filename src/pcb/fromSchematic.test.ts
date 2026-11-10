@@ -252,7 +252,8 @@ describe('extractPcbNetlist', () => {
     expect(res.nets).toEqual(['GND', 'Net-(C1-Pad1)', 'Net-(R1-Pad1)']);
     expect(byRef(res, 'R1').pins[0]).toEqual({ pinIndex: 0, pinNum: 1, pinName: '1', pad: '1', net: 'Net-(R1-Pad1)' });
     // both ground islands are the same net
-    expect([...netNames(s.doc()).values()].filter((n) => n === 'GND')).toHaveLength(2);
+    // ground symbols are one net by name, even when no wire joins them
+    expect([...netNames(s.doc()).values()].filter((n) => n === 'GND')).toHaveLength(1);
   });
 
   it('maps a transistor stage by pin names and names supply nets', () => {

@@ -399,6 +399,8 @@ const normPower = (t: string) => {
 /** net name of a one pin supply symbol (VCC, +5V, 3V3 …) */
 function powerName(s: SymbolItem): string | undefined {
   if (s.pins.length !== 1) return undefined;
+  // net labels name their net
+  if (s.properties?.netlabel === 'true' && s.name.trim()) return s.name.trim();
   for (const t of [s.name, s.value, s.symbolName]) {
     const c = (t ?? '').replace(/\s+/g, '');
     if (POWER_RE.test(c)) return normPower(c);

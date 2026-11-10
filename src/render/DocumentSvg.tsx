@@ -6,12 +6,12 @@ import type { Settings } from '../store/store.ts';
 import { PcbView } from './PcbView.tsx';
 
 /** Static rendering used for SVG/PNG export and printing. */
-export function DocumentSvg({ doc, settings, mirror }: { doc: Doc; settings: Settings; mirror: boolean }) {
+export function DocumentSvg({ doc, settings, mirror, zoneFills }: { doc: Doc; settings: Settings; mirror: boolean; zoneFills?: Map<string, string> }) {
   const flags = { showNames: settings.showNames, showValues: settings.showValues, showPins: false, mirror };
   return (
     <svg xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" width={doc.width} height={doc.height} viewBox={`0 0 ${doc.width} ${doc.height}`}>
       <g transform={mirror ? `translate(${doc.width} 0) scale(-1 1)` : undefined}>
-        {doc.type === 'PCB' && <PcbView doc={doc} idPrefix="x" mirror={mirror} opts={{ ...flags, realistic: settings.pcbRealistic, zoom: 1 }} />}
+        {doc.type === 'PCB' && <PcbView doc={doc} idPrefix="x" mirror={mirror} opts={{ ...flags, realistic: settings.pcbRealistic, zoom: 1, zoneFills }} />}
         {doc.type !== 'PCB' && [...doc.layers].reverse().map((layer) => {
           if (!layer.visible) return null;
           return (

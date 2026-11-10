@@ -55,6 +55,11 @@ import {
   Cable,
   SlidersHorizontal,
   Gauge,
+  GraduationCap,
+  Timer,
+  ListOrdered,
+  Wand2,
+  Box,
 } from 'lucide-react';
 import {
   activeDoc,
@@ -83,9 +88,12 @@ import type { I18nKey } from '../i18n/i18n.ts';
 import { isSchematicDoc } from '../model/types.ts';
 import { exportBom, exportNetlist, exportPng, exportSvg, openFromDisk, printActive, saveActive } from './fileActions.ts';
 import { breakSymbols } from './symbolActions.ts';
-import { createPcbFromSchematic, exportEtching, exportFabrication, updatePcbFromSchematic } from './pcbActions.ts';
+import { annotateSchematic, createPcbFromSchematic, exportEtching, exportFabrication, updatePcbFromSchematic } from './pcbActions.ts';
 import { setDrcOpen } from '../ui/drcState.ts';
-import { setLiveValues, useLive } from '../store/live.ts';
+import { runAutorouter } from './autorouteAction.ts';
+import { setView3d, useView3d } from '../ui/Board3DHost.tsx';
+import { setLiveMode, setLiveValues, useLive } from '../store/live.ts';
+import { setLearnOpen, useLearn } from '../learn/state.ts';
 
 export interface Command {
   id: string;
@@ -213,15 +221,33 @@ export const commands = {
   via: tool('via', 'tool.via', CircleDot, 'Shift+V', isPcb),
   zone: tool('zone', 'tool.zone', SquareDashed, 'Z', isPcb),
 
+  annotate: { id: 'annotate', label: 'annotate.title', icon: ListOrdered, run: annotateSchematic, enabled: isSchematic },
   createPcb: { id: 'createPcb', label: 'pcb.create', icon: Cpu, run: createPcbFromSchematic, enabled: isSchematic },
   updatePcb: { id: 'updatePcb', label: 'pcb.update', icon: RefreshCw, run: updatePcbFromSchematic, enabled: isPcb },
+  autoroute: { id: 'autoroute', label: 'route.run', icon: Wand2, shortcut: 'Shift+A', run: runAutorouter, enabled: isPcb },
   drc: { id: 'drc', label: 'pcb.drc', icon: ShieldCheck, shortcut: 'Shift+D', run: () => setDrcOpen(true), enabled: isPcb },
+  erc: { id: 'erc', label: 'erc.title', icon: ShieldCheck, shortcut: 'Shift+D', run: () => setDrcOpen(true), enabled: isSchematic },
   exportGerber: { id: 'exportGerber', label: 'pcb.exportGerber', icon: Factory, run: () => void exportFabrication(), enabled: isPcb },
   exportEtching: { id: 'exportEtching', label: 'pcb.exportEtching', icon: Printer, run: () => void exportEtching(), enabled: isPcb },
+  view3d: { id: 'view3d', label: 'view3d.toggle', icon: Box, shortcut: '3', run: () => setView3d(!useView3d.getState().open), enabled: isPcb, checked: () => useView3d.getState().open },
   pcbRules: { id: 'pcbRules', label: 'pcb.rules', icon: SlidersHorizontal, run: () => openDialog({ kind: 'pcbRules' }), enabled: isPcb },
   realistic: { id: 'realistic', label: 'pcb.realistic', icon: ScanEye, shortcut: 'Shift+3', run: toggle('pcbRealistic'), checked: () => useStore.getState().settings.pcbRealistic },
   ratsnest: { id: 'ratsnest', label: 'pcb.ratsnest', icon: Cable, run: toggle('showRatsnest'), checked: () => useStore.getState().settings.showRatsnest },
 
+  liveTran: {
+    id: 'liveTran',
+    label: 'live.tran',
+    icon: Timer,
+    shortcut: 'Shift+T',
+    run: () => {
+      const st = useLive.getState();
+      if (!st.on) setLiveValues(true);
+      setLiveMode(st.on && st.mode === 'tran' ? 'dc' : 'tran');
+    },
+    enabled: isSchematic,
+    checked: () => useLive.getState().on && useLive.getState().mode === 'tran',
+  },
+  learn: { id: 'learn', label: 'learn.open', icon: GraduationCap, shortcut: 'F1', run: () => setLearnOpen(!useLearn.getState().open), checked: () => useLearn.getState().open },
   shortcuts: { id: 'shortcuts', label: 'help.shortcuts', shortcut: '?', run: () => openDialog({ kind: 'shortcuts' }) },
   about: { id: 'about', label: 'help.about', icon: FlaskConical, run: () => openDialog({ kind: 'about' }) },
 } satisfies Record<string, Command>;
@@ -283,7 +309,9 @@ const bindings: KeyBinding[] = [
   B('n', c.names),
   B('p', c.pins),
   B('f5', c.simulate),
+  B('f1', c.learn),
   B('l', c.live, { shift: true }),
+  B('t', c.liveTran, { shift: true }),
   B('v', c.select),
   B('h', c.pan),
   B('w', c.wire),
@@ -297,7 +325,10 @@ const bindings: KeyBinding[] = [
   B('w', c.track, { pcb: true }),
   B('v', c.via, { pcb: true, shift: true }),
   B('z', c.zone, { pcb: true }),
+  B('a', c.autoroute, { pcb: true, shift: true }),
+  B('3', c.view3d, { pcb: true }),
   B('d', c.drc, { pcb: true, shift: true }),
+  B('d', c.erc, { shift: true }),
   B('#', c.realistic, { pcb: true, shift: true }),
   B('§', c.realistic, { pcb: true, shift: true }),
   B('?', c.shortcuts, { shift: true }),

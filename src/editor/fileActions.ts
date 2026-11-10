@@ -1,5 +1,7 @@
 import { activeDoc, closeDoc, isDirty, markSaved, openDoc, toast, useStore, type DocState } from '../store/store.ts';
 import { dataUrl, fetchBytes, readBoardArchive, writeBoardArchive } from '../io/bbfile.ts';
+import { zoneFillsOf } from './zoneFills.ts';
+import { zoneFillPath } from '../pcb/zones.ts';
 import { BB_TYPE, exportFile, openFile, saveFile, type FileType } from '../platform/files.ts';
 import { t } from '../i18n/i18n.ts';
 import type { Doc, PartDef } from '../model/types.ts';
@@ -81,7 +83,9 @@ export async function documentSvg(ds: DocState): Promise<string> {
     ...ds.doc,
     parts: Object.fromEntries(Object.entries(ds.doc.parts).map(([k, p]) => [k, { ...p, image: images.get(p.image) ?? p.image }])),
   };
-  const svg = renderToStaticMarkup(DocumentSvg({ doc, settings, mirror: ds.mirror }));
+  const fills = doc.type === 'PCB' ? zoneFillsOf(doc) : undefined;
+  const zoneFills = fills ? new Map([...fills].map(([id, mp]) => [id, zoneFillPath(mp)])) : undefined;
+  const svg = renderToStaticMarkup(DocumentSvg({ doc, settings, mirror: ds.mirror, zoneFills }));
   return `<?xml version="1.0" encoding="UTF-8"?>\n${svg}`;
 }
 
@@ -134,6 +138,11 @@ export async function exportNetlist() {
 export async function exportBom() {
   const ds = activeDoc();
   if (!ds) return;
+  if (ds.doc.type === 'PCB') {
+    const { bomCsv } = await import('../pcb/fab/assembly.ts');
+    await exportFile(`${baseName(ds)}_bom.csv`, new Blob(['\ufeff' + bomCsv(ds.doc)], { type: 'text/csv' }), CSV);
+    return;
+  }
   const rows: string[][] = [['Designator', 'Type', 'Value', 'Package / Symbol']];
   for (const it of ds.doc.items) {
     if (it.kind === 'part') rows.push([it.name, ds.doc.parts[it.ref]?.name ?? it.ref, it.value ?? '', ds.doc.parts[it.ref]?.packageType ?? '']);

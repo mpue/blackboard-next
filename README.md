@@ -52,6 +52,54 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
 - Session autosave (IndexedDB), German/English, light/dark/system theme,
   touch (pinch to zoom) and phone-size layouts
 
+### Printed circuit boards
+
+- **Schematic → PCB** (*PCB → Create PCB from schematic*): footprints are chosen from
+  the symbols (or set per symbol in the properties panel), pins are mapped to pads
+  (by name for transistors, diodes and LEDs), nets are named after GND/supply symbols,
+  connected parts are placed next to each other. *Update PCB from schematic* carries
+  later schematic changes over (forward annotation)
+- Footprint library: 138 parametric THT and SMD footprints (KiCad-like dimensions:
+  resistors, capacitors, diodes, LEDs, TO-92/TO-220/SOT, DIP/SOIC/TSSOP/QFP, headers,
+  terminal blocks, crystals, switches, mounting holes …) plus every part of the classic
+  part library as a through-hole footprint
+- Two copper layers (or single sided for home etching), silkscreen top/bottom, board
+  outline with rounded corners
+- Interactive routing (W): 45°/90° postures (`/` flips the bend), `V` switches the layer
+  and sets a via, tracks snap to pads and never end on copper of another net; tracks
+  stay attached when footprints are moved, rotated or flipped to the other side
+- Copper zones (Z) with clearance, thermal reliefs, priorities and dead copper removal
+- Ratsnest, net highlighting (K), cross probing between schematic and PCB
+- Design rule check (Shift+D): clearance, shorts, unrouted nets, track width, drill,
+  annular ring, board edge, overlapping parts — with markers on the board
+- Design rules with presets for PCB manufacturers and for home etching
+- Fabrication output: Gerber X2 (copper, mask, silkscreen, edge cuts), Excellon drill
+  files, pick & place, BOM — one zip ready for upload; 1:1 artwork for toner transfer
+  / UV exposure
+- Layer colour view and realistic view (solder mask, HASL pads, silkscreen)
+- PCB data is stored inside the `.bb` archive (`bbnext/document.json`); BlackBoard
+  1.x/2.x still open such files (as blank boards)
+
+### Interactive simulation
+
+- **Live values** (Shift+L): after every edit the DC operating point is simulated;
+  wires are coloured by voltage, moving dots show the current flow, voltages and
+  currents are labelled, LEDs glow. Switches are operated by clicking, push buttons
+  while held, potentiometer wipers can be dragged
+- **Slow motion** (Shift+T): a transient analysis is played back over a few seconds —
+  blinking LEDs, charging capacitors, oscillators
+- LEDs, Zener diodes and generic transistors without a SPICE model get built-in
+  textbook models (LEDs by colour)
+
+### Learning
+
+- **Learn electronics** (F1): interactive lessons from the first circuit, Ohm's law and
+  voltage dividers via diodes, LEDs, Zener diodes and transistor switches to RC circuits
+  and your first PCB. Every task is checked automatically against your circuit
+  (structure, values, simulated voltages and currents, routing, DRC)
+- Component guide: selecting a symbol explains the component (how it works, formulas,
+  typical values, common mistakes) and links to the lessons that practise it
+
 ## Development
 
 Requirements: Node.js ≥ 23.6 (the library converter is plain TypeScript, run
@@ -125,7 +173,11 @@ src/model/                 document model, item operations, engineering values
 src/geometry/              transforms, bounds, hit testing, pin positions
 src/render/                SVG rendering of boards, parts, symbols, resistors, diodes
 src/editor/                canvas interaction, commands & shortcuts, file actions
-src/spice/                 connectivity (union-find), netlist, ngspice web worker
+src/spice/                 connectivity (union-find), netlist, ngspice web worker, live values
+src/pcb/                   PCB: footprints, copper geometry, connectivity, ratsnest, DRC,
+                           zones, schematic -> PCB, autorouter, fabrication outputs (fab/)
+src/pcb3d/                 3D board viewer (three.js, loaded on demand)
+src/learn/                 lessons, checks, component guide
 src/store/                 zustand store with immer-based undo history
 src/ui/                    panels, menus, dialogs, simulation panel (uPlot)
 src/platform/              file access (Tauri / File System Access API / download), IndexedDB

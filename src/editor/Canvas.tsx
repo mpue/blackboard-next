@@ -125,7 +125,7 @@ export function Canvas() {
   const libByFile = useMemo(() => new Map(libraryParts.map((p) => [p.file, p])), [libraryParts]);
   const zoneFills = useZoneFills(ds?.doc);
   const pcb = usePcbDerived(ds?.doc, zoneFills.fills);
-  const drcRes = useDrc((st) => (ds ? st.results[ds.id] : undefined));
+  const drcRes = useDrc((st) => (ds && st.open ? st.results[ds.id] : undefined));
   const drcFocus = useDrc((st) => st.focused);
   const pcbRef = useRef<PcbDerived | undefined>(undefined);
   pcbRef.current = pcb;
@@ -209,7 +209,9 @@ export function Canvas() {
   const hitTest = useCallback((d: DocState, p: Pt): Item | undefined => {
     const tol = 4 / d.view.zoom;
     const lk = partLookup(d.doc);
-    for (const layer of d.doc.layers) {
+    // on PCBs the layer being edited is picked first (tracks below footprints)
+    const layers = d.doc.type === 'PCB' ? [...d.doc.layers].sort((a, b) => Number(b.id === d.currentLayer) - Number(a.id === d.currentLayer)) : d.doc.layers;
+    for (const layer of layers) {
       if (!layer.visible || layer.locked) continue;
       for (let i = d.doc.items.length - 1; i >= 0; i--) {
         const it = d.doc.items[i];
@@ -538,7 +540,12 @@ export function Canvas() {
             fontSize: s.drawStyle.fontSize,
             rotation: 0,
             textType: 'TEXT',
-            color: d.doc.type === 'SCHEMATICS' || d.doc.type === 'BLANK' ? '#000000' : '#111111',
+            color:
+              d.doc.type === 'PCB'
+                ? (d.doc.layers.find((l) => l.id === layer)?.color ?? '#ffffff')
+                : d.doc.type === 'SCHEMATICS' || d.doc.type === 'BLANK'
+                  ? '#000000'
+                  : '#111111',
           },
         ]);
         setTool('select');
@@ -968,7 +975,7 @@ export function Canvas() {
                   ))}
                 </g>
               )}
-              {drcRes && doc.type === 'PCB' && (
+              {drcRes && (
                 <g>
                   {drcRes.violations.map((v) => {
                     const r = (v.id === drcFocus ? 9 : 6) / z;

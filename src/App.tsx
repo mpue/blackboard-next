@@ -13,6 +13,9 @@ import { DrcPanel } from './ui/DrcPanel.tsx';
 import { useDrc } from './ui/drcState.ts';
 import { installCrossProbing } from './editor/crossProbe.ts';
 import { installLiveUpdates } from './store/live.ts';
+import { LearnPanel } from './learn/LearnPanel.tsx';
+import { Board3DHost } from './ui/Board3DHost.tsx';
+import { useLearn } from './learn/state.ts';
 import { useApplyTheme } from './ui/theme.ts';
 import { loadSession, loadUserSymbols, saveSession } from './platform/persist.ts';
 import type { PartDef, SpiceModel, SymbolDef } from './model/types.ts';
@@ -106,6 +109,7 @@ export function App() {
   const right = useStore((s) => s.settings.rightPanel);
   const simOpen = useStore((s) => s.simulationOpen);
   const drcOpen = useDrc((s) => s.open);
+  const learnOpen = useLearn((s) => s.open);
   const isPcb = useStore((s) => s.docs.find((d) => d.id === s.active)?.doc.type === 'PCB');
 
   useEffect(installCrossProbing, []);
@@ -129,16 +133,18 @@ export function App() {
           {hasDocs ? (
             <>
               <TabBar />
-              <div className="min-h-0 flex-1">
+              <div className="relative min-h-0 flex-1">
                 <Canvas />
+                <Board3DHost />
               </div>
-              {drcOpen && isPcb && <DrcPanel />}
+              {drcOpen && <DrcPanel />}
               {simOpen && !isPcb && <SimulationPanel key={active} />}
             </>
           ) : (
             <Welcome />
           )}
         </main>
+        {learnOpen && <LearnPanel />}
         {hasDocs && right && <RightPanel />}
       </div>
       <StatusBar />

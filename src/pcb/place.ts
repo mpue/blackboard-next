@@ -4,6 +4,7 @@
 import type { CopperSide, Doc, FootprintDef, FootprintItem } from '../model/types.ts';
 import { uid } from '../model/id.ts';
 import { nextDesignator } from '../model/ops.ts';
+import { partDesignator } from './fromParts.ts';
 
 const PREFIX: [RegExp, string][] = [
   [/^Resistors/i, 'R'],
@@ -21,6 +22,8 @@ const PREFIX: [RegExp, string][] = [
 ];
 
 export function designatorForFootprint(def: FootprintDef): string {
+  const fromPart = partDesignator(def);
+  if (fromPart) return fromPart;
   if (/^TestPoint/i.test(def.id)) return 'TP';
   if (/^Buzzer/i.test(def.id)) return 'BZ';
   for (const [re, p] of PREFIX) if (re.test(def.category)) return p;

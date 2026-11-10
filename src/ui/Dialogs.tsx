@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity, Cpu } from 'lucide-react';
+import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity, Cpu, GraduationCap } from 'lucide-react';
+import { setLearnOpen } from '../learn/state.ts';
+import { openPcbDemo } from '../editor/pcbActions.ts';
 import { activeDoc, newDocument, openDialog, openDoc, setSimulationOpen, updateDoc, updatePcbSettings, useStore } from '../store/store.ts';
 import type { BoardType } from '../model/types.ts';
 import { MM_PER_UNIT, RASTER } from '../model/types.ts';
@@ -370,6 +372,30 @@ export function Welcome() {
           {card(Cpu, 'welcome.newPcb', () => newDocument('PCB', mm(100), mm(80)), 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400')}
           {card(FolderOpen, 'welcome.open', () => void openFromDisk(), 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300', 'sm:col-span-2')}
         </div>
+        <button
+          onClick={() => setLearnOpen(true)}
+          className="mt-2.5 flex w-full items-center gap-3 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 to-panel p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500 text-white">
+            <GraduationCap size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-[13px] font-medium">{t('learn.welcome')}</span>
+            <span className="block text-[12px] text-muted">{t('learn.welcomeText')}</span>
+          </span>
+        </button>
+        <button
+          onClick={() => void openPcbDemo()}
+          className="mt-2.5 flex w-full items-center gap-3 rounded-xl border border-line bg-panel p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-md"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <Cpu size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-[13px] font-medium">{t('demo.pcbTitle')}</span>
+            <span className="block text-[12px] text-muted">{t('demo.pcbText')}</span>
+          </span>
+        </button>
         <button
           onClick={openBenchDemo}
           className="mt-2.5 flex w-full items-center gap-3 rounded-xl border border-accent/40 bg-gradient-to-r from-accent-soft to-panel p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-accent hover:shadow-md"

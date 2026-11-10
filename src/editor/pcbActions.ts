@@ -4,7 +4,7 @@ import type { Draft } from 'immer';
 import type { Doc, FootprintDef, FootprintItem, Item } from '../model/types.ts';
 import { activeDoc, commit, openDoc, toast, useStore } from '../store/store.ts';
 import { t } from '../i18n/i18n.ts';
-import { extractPcbNetlist, type FromSchematicWarning, type PcbComponent } from '../pcb/fromSchematic.ts';
+import { annotate, extractPcbNetlist, type FromSchematicWarning, type PcbComponent } from '../pcb/fromSchematic.ts';
 import { footprintById } from '../pcb/footprints/index.ts';
 import { createPcbDoc } from '../pcb/defaults.ts';
 import { makeFootprintItem } from '../pcb/place.ts';
@@ -17,6 +17,8 @@ import { snapTo } from '../geometry/geom.ts';
 import { isSchematicDoc, RASTER } from '../model/types.ts';
 import { exportFile } from '../platform/files.ts';
 import { zoneFillsOf } from './zoneFills.ts';
+import { openSample } from './fileActions.ts';
+import { runAutorouter } from './autorouteAction.ts';
 
 const ZIP = { description: 'ZIP', extensions: ['.zip'], mime: 'application/zip' };
 const GAP = mm(2.54);
@@ -195,6 +197,25 @@ export function updatePcbFromSchematic() {
   reportWarnings(netlist.warnings);
 }
 
+/** Gives duplicate and unnumbered designators ("R?", second "R1") the next free number. */
+export function annotateSchematic() {
+  const ds = activeDoc();
+  if (!ds || !isSchematicDoc(ds.doc)) return;
+  const renames = annotate(ds.doc);
+  if (!renames.length) {
+    toast(t('annotate.none'), 'success');
+    return;
+  }
+  const byId = new Map(renames.map((r) => [r.id, r.name]));
+  commit((d) => {
+    for (const it of d.items) {
+      const name = byId.get(it.id);
+      if (name && it.kind === 'symbol') it.name = name;
+    }
+  });
+  toast(t('annotate.done', { count: renames.length }), 'success');
+}
+
 const projectName = (fileName: string) => fileName.replace(/\.bbs?$/i, '').replace(/[^\w.-]+/g, '_') || 'board';
 
 export async function exportFabrication() {
@@ -230,4 +251,13 @@ export async function exportEtching() {
     w.print();
     setTimeout(() => frame.remove(), 1000);
   }, 300);
+}
+
+/** Welcome screen demo: the 555 blinker sample becomes a PCB and is autorouted. */
+export async function openPcbDemo() {
+  await openSample('schematics', 'ne555_multivibrator.bb');
+  const ds = activeDoc();
+  if (!ds || !isSchematicDoc(ds.doc)) return;
+  createPcbFromSchematic();
+  if (activeDoc()?.doc.type === 'PCB') runAutorouter();
 }

@@ -6,6 +6,8 @@ import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { Button, IconButton, cx } from './primitives.tsx';
 import { Logo } from './Logo.tsx';
 import { useLive } from '../store/live.ts';
+import { useLearn } from '../learn/state.ts';
+import { useView3d } from './Board3DHost.tsx';
 import { isSchematicDoc } from '../model/types.ts';
 
 type MenuEntry = Command | 'sep' | { radio: string; checked: boolean; run: () => void };
@@ -47,13 +49,13 @@ function useMenus(): { title: I18nKey; items: MenuEntry[] }[] {
         { radio: 'English', checked: settings.lang === 'en', run: () => updateSettings({ lang: 'en' }) },
       ],
     },
-    { title: 'menu.board', items: [c.boardProps, 'sep', c.simulate, c.live, c.check, c.exportNetlist] },
+    { title: 'menu.board', items: [c.boardProps, 'sep', c.simulate, c.live, c.liveTran, c.check, c.erc, c.exportNetlist] },
     {
       title: 'menu.pcb',
-      items: [c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
+      items: [c.annotate, c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, c.autoroute, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.view3d, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
     },
     { title: 'menu.tools', items: [c.select, c.pan, c.wire, c.resistor, c.diode, c.box, c.ellipse, c.text, c.measure, c.check, 'sep', c.track, c.via, c.zone] },
-    { title: 'menu.help', items: [c.shortcuts, c.about] },
+    { title: 'menu.help', items: [c.learn, 'sep', c.shortcuts, c.about] },
   ];
 }
 
@@ -123,7 +125,10 @@ export function TopBar() {
     return !!d && isSchematicDoc(d);
   });
   const liveOn = useLive((s) => s.on);
+  const learnOpen = useLearn((s) => s.open);
+  const view3d = useView3d((s) => s.open);
   const liveStatus = useLive((s) => s.status);
+  const liveMode = useLive((s) => s.mode);
   useStore((s) => activeDoc(s));
   useStore((s) => s.settings);
 
@@ -182,6 +187,7 @@ export function TopBar() {
         {[commands.grid, commands.snap, commands.magnet, commands.mirror].map(quick)}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        <IconButton icon={commands.learn.icon!} label={`${t('learn.title')} (F1)`} active={learnOpen} onClick={() => runCommand(commands.learn)} />
         <IconButton icon={Languages} className="max-sm:hidden" label={t('view.language')} onClick={() => updateSettings({ lang: lang === 'de' ? 'en' : 'de' })} />
         <IconButton icon={ThemeIcon} className="max-sm:hidden" label={`${t('view.theme')}: ${t(`view.theme.${theme}`)}`} onClick={() => updateSettings({ theme: nextTheme })} />
         {schematic && (
@@ -195,6 +201,10 @@ export function TopBar() {
             <span className="hidden md:inline">{t('live.short')}</span>
           </Button>
         )}
+        {schematic && liveOn && (
+          <IconButton icon={commands.liveTran.icon!} label={`${t('live.tran')} (Shift+T)`} active={liveMode === 'tran'} onClick={() => runCommand(commands.liveTran)} />
+        )}
+        {docType === 'PCB' && <IconButton icon={commands.view3d.icon!} label={`${t('view3d.toggle')} (3)`} active={view3d} onClick={() => runCommand(commands.view3d)} />}
         {docType === 'PCB' ? (
           <Button variant="primary" icon={commands.drc.icon} onClick={() => runCommand(commands.drc)} title={`${t('pcb.drc')} (Shift+D)`}>
             <span className="hidden md:inline">DRC</span>

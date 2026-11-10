@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Doc, Item, LineItem, SymbolDef, SymbolItem } from '../model/types.ts';
 import { symbolItemFromDef, defaultLayers } from '../io/legacy.ts';
 import { symbolToWorld, type Pt } from '../geometry/geom.ts';
-import { liveValues, opNetlist } from './live.ts';
+import { liveValues, opNetlist, tranNetlist, transientDirective } from './live.ts';
 
 const symbols = JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', 'public', 'library', 'symbols.json'), 'utf8')) as SymbolDef[];
 const def = (name: string) => symbols.find((s) => s.name === name)!;
@@ -49,7 +49,7 @@ describe('live operating point', () => {
     const { doc } = divider();
     const nl = opNetlist(doc, 'divider', []);
     expect(nl.errors).toEqual([]);
-    expect(nl.netlist).toMatch(/^\.save all @r1\[i\] @r2\[i\]$/m);
+    expect(nl.netlist).toMatch(/^\.options rshunt=1e12\n\.save all @r1\[i\] @r2\[i\]\n\.op$/m);
     expect(nl.netlist).toMatch(/^\.op$/m);
   });
 
@@ -81,5 +81,22 @@ describe('live operating point', () => {
     // conventional current leaves the + terminal
     expect(Math.hypot(top!.a.x - pin(v1, 1).x, top!.a.y - pin(v1, 1).y)).toBeLessThan(1);
     expect(Math.hypot(top!.b.x - pin(r1, 1).x, top!.b.y - pin(r1, 1).y)).toBeLessThan(1);
+  }, 60_000);
+
+  it('plays back a transient analysis with device currents over time', async () => {
+    const { doc, r1 } = divider();
+    expect(transientDirective(doc)).toBe('.tran 20u 20m');
+    const nl = tranNetlist(doc, 'divider', []);
+    expect(nl.netlist).toMatch(/^\.options rshunt=1e12\n\.save all @r1\[i\] @r2\[i\]\n\.tran 20u 20m uic$/m);
+    const { Simulation } = await import('eecircuit-engine');
+    const sim = new Simulation();
+    await sim.start();
+    sim.setNetList(nl.netlist);
+    const r = await sim.runSim();
+    const [time, ...rest] = r.data;
+    expect((time.values as number[]).length).toBeGreaterThan(10);
+    const at = (i: number) => new Map(rest.map((d) => [d.name.toLowerCase(), (d.values as number[])[i]]));
+    const last = liveValues(doc, nl, at((time.values as number[]).length - 1));
+    expect(last.deviceCurrent.get(r1.id)).toBeCloseTo(0.003, 6);
   }, 60_000);
 });
