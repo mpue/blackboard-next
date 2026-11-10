@@ -14,7 +14,8 @@ import { fabricationZip } from '../pcb/fab/index.ts';
 import { etchingSvg } from '../pcb/fab/etching.ts';
 import { runDrc } from '../pcb/drc.ts';
 import { computePcbConnectivity } from '../pcb/connectivity.ts';
-import { snapTo } from '../geometry/geom.ts';
+import { footprintBounds, snapTo, unionRect, type Rect } from '../geometry/geom.ts';
+import { translateItem } from '../model/ops.ts';
 import { isSchematicDoc, RASTER } from '../model/types.ts';
 import { exportFile } from '../platform/files.ts';
 import { zoneFillsOf } from './zoneFills.ts';
@@ -312,4 +313,46 @@ export function resetOutline() {
   commit((d) => {
     if (d.pcb) delete d.pcb.outline;
   });
+}
+
+/** Four M3 mounting holes, 3.5 mm from the corners of the (rectangular) board. */
+export function addMountingHoles() {
+  const ds = activeDoc();
+  const def = findFootprint('MountingHole_3.2mm_M3');
+  if (!ds || ds.doc.type !== 'PCB' || !def) return;
+  const e = mm(3.5);
+  const spots = [
+    [e, e],
+    [ds.doc.width - e, e],
+    [ds.doc.width - e, ds.doc.height - e],
+    [e, ds.doc.height - e],
+  ];
+  const work = { ...ds.doc, items: [...ds.doc.items] };
+  const holes = spots.map(([x, y]) => {
+    const h = makeFootprintItem(work, def, x, y, 'top');
+    work.items.push(h);
+    return h;
+  });
+  commit((d) => {
+    d.items.push(...(holes as Draft<Item>[]));
+  });
+}
+
+/** Board shrunk (or grown) to the footprints plus a margin; everything moves to the new origin. */
+export function fitBoardToParts(margin = mm(3)) {
+  const ds = activeDoc();
+  if (!ds || ds.doc.type !== 'PCB' || ds.doc.pcb?.outline) return;
+  const fps = ds.doc.items.filter((i): i is FootprintItem => i.kind === 'footprint');
+  if (!fps.length) return;
+  let r: Rect | undefined;
+  for (const fp of fps) r = unionRect(r, footprintBounds(fp));
+  if (!r) return;
+  const dx = margin - r.x;
+  const dy = margin - r.y;
+  commit((d) => {
+    for (const it of d.items) translateItem(it as Item, dx, dy);
+    d.width = mm(Math.ceil(toMm(r!.w + 2 * margin)));
+    d.height = mm(Math.ceil(toMm(r!.h + 2 * margin)));
+  });
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('bb:fit'));
 }

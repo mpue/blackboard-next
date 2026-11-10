@@ -91,7 +91,18 @@ import type { I18nKey } from '../i18n/i18n.ts';
 import { isSchematicDoc } from '../model/types.ts';
 import { exportBom, exportNetlist, exportPng, exportSvg, openFromDisk, printActive, saveActive } from './fileActions.ts';
 import { breakSymbols } from './symbolActions.ts';
-import { annotateSchematic, createPcbFromSchematic, exportEtching, exportFabrication, resetOutline, selectConnectedCopper, unroute, updatePcbFromSchematic } from './pcbActions.ts';
+import {
+  addMountingHoles,
+  annotateSchematic,
+  createPcbFromSchematic,
+  exportEtching,
+  exportFabrication,
+  fitBoardToParts,
+  resetOutline,
+  selectConnectedCopper,
+  unroute,
+  updatePcbFromSchematic,
+} from './pcbActions.ts';
 import { setDrcOpen } from '../ui/drcState.ts';
 import { runAutorouter } from './autorouteAction.ts';
 import { setView3d, useView3d } from '../ui/Board3DHost.tsx';
@@ -224,6 +235,8 @@ export const commands = {
   via: tool('via', 'tool.via', CircleDot, 'Shift+V', isPcb),
   zone: tool('zone', 'tool.zone', SquareDashed, 'Z', isPcb),
   outline: tool('outline', 'tool.outline', Pentagon, 'Shift+O', isPcb),
+  mountingHoles: { id: 'mountingHoles', label: 'pcb.mountingHoles', run: addMountingHoles, enabled: isPcb },
+  fitBoard: { id: 'fitBoard', label: 'pcb.fitBoard', run: () => fitBoardToParts(), enabled: () => isPcb() && !activeDoc()?.doc.pcb?.outline },
   resetOutline: { id: 'resetOutline', label: 'pcb.resetOutline', run: resetOutline, enabled: () => !!activeDoc()?.doc.pcb?.outline },
 
   annotate: { id: 'annotate', label: 'annotate.title', icon: ListOrdered, run: annotateSchematic, enabled: isSchematic },

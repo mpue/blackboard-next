@@ -3,7 +3,9 @@ import type { Doc, FootprintItem, SymbolItem } from '../model/types.ts';
 import { activeDoc, openDoc, setActive, useStore } from '../store/store.ts';
 import { CircuitBuilder } from '../learn/build.ts';
 import { librarySymbols } from '../learn/testing.ts';
-import { createPcbFromSchematic, updatePcbFromSchematic } from './pcbActions.ts';
+import { addMountingHoles, createPcbFromSchematic, fitBoardToParts, updatePcbFromSchematic } from './pcbActions.ts';
+import { footprintBounds } from '../geometry/geom.ts';
+import { mm } from '../pcb/units.ts';
 
 const lib = librarySymbols();
 
@@ -79,5 +81,25 @@ describe('schematic -> PCB actions', () => {
     expect(c1After.x).toBeGreaterThan(after.width);
     // one undo step brings the old state back
     expect(activeDoc()!.past.length).toBeGreaterThan(0);
+  });
+
+  it('fits the board to its parts and adds corner mounting holes', () => {
+    useStore.setState({ docs: [], active: null });
+    openDoc(divider(), 'divider.bb');
+    createPcbFromSchematic();
+    const before = activeDoc()!.doc;
+    fitBoardToParts(mm(2));
+    const doc = activeDoc()!.doc;
+    expect(doc.width).toBeLessThanOrEqual(before.width + mm(1));
+    for (const f of footprints(doc)) {
+      const b = footprintBounds(f);
+      expect(b.x).toBeGreaterThanOrEqual(mm(2) - 1e-6);
+      expect(b.y).toBeGreaterThanOrEqual(mm(2) - 1e-6);
+      expect(b.x + b.w).toBeLessThanOrEqual(doc.width);
+      expect(b.y + b.h).toBeLessThanOrEqual(doc.height);
+    }
+    addMountingHoles();
+    const holes = footprints(activeDoc()!.doc).filter((f) => f.footprint.id === 'MountingHole_3.2mm_M3');
+    expect(holes.map((h) => h.name)).toEqual(['H1', 'H2', 'H3', 'H4']);
   });
 });
