@@ -99,8 +99,12 @@ function voltageSource(s: SymbolItem): string {
  * Subcircuits keep their line structure.
  */
 export function normalizeModel(content: string): string {
-  const text = content.replace(/\r\n?/g, '\n').trim();
-  if (/^\s*\.subckt\b/im.test(text)) return text;
+  // some library subcircuits have a ".SUCKT" typo or lack their ".ENDS"
+  let text = content.replace(/\r\n?/g, '\n').trim().replace(/^(\s*)\.suckt\b/im, '$1.SUBCKT');
+  if (/^\s*\.subckt\b/im.test(text)) {
+    if (!/^\s*\.ends\b/im.test(text)) text += '\n.ENDS';
+    return text;
+  }
   const statements: string[] = [];
   for (const raw of text.split('\n')) {
     const line = raw.trim();
@@ -421,7 +425,12 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
           res.warnings.push({ key: 'subckt', name: s.name });
           continue;
         }
-        const pins = s.pins.map((p, i) => ({ p, i })).sort((x, y) => x.p.num - y.p.num);
+        // terminals in the order of the .SUBCKT port list when it names the pin numbers, else by pin number
+        const ports = /^\s*\.subckt\s+\S+\s+([^\n]*)$/im.exec(models.get(model.toLowerCase()) ?? '')?.[1].trim().split(/\s+/) ?? [];
+        const byPort = ports.length === s.pins.length && s.pins.every((p) => ports.includes(String(p.num)));
+        const pins = s.pins
+          .map((p, i) => ({ p, i }))
+          .sort((x, y) => (byPort ? ports.indexOf(String(x.p.num)) - ports.indexOf(String(y.p.num)) : x.p.num - y.p.num));
         const name = elementName(s, 'X', used);
         lines.push(`${name} ${pins.map(({ i }) => node(s, i)).join(' ')} ${model}`);
         emitted(s, name, pins.map(({ i }) => i));

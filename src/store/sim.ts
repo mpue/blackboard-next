@@ -59,6 +59,8 @@ export async function runBench(force = false): Promise<void> {
   const st = useSim.getState();
   const analysis = benchAnalysis(ds.doc, st.uic);
   const net = buildNetlist(ds.doc, ds.fileName, useStore.getState().library.models, { analysis: analysis.directive });
+  // half connected parts must not stop the bench ("singular matrix")
+  net.netlist = net.netlist.replace(/^\.end\s*$/m, '.options rshunt=1e12\n.end');
   const sameDoc = st.docId === ds.id;
   if (!force && sameDoc && net.netlist === st.key && st.status !== 'error') return;
   useSim.setState({
