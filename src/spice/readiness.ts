@@ -6,7 +6,8 @@ import type { Doc, SpiceModel, SpiceType, SymbolItem } from '../model/types.ts';
 import { buildNetlist, isGround, lampOf, spiceValue, switchOf, type NetlistResult, type NetlistWarning } from './netlist.ts';
 import { instrumentOf } from './instruments.ts';
 import { globalNetKey } from './labels.ts';
-import { ESP32_3V3_PIN, ESP32_5V_PIN, isMcu, mcuFirmware, usbPowered } from '../mcu/pinout.ts';
+import { ESP32_3V3_PIN, ESP32_5V_PIN, isMcu, mcuFirmware, MODELS, usbPowered } from '../mcu/pinout.ts';
+import { isLcd, LCD_E, LCD_V0, LCD_VDD, LCD_VSS } from '../mcu/lcd.ts';
 
 export type IssueKind =
   | 'empty'
@@ -20,7 +21,10 @@ export type IssueKind =
   | 'supplyAssumed'
   | 'mcuFirmware'
   | 'mcuPower'
-  | 'mcuLiveOnly';
+  | 'mcuLiveOnly'
+  | 'lcdPower'
+  | 'lcdBus'
+  | 'lcdContrast';
 
 export interface SimIssue {
   kind: IssueKind;
@@ -76,7 +80,7 @@ export function guessType(s: SymbolItem): SpiceType | undefined {
 
 /** Symbols that are meant to be electrical parts (not marks, labels, instruments or plugs). */
 function isPart(s: SymbolItem): boolean {
-  if (s.pins.length < 2 || isGround(s) || instrumentOf(s) || globalNetKey(s) || switchOf(s) || lampOf(s) || isMcu(s)) return false;
+  if (s.pins.length < 2 || isGround(s) || instrumentOf(s) || globalNetKey(s) || switchOf(s) || lampOf(s) || isMcu(s) || isLcd(s)) return false;
   return true;
 }
 
@@ -95,7 +99,7 @@ export function checkSimulation(doc: Doc, models: SpiceModel[] = []): Readiness 
   for (const s of symbols) byName.set(s.name, [...(byName.get(s.name) ?? []), s]);
   const symbolOf = (name: string) => byName.get(name)?.shift();
 
-  if (!parts.length && !symbols.some((s) => instrumentOf(s) || switchOf(s) || lampOf(s) || isMcu(s))) {
+  if (!parts.length && !symbols.some((s) => instrumentOf(s) || switchOf(s) || lampOf(s) || isMcu(s) || isLcd(s))) {
     issues.push({ kind: 'empty', severity: 'info' });
     return { issues, netlist: net };
   }
@@ -131,6 +135,15 @@ export function checkSimulation(doc: Doc, models: SpiceModel[] = []): Readiness 
     if (!powered) issues.push({ kind: 'mcuPower', severity: 'warning', id: s.id, ref: s.name, detail: m.kind === 'esp32' ? 'esp32' : undefined });
     if (!mcuFirmware(s)) issues.push({ kind: 'mcuFirmware', severity: 'warning', id: s.id, ref: s.name, detail: m.kind === 'esp32' ? 'esp32' : undefined });
     issues.push({ kind: 'mcuLiveOnly', severity: 'info', id: s.id, ref: s.name });
+  }
+
+  for (const l of net.lcds) {
+    if (l.nodes[LCD_VDD] === undefined || l.nodes[LCD_VSS] === undefined) issues.push({ kind: 'lcdPower', severity: 'warning', id: l.symbolId, ref: l.ref });
+    // the data reaches the display only over direct wires from microcontroller pins
+    const e = l.nodes[LCD_E];
+    const driven = e !== undefined && net.mcus.some((m) => MODELS[m.kind].io.some((p) => m.nodes[p.num] === e));
+    if (!driven) issues.push({ kind: 'lcdBus', severity: 'warning', id: l.symbolId, ref: l.ref });
+    if (l.nodes[LCD_V0] === undefined) issues.push({ kind: 'lcdContrast', severity: 'info', id: l.symbolId, ref: l.ref });
   }
 
   for (const sup of net.supplies) if (sup.assumed) issues.push({ kind: 'supplyAssumed', severity: 'info', ref: sup.name, volts: sup.volts });

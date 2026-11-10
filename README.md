@@ -131,6 +131,14 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   board is powered over USB by default (GND is the reference, 5V and 3V3 are outputs)
   or through its 3.3 V regulator from the 5V pin; 40 Ω pin drivers, 45 kΩ pulls,
   ADC on the ADC1/ADC2 pins, LEDC PWM, UART0 console at 115200 baud
+- **Character LCDs** (HD44780 compatible, 16x2 green and 20x4 blue): the controller
+  is emulated next to the chip, at every edge of E (8 and 4 bit mode, instruction set,
+  DDRAM/CGRAM with user characters, display shift, cursor and blink, A00 character
+  ROM); the circuit decides the rest: no supply, no display; contrast from VDD − V0;
+  the backlight is a LED behind the module's 100 Ω. Examples for both chips
+  (Arduino `LiquidCrystal` sketch / MicroPython driver) and ready-made demos. The bus
+  lines have to be wired straight to chip pins; reading the controller (RW high) and
+  busy times are not modelled
 - Pin levels and PWM duty cycles are shown on the chip; serial monitor with input
 - Limits: the coupling runs at the rate of the operating point (tens of times per
   second), so analog interplay faster than that (PWM through an RC filter back into
@@ -178,13 +186,14 @@ app for offline use, and "save" falls back to downloading the file.
 
 `public/esp32/` is committed, so the app builds without Rust. `scripts/build-esp32.sh`
 rebuilds it: it checks out esp32sim at a pinned commit, applies `scripts/esp32sim.patch`
-(WebAssembly exports for the circuit coupling, pulls of the ESP32's RTC pads), builds
+(WebAssembly exports for the circuit coupling and GPIO edges, pulls of the ESP32's RTC
+pads), builds
 the module (needs rustup) and fetches the mask ROM and MicroPython image by SHA-256.
 Licences: `public/esp32/NOTICE.txt`.
 
 ### Direct links
 
-`?lesson=<id>` starts a lesson, `?demo=pcb|bench|mcu|esp32` opens a demo,
+`?lesson=<id>` starts a lesson, `?demo=pcb|bench|mcu|esp32|lcd|lcd-esp32` opens a demo,
 `?sample=schematics/<file>.bb` a sample, `?view=3d|realistic|live|slowmo` adds a view —
 e.g. `…/?lesson=led-resistor` or `…/?demo=pcb&view=3d`.
 

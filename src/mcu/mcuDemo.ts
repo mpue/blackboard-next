@@ -8,7 +8,7 @@ import { defaultLayers } from '../io/legacy.ts';
 import { uid } from '../model/id.ts';
 import { placeWithPin, pinOf } from '../spice/benchDemo.ts';
 import { LABEL_DEFS } from '../spice/labels.ts';
-import { ATMEGA328P_SYMBOL, ESP32_DEVKIT_SYMBOL } from '../spice/builtinSymbols.ts';
+import { ATMEGA328P_SYMBOL, ESP32_DEVKIT_SYMBOL, LCD1602_SYMBOL } from '../spice/builtinSymbols.ts';
 import { esp32ExampleById } from './esp32Examples.ts';
 import type { Pt } from '../geometry/geom.ts';
 import { exampleHex } from './examples.ts';
@@ -240,3 +240,125 @@ export function buildEsp32Demo(library: SymbolDef[], lang: 'de' | 'en'): Doc {
     parts: {},
   };
 }
+
+// ---- character LCD demos ------------------------------------------------------------------
+
+/**
+ * The display's supply pins get labels (VSS, V0 and K to GND for full
+ * contrast, VDD and A to +5V); its bus pins face the chip's pin row on the
+ * same grid, so the data lines run straight across.
+ */
+function lcdDemo(lang: 'de' | 'en', chip: 'atmega' | 'esp32', library: SymbolDef[], hex?: string): Doc {
+  const layers = defaultLayers('SCHEMATICS');
+  const layer = layers[0].id;
+  const color = '#1e6fd9';
+  const items: Item[] = [];
+  const wire = (...pts: Pt[]) => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const w: LineItem = { id: uid(), kind: 'line', layer, x1: pts[i].x, y1: pts[i].y, x2: pts[i + 1].x, y2: pts[i + 1].y, color, thickness: 2, startType: 'STRAIGHT', endType: 'STRAIGHT' };
+      items.push(w);
+    }
+  };
+  const gndDef = library.find((d) => d.filename === 'GND.xml') ?? library.find((d) => /gnd/i.test(d.filename ?? '') && d.pins.length === 1)!;
+  const netLabel = LABEL_DEFS[0];
+  const label = (name: string, at: Pt) => items.push(placeWithPin(netLabel, name, 1, at, layer, 180));
+
+  // chip pin -> display pin, one row each
+  let bus: [number, number][];
+  let u1;
+  if (chip === 'atmega') {
+    u1 = placeWithPin(ATMEGA328P_SYMBOL, 'U1', 7, { x: 512, y: 192 }, layer);
+    u1.properties = { ...u1.properties, firmware: hex!, firmwareName: 'example:lcd' };
+    // RS D2, RW D3, E D4, D4..D7 on D8..D11
+    bus = [
+      [4, 4],
+      [5, 5],
+      [6, 6],
+      [14, 11],
+      [15, 12],
+      [16, 13],
+      [17, 14],
+    ];
+    const vcc = pinOf(u1, 7);
+    const avcc = pinOf(u1, 20);
+    wire(vcc, { x: vcc.x, y: vcc.y - 32 }, { x: avcc.x, y: avcc.y - 32 }, avcc);
+    items.push(placeWithPin(LABEL_DEFS.find((d) => d.name === '+5V')!, '+5V', 1, { x: vcc.x, y: vcc.y - 32 }, layer));
+    const g1 = pinOf(u1, 8);
+    const g2 = pinOf(u1, 22);
+    const mid = { x: (g1.x + g2.x) / 2, y: g1.y + 32 };
+    wire(g1, { x: g1.x, y: mid.y }, mid);
+    wire(g2, { x: g2.x, y: mid.y }, mid);
+    items.push(placeWithPin(gndDef, 'GND', 1, mid, layer));
+  } else {
+    u1 = placeWithPin(ESP32_DEVKIT_SYMBOL, 'U1', 1, { x: 448, y: 192 }, layer);
+    u1.properties = { ...u1.properties, script: esp32ExampleById('lcd')!.script, firmwareName: 'example:lcd' };
+    // RS IO21, RW the GND pin next to it, E IO19, D4..D7 on IO4, IO0, IO2, IO15
+    bus = [
+      [25, 4],
+      [26, 5],
+      [27, 6],
+      [32, 11],
+      [33, 12],
+      [34, 13],
+      [35, 14],
+    ];
+    // the display runs from the board's 5V (USB)
+    label('+5V', pinOf(u1, 19));
+  }
+  items.push(u1);
+  const first = pinOf(u1, bus[0][0]);
+  const lcd = placeWithPin(LCD1602_SYMBOL, 'LCD1', 4, { x: first.x + 128, y: first.y }, layer);
+  items.push(lcd);
+  for (const [from, to] of bus) wire(pinOf(u1, from), pinOf(lcd, to));
+  for (const [num, name] of [
+    [1, 'GND'],
+    [2, '+5V'],
+    [3, 'GND'],
+    [15, '+5V'],
+    [16, 'GND'],
+  ] as const)
+    label(name, pinOf(lcd, num));
+
+  const text = (x: number, y: number, t: string, fontSize: number, bold = false): TextItem => ({
+    id: uid(),
+    kind: 'text',
+    layer,
+    x,
+    y,
+    text: bold ? `<b>${t}</b>` : t,
+    font: 'Arial',
+    fontSize,
+    rotation: 0,
+    textType: 'TEXT',
+    color: '#111827',
+  });
+  const name = chip === 'atmega' ? 'ATmega328P' : 'ESP32';
+  items.push(
+    text(64, 48, lang === 'de' ? `LCD-Demo: HD44780 16x2 am ${name}` : `LCD demo: HD44780 16x2 on the ${name}`, 16, true),
+    text(
+      64,
+      72,
+      lang === 'de'
+        ? `Mit Live-Werten schreibt ${chip === 'atmega' ? 'die Firmware' : 'der MicroPython-Code'} auf das Display: Begrüßung und Laufzeit. V0 an GND gibt vollen Kontrast, A und K versorgen die Beleuchtung.`
+        : `With live values the ${chip === 'atmega' ? 'firmware' : 'MicroPython code'} writes to the display: a greeting and the running time. V0 at GND gives full contrast, A and K power the backlight.`,
+      12,
+    ),
+  );
+
+  const xs = items.flatMap((i) => (i.kind === 'line' ? [i.x1, i.x2] : 'width' in i && 'x' in i ? [i.x + i.width] : []));
+  const ys = items.flatMap((i) => (i.kind === 'line' ? [i.y1, i.y2] : 'height' in i && 'y' in i ? [i.y + i.height] : []));
+  return {
+    width: Math.ceil((Math.max(...xs, 1100) + 96) / 16) * 16,
+    height: Math.ceil((Math.max(...ys) + 96) / 16) * 16,
+    type: 'SCHEMATICS',
+    layers,
+    items,
+    parts: {},
+  };
+}
+
+export async function buildLcdDemo(library: SymbolDef[], lang: 'de' | 'en'): Promise<Doc> {
+  return lcdDemo(lang, 'atmega', library, await exampleHex('lcd'));
+}
+
+export const buildEsp32LcdDemo = (library: SymbolDef[], lang: 'de' | 'en'): Doc => lcdDemo(lang, 'esp32', library);

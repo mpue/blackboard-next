@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity, Cpu, GraduationCap, MemoryStick, Wifi } from 'lucide-react';
+import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity, Cpu, GraduationCap, MemoryStick, Monitor, Wifi } from 'lucide-react';
 import { setLearnOpen } from '../learn/state.ts';
 import { openPcbDemo } from '../editor/pcbActions.ts';
 import { activeDoc, newDocument, openDialog, openDoc, setLibrary, setSimulationOpen, toast, updateDoc, updateItems, updatePcbSettings, useStore } from '../store/store.ts';
@@ -37,6 +37,16 @@ export async function openEsp32Demo() {
   const s = useStore.getState();
   const { buildEsp32Demo } = await import('../mcu/mcuDemo.ts');
   openDoc(buildEsp32Demo(s.library.symbols, s.settings.lang), 'esp32-demo.bb', undefined, false);
+  setLiveMode('dc');
+  setLiveValues(true);
+}
+
+/** Opens an LCD demo (ATmega328P or ESP32) with the live values running. */
+export async function openLcdDemo(chip: 'atmega' | 'esp32') {
+  const s = useStore.getState();
+  const { buildEsp32LcdDemo, buildLcdDemo } = await import('../mcu/mcuDemo.ts');
+  const doc = chip === 'esp32' ? buildEsp32LcdDemo(s.library.symbols, s.settings.lang) : await buildLcdDemo(s.library.symbols, s.settings.lang);
+  openDoc(doc, chip === 'esp32' ? 'lcd-esp32-demo.bb' : 'lcd-demo.bb', undefined, false);
   setLiveMode('dc');
   setLiveValues(true);
 }
@@ -218,6 +228,22 @@ function SamplesDialog({ onClose }: { onClose: () => void }) {
           <span className="block text-[11.5px] text-muted">{t('demo.esp32Text')}</span>
         </span>
       </button>
+      {(['atmega', 'esp32'] as const).map((chip) => (
+        <button
+          key={chip}
+          className="-mt-2 mb-4 flex w-full items-center gap-3 rounded-lg border border-lime-500/40 bg-lime-500/10 px-3 py-2.5 text-left hover:border-lime-500"
+          onClick={() => {
+            void openLcdDemo(chip);
+            onClose();
+          }}
+        >
+          <Monitor size={18} className="text-lime-700 dark:text-lime-400" />
+          <span className="flex-1">
+            <span className="block text-[12.5px] font-medium">{t(chip === 'esp32' ? 'demo.lcdEsp32Title' : 'demo.lcdTitle')}</span>
+            <span className="block text-[11.5px] text-muted">{t(chip === 'esp32' ? 'demo.lcdEsp32Text' : 'demo.lcdText')}</span>
+          </span>
+        </button>
+      ))}
       {!samples ? (
         <p className="text-muted">…</p>
       ) : (

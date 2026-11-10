@@ -13,6 +13,8 @@ import { isMcu, mcuClock, mcuFirmware, mcuKind, MODELS, type Drives } from './pi
 import type { McuRequest, McuResponse } from './mcu.worker.ts';
 import type { Esp32Request } from './esp32.worker.ts';
 import type { HexProblem } from './hex.ts';
+import type { LcdState } from './hd44780.ts';
+import { wireDisplays, type LcdView } from './lcdWiring.ts';
 
 export type ChipStatus = 'off' | 'noFirmware' | 'unpowered' | 'running' | 'error';
 
@@ -27,8 +29,13 @@ export interface ChipState {
   drives: Drives;
 }
 
+export type { LcdView };
+
 interface McuState {
   chips: Record<string, ChipState>;
+  /** what each character display shows (from its chip's worker) */
+  lcds: Record<string, LcdState>;
+  lcdView: Record<string, LcdView>;
   /** serial output per chip */
   serial: Record<string, string>;
   /** chip whose serial monitor is open */
@@ -37,7 +44,7 @@ interface McuState {
   dismissed: Record<string, boolean>;
 }
 
-export const useMcu = create<McuState>()(() => ({ chips: {}, serial: {}, monitor: null, dismissed: {} }));
+export const useMcu = create<McuState>()(() => ({ chips: {}, lcds: {}, lcdView: {}, serial: {}, monitor: null, dismissed: {} }));
 
 const IDLE: ChipState = { status: 'off', speed: 0, seconds: 0, baud: 0, vcc: 0, drives: {} };
 const SERIAL_KEEP = 20_000;
@@ -50,6 +57,7 @@ interface Runner {
   powered: boolean;
   digital: Record<number, boolean>;
   lastInputs: string;
+  lastLcds: string;
 }
 
 const runners = new Map<string, Runner>();
@@ -66,7 +74,7 @@ function start(id: string, docId: string, s: SymbolItem): Runner {
   const worker = esp32
     ? new Worker(new URL('./esp32.worker.ts', import.meta.url), { type: 'module', name: 'esp32' })
     : new Worker(new URL('./mcu.worker.ts', import.meta.url), { type: 'module', name: 'atmega328p' });
-  const r: Runner = { worker, docId, key: programKey(s), powered: false, digital: {}, lastInputs: '' };
+  const r: Runner = { worker, docId, key: programKey(s), powered: false, digital: {}, lastInputs: '', lastLcds: '' };
   worker.onmessage = (e: MessageEvent<McuResponse>) => {
     if (runners.get(id) !== r) return;
     const m = e.data;
@@ -86,6 +94,9 @@ function start(id: string, docId: string, s: SymbolItem): Runner {
         break;
       case 'error':
         patch(id, { status: 'error', error: { message: m.message, problem: m.problem, line: m.line }, drives: {} });
+        break;
+      case 'lcd':
+        useMcu.setState((st) => ({ lcds: { ...st.lcds, [m.id]: m.state } }));
         break;
     }
   };
@@ -134,12 +145,12 @@ export function syncMcus() {
     stop(id);
     patch(id, { ...IDLE });
   }
-  // chips that are not running show their reason
+  // chips that are not running show their reason; displays without live values go dark
   const present = new Set(chips.map((s) => s.id));
   useMcu.setState((s) => {
     const next = { ...s.chips };
     for (const id of Object.keys(next)) if (!present.has(id) && !runners.has(id)) next[id] = { ...IDLE };
-    return { chips: next };
+    return { chips: next, ...(live.on && live.mode === 'dc' ? {} : { lcdView: {}, lcds: {} }) };
   });
 }
 
@@ -176,8 +187,22 @@ function variants(docId: string): { mcu: Map<string, Drives>; weight: number }[]
   return out;
 }
 
+/** Character displays after an operating point: their wiring to each chip, and supply, contrast and backlight to draw. */
+function displays(nl: NetlistResult, vectors: Map<string, number>) {
+  const { links, view } = wireDisplays(nl, vectors);
+  for (const [id, r] of runners) {
+    const mine = links.get(id) ?? [];
+    const key = JSON.stringify(mine);
+    if (key === r.lastLcds) continue;
+    r.lastLcds = key;
+    send(r, { type: 'lcds', lcds: mine });
+  }
+  if (JSON.stringify(view) !== JSON.stringify(useMcu.getState().lcdView)) useMcu.setState({ lcdView: view });
+}
+
 /** After an operating point: supply, input levels and analog voltages to every chip. */
 function result(docId: string, _doc: Doc, nl: NetlistResult, vectors: Map<string, number>) {
+  displays(nl, vectors);
   for (const m of nl.mcus) {
     const r = runners.get(m.symbolId);
     if (!r || r.docId !== docId) continue;

@@ -6,6 +6,7 @@ import { Esp32Chip, Esp32Runtime, MicroPythonRunner } from './esp32chip.ts';
 import { MICROPYTHON_OFFSET, unpackImage } from './esp32Firmware.ts';
 import type { McuRequest, McuResponse } from './mcu.worker.ts';
 import type { IoPin } from './pinout.ts';
+import { LcdBus, type LcdLink } from './lcdBus.ts';
 
 export type Esp32Request =
   | {
@@ -54,6 +55,44 @@ let simulated = 0;
 let wall = 0;
 
 const post = (m: McuResponse) => (self as unknown as Worker).postMessage(m);
+
+// character displays: fed from the GPIO edges the emulator records
+const lcds = new LcdBus();
+let lcdLinks: LcdLink[] = [];
+/** output levels by GPIO, kept up to date from the edges */
+const levels = new Map<number, 0 | 1>();
+const gpioOf = (num: number | undefined) => io.find((p) => p.num === num)?.key;
+const level = (num: number | undefined): 0 | 1 => {
+  const g = gpioOf(num);
+  return g === undefined ? 0 : (levels.get(g) ?? 0);
+};
+
+function wireLcds() {
+  levels.clear();
+  if (chip) {
+    for (const link of lcdLinks) {
+      for (const num of [link.e, link.rs, link.rw, ...link.d]) {
+        const g = gpioOf(num);
+        if (g !== undefined) levels.set(g, chip.level(g));
+      }
+    }
+    chip.observe(lcdLinks.length > 0);
+    // edges from before the wiring do not count
+    chip.edges();
+  }
+  lcds.update(lcdLinks, level);
+}
+
+function feedLcds() {
+  if (!chip || !lcds.size) return;
+  for (const ev of chip.edges()) {
+    const g = ev & 0xff;
+    const now: 0 | 1 = (ev >> 8) & 1 ? 1 : 0;
+    levels.set(g, now);
+    const num = io.find((p) => p.key === g)?.num;
+    if (num !== undefined && lcds.pins.has(num)) lcds.edge(num, now, level);
+  }
+}
 const fail = (err: unknown) => post({ type: 'error', message: err instanceof Error ? err.message : String(err) });
 
 async function fetchBytes(url: string): Promise<Uint8Array> {
@@ -84,6 +123,8 @@ function applyInputs(force = false) {
   applied = key;
   const open = new Set(inputs.open ?? []);
   for (const p of io) {
+    // the display lines are the chip's outputs: driving them from the circuit would fake edges
+    if (lcds.pins.has(p.num)) continue;
     if (open.has(p.num) || (early && STRAPS.has(p.key))) chip.setInput(p.key, undefined);
     else if (p.num in inputs.digital) chip.setInput(p.key, inputs.digital[p.num]);
     if (p.analog && p.num in inputs.analog) chip.setAnalog(p.key, inputs.analog[p.num]);
@@ -103,6 +144,7 @@ function boot() {
   tx.length = 0;
   quiet = true;
   runner = script !== undefined ? new MicroPythonRunner(script, (text) => tx.push(...new TextEncoder().encode(text))) : null;
+  wireLcds();
   applyInputs(true);
   lastTick = performance.now();
   lastDrives = '';
@@ -117,6 +159,7 @@ function report(force = false) {
     lastDrives = key;
     post({ type: 'drives', drives });
   }
+  for (const { id, state } of lcds.changed()) post({ type: 'lcd', id, state });
 }
 
 function tick() {
@@ -135,6 +178,7 @@ function tick() {
         chip = null;
         break;
       }
+      feedLcds();
       if (tx.length) chip.serialIn(Uint8Array.from(tx.splice(0, UART_BYTES_PER_MS)));
       const text = chip.serialOut();
       if (text) {
@@ -206,6 +250,11 @@ self.onmessage = async (e: MessageEvent<Esp32Request>) => {
     case 'inputs':
       inputs = m;
       applyInputs();
+      break;
+    case 'lcds':
+      lcdLinks = m.lcds;
+      wireLcds();
+      for (const { id, state } of lcds.changed()) post({ type: 'lcd', id, state });
       break;
     case 'serial':
       // the MicroPython REPL takes Enter as CR, Arduino sketches mostly read up to LF

@@ -95,6 +95,23 @@ export class Atmega328p {
     return t;
   }
 
+  /** Calls `fn` whenever output levels of a port change, with the mask of the changed pins. */
+  watch(fn: (port: PortName, value: number, changed: number) => void) {
+    for (const [name, port] of Object.entries(this.ports) as [PortName, AVRIOPort][]) {
+      port.addListener((value, old) => {
+        if (value !== old) fn(name, value, value ^ old);
+      });
+    }
+  }
+
+  /** Level a pin drives: 1 for output high or an input with pull-up. */
+  level(num: number): 0 | 1 {
+    const p = IO_PINS.find((x) => x.num === num);
+    if (!p) return 0;
+    const s = this.ports[p.port].pinState(p.bit);
+    return s === PinState.High || s === PinState.InputPullUp ? 1 : 0;
+  }
+
   /** Runs the firmware for the given number of clock cycles. */
   run(cycles: number) {
     const cpu = this.cpu;

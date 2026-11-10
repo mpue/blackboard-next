@@ -3,7 +3,7 @@
 // for 50 ms: MicroPython busy-waits the last tick (10 ms) of every sleep_ms,
 // so short pauses keep the CPU busy and the emulation below real time.
 
-export type Esp32ExampleId = 'blink' | 'button' | 'chaser' | 'dimmer' | 'serial' | 'demo';
+export type Esp32ExampleId = 'blink' | 'button' | 'chaser' | 'dimmer' | 'serial' | 'demo' | 'lcd';
 
 export const ESP32_EXAMPLES: { id: Esp32ExampleId; script: string }[] = [
   {
@@ -80,6 +80,52 @@ while True:
         led.value(not led.value())
         last = time.ticks_ms()
     time.sleep_ms(50)
+`,
+  },
+  {
+    id: 'lcd',
+    script: `from machine import Pin
+import time
+
+# LCD 16x2 (HD44780) im 4-Bit-Modus: RS, E und D4..D7, RW an GND
+rs = Pin(21, Pin.OUT)
+en = Pin(19, Pin.OUT)
+data = [Pin(n, Pin.OUT) for n in (4, 0, 2, 15)]
+
+def nibble(value):
+    for bit, pin in enumerate(data):
+        pin.value((value >> bit) & 1)
+    en.value(1)
+    en.value(0)          # fallende Flanke: das Display uebernimmt
+    time.sleep_us(50)
+
+def send(value, char=False):
+    rs.value(char)
+    nibble(value >> 4)
+    nibble(value & 0x0F)
+
+def init():
+    time.sleep_ms(50)
+    rs.value(0)
+    for value in (3, 3, 3, 2):   # 8-Bit-Modus, dann 4-Bit-Modus
+        nibble(value)
+        time.sleep_ms(5)
+    for cmd in (0x28, 0x0C, 0x01, 0x06):
+        send(cmd)
+    time.sleep_ms(2)
+
+def show(text, line=0):
+    send(0x80 | (0x40 * line))
+    for c in text:
+        send(ord(c), True)
+
+init()
+show("Hallo ESP32!")
+start = time.ticks_ms()
+while True:
+    seconds = time.ticks_diff(time.ticks_ms(), start) // 1000
+    show("Zeit:%5d s" % seconds, 1)
+    time.sleep_ms(200)
 `,
   },
 ];

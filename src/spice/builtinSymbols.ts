@@ -3,6 +3,7 @@
 
 import type { LineGeom, Pin, SymbolDef, SymbolShape, TextGeom } from '../model/types.ts';
 import { ESP32_PINS, PINOUT } from '../mcu/pinout.ts';
+import { LCD_GEOMETRY, LCD_PIN_NAMES } from '../mcu/lcd.ts';
 
 /**
  * Simplified behavioural model of the NE555: the internal 3 x 5 kΩ divider,
@@ -202,4 +203,43 @@ function esp32DevkitSymbol(): SymbolDef {
 
 export const ESP32_DEVKIT_SYMBOL = esp32DevkitSymbol();
 
-export const BUILTIN_SYMBOLS: SymbolDef[] = [NE555_SYMBOL, ATMEGA328P_SYMBOL, ESP32_DEVKIT_SYMBOL];
+/**
+ * Character LCD module with HD44780 controller: the 16 pins in the module's
+ * order (VSS, VDD, V0, RS, RW, E, D0..D7, A, K) down the left side on the 16
+ * grid, so a bus from a microcontroller's pin row runs straight across, and
+ * the display window, in which the live values draw the characters.
+ */
+function lcdSymbol(cols: number, rows: number, backlight: 'green' | 'blue'): SymbolDef {
+  const g = LCD_GEOMETRY;
+  const W = cols * g.cellW + 112;
+  const H = 304;
+  const winBottom = g.y + rows * g.cellH + 4;
+  const shapes: SymbolShape[] = [
+    { kind: 'box', x: 32, y: 16, w: W - 48, h: H - 24, color: '#000000', thickness: 2, style: 'OUTLINED' },
+    { kind: 'box', x: g.x - 4, y: g.y - 4, w: cols * g.cellW + 8, h: winBottom - g.y + 4, color: '#000000', thickness: 1.5, style: 'OUTLINED' },
+  ];
+  const pins: Pin[] = LCD_PIN_NAMES.map((name, i) => {
+    const y = 32 + 16 * i;
+    shapes.push(pinLine(0, y, 32, y), label(37, y + 3, name, 7.5), label(14, y - 3, String(i + 1), 6));
+    return { num: i + 1, x: 0, y, name, orientation: 'TOP_LEFT' };
+  });
+  const value = `HD44780 ${cols}x${rows}`;
+  shapes.push(label(g.x - 4, winBottom + 22, 'LCD1', 11, 'NAME'), label(g.x + 44, winBottom + 22, value, 9, 'VALUE'));
+  return {
+    name: `LCD ${cols}x${rows}`,
+    filename: `LCD-${cols}x${rows}.xml`,
+    category: 'Optoelectronics',
+    width: W,
+    height: H,
+    value,
+    customModel: false,
+    properties: { prefix: 'LCD', lcd: `${cols}x${rows}`, backlight, footprint: `PinHeader_1x16_P2.54mm` },
+    pins,
+    shapes,
+  };
+}
+
+export const LCD1602_SYMBOL = lcdSymbol(16, 2, 'green');
+export const LCD2004_SYMBOL = lcdSymbol(20, 4, 'blue');
+
+export const BUILTIN_SYMBOLS: SymbolDef[] = [NE555_SYMBOL, ATMEGA328P_SYMBOL, ESP32_DEVKIT_SYMBOL, LCD1602_SYMBOL, LCD2004_SYMBOL];

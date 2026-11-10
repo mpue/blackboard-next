@@ -27,6 +27,9 @@ interface Exports {
   esp32sim_pwm_duty(e: number, pin: number): number;
   esp32sim_analog(e: number, pin: number, volts: number): void;
   esp32sim_uart_in(e: number, n: number, ptr: number, len: number): void;
+  esp32sim_gpio_observe(e: number, on: number): void;
+  esp32sim_gpio_events(e: number): number;
+  esp32sim_gpio_events_ptr(): number;
 }
 
 /** load kinds of esp32sim_load */
@@ -149,6 +152,25 @@ export class Esp32Chip {
 
   setAnalog(gpio: number, volts: number) {
     this.rt.w.esp32sim_analog(this.e, gpio, volts);
+  }
+
+  /** Level a GPIO drives: its output when enabled, else 1 with a pull-up. */
+  level(gpio: number): 0 | 1 {
+    const s = this.rt.w.esp32sim_gpio_state(this.e, gpio);
+    if (!(s & 1)) return 0;
+    return (s >> 2) & 1 ? ((s >> 1) & 1 ? 1 : 0) : (s >> 3) & 1 ? 1 : 0;
+  }
+
+  /** Start or stop recording GPIO edges (for `edges`). */
+  observe(on: boolean) {
+    this.rt.w.esp32sim_gpio_observe(this.e, on ? 1 : 0);
+  }
+
+  /** GPIO edges since the last call in the order they happened, as gpio | level << 8. */
+  edges(): Uint32Array {
+    const w = this.rt.w;
+    const n = w.esp32sim_gpio_events(this.e);
+    return n ? new Uint32Array(w.memory.buffer, w.esp32sim_gpio_events_ptr(), n).slice() : new Uint32Array(0);
   }
 
   /** Bytes into UART0 (more than the 128 byte FIFO holds are dropped, as on the chip). */

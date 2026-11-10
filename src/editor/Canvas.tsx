@@ -44,6 +44,7 @@ import { InstrumentOverlays } from './InstrumentOverlays.tsx';
 import { LiveProblems } from '../ui/LiveProblems.tsx';
 import { SerialMonitor } from '../ui/SerialMonitor.tsx';
 import { McuOverlay } from './McuOverlay.tsx';
+import { LcdOverlay } from './LcdOverlay.tsx';
 import { applyAttachments, collectAttachments, type Attachment } from '../model/magnet.ts';
 import { takeDragPayload } from './dragPayload.ts';
 import { useT } from '../i18n/i18n.ts';
@@ -1029,6 +1030,7 @@ export function Canvas() {
             {doc.type !== 'PCB' && isSchematicDoc(doc) && <Junctions doc={doc} />}
             <InstrumentOverlays doc={doc} docId={ds.id} />
             {doc.type !== 'PCB' && <McuOverlay doc={doc} />}
+            {doc.type !== 'PCB' && <LcdOverlay doc={doc} />}
             {doc.type !== 'PCB' && <LiveOverlay doc={doc} docId={ds.id} z={z} showLabels={settings.showValues} />}
 
             {/* overlays */}

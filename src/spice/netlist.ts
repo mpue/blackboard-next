@@ -6,6 +6,7 @@ import { globalNetKey } from './labels.ts';
 import { parseEng } from '../model/ops.ts';
 import { dmmMode, earthedPinIndex, fgenSettings, fgenSource, instrumentOf, type Probes } from './instruments.ts';
 import { ESP32_3V3_PIN, ESP32_5V_PIN, ESP32_GND_PINS, MODELS, mcuKind, usbPowered, type Drives, type McuKind } from '../mcu/pinout.ts';
+import { isLcd, LCD_A, LCD_BACKLIGHT_OHMS, LCD_K, LCD_LOGIC_OHMS, LCD_VDD, LCD_VSS, lcdBacklight } from '../mcu/lcd.ts';
 
 export interface NetlistResult {
   netlist: string;
@@ -23,6 +24,8 @@ export interface NetlistResult {
   supplies: { name: string; volts: number; assumed: boolean; node: string; element: string }[];
   /** emitted elements: symbol, SPICE element name and its terminals in SPICE order (symbol pin index + node) */
   elements: { symbolId: string; name: string; type: NonNullable<SymbolItem['spiceType']>; pins: { index: number; node: string }[] }[];
+  /** character LCDs: SPICE node of every connected pin (by pin number); `backlight` is the backlight diode */
+  lcds: { symbolId: string; ref: string; nodes: Record<number, string>; backlight?: string }[];
   /** microcontrollers: SPICE node of every connected pin (by pin number), of their supply and ground (when powered) */
   mcus: { symbolId: string; ref: string; kind: McuKind; nodes: Record<number, string>; vdd?: string; gnd?: string }[];
 }
@@ -267,6 +270,7 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     supplies: [],
     elements: [],
     mcus: [],
+    lcds: [],
   };
   const symbols = doc.items.filter((i): i is SymbolItem => i.kind === 'symbol');
   const conn = computeConnectivity(doc);
@@ -295,7 +299,8 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     }
   }
   const devices = symbols.filter((s) => s.spiceType && PREFIX[s.spiceType]);
-  if (!devices.length) res.errors.push({ key: 'noSymbols' });
+  // microcontrollers and displays are parts of the circuit too, even without SPICE type
+  if (!devices.length && !symbols.some((s) => mcuKind(s) || isLcd(s))) res.errors.push({ key: 'noSymbols' });
   if (!groundNets.size) res.errors.push({ key: 'noGround' });
 
   // BlackBoard 1.x numbered nets in the order their first wire appears (layer
@@ -587,6 +592,38 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
         lines.push(`${elementName({ ...s, name: `${s.name}_P${num}` }, 'E', used)} ${mid} ${gnd} ${vdd} ${gnd} ${d}`);
         resistor(`P${num}`, at, mid, model.pinOhms, [num]);
       }
+    }
+  }
+
+  // character LCDs: the controller's supply current and the backlight LED behind the module's resistor;
+  // what the display shows comes from the microcontroller emulation (src/mcu)
+  for (const s of symbols) {
+    if (!isLcd(s)) continue;
+    const nodes: Record<number, string> = {};
+    s.pins.forEach((p, i) => {
+      const n = conn.netOfPin.get(pinKey(s.id, i));
+      if (n !== undefined && (conn.nets[n].pins.length > 1 || conn.nets[n].wires.length > 0)) nodes[p.num] = node(s, i);
+    });
+    const lcd: NetlistResult['lcds'][number] = { symbolId: s.id, ref: s.name, nodes };
+    res.lcds.push(lcd);
+    const at = (num: number) => ({ index: byNum(s, num), node: nodes[num] });
+    if (nodes[LCD_A] !== undefined && nodes[LCD_K] !== undefined) {
+      const led = builtinModel({ ...s, spiceType: 'DIODE', symbolName: `LED ${lcdBacklight(s)}`, value: '', filename: '' })!;
+      models.set(led.name.toLowerCase(), led.text);
+      const mid = String(next++);
+      const d = elementName({ ...s, name: `${s.name}_BL` }, 'D', used);
+      lines.push(`${d} ${nodes[LCD_A]} ${mid} ${led.name}`);
+      res.elements.push({ symbolId: s.id, name: d, type: 'DIODE', pins: [at(LCD_A)] });
+      // K first: the current into the module at K is the resistor's current
+      const r = elementName({ ...s, name: `${s.name}_BL` }, 'R', used);
+      lines.push(`${r} ${nodes[LCD_K]} ${mid} ${LCD_BACKLIGHT_OHMS}`);
+      res.elements.push({ symbolId: s.id, name: r, type: 'RESISTOR', pins: [at(LCD_K)] });
+      lcd.backlight = d;
+    }
+    if (nodes[LCD_VDD] !== undefined && nodes[LCD_VSS] !== undefined) {
+      const r = elementName({ ...s, name: `${s.name}_VDD` }, 'R', used);
+      lines.push(`${r} ${nodes[LCD_VDD]} ${nodes[LCD_VSS]} ${LCD_LOGIC_OHMS}`);
+      res.elements.push({ symbolId: s.id, name: r, type: 'RESISTOR', pins: [at(LCD_VDD), at(LCD_VSS)] });
     }
   }
 

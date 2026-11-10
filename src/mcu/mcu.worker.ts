@@ -6,6 +6,8 @@
 import { Atmega328p } from './atmega328p.ts';
 import { HexError, parseHex, type HexProblem } from './hex.ts';
 import { IO_PINS, type Drives } from './pinout.ts';
+import { LcdBus, type LcdLink } from './lcdBus.ts';
+import type { LcdState } from './hd44780.ts';
 
 export type McuRequest =
   | { type: 'load'; hex: string; frequency: number }
@@ -13,14 +15,18 @@ export type McuRequest =
   | { type: 'reset' }
   /** levels and ADC voltages by symbol pin number; `open` pins have nothing attached */
   | { type: 'inputs'; digital: Record<number, boolean>; analog: Record<number, number>; avcc: number; aref: number; open?: number[] }
-  | { type: 'serial'; text: string };
+  | { type: 'serial'; text: string }
+  /** character displays on the chip's pins */
+  | { type: 'lcds'; lcds: LcdLink[] };
 
 export type McuResponse =
   | { type: 'drives'; drives: Drives }
   /** `quiet`: boot messages, which do not open the serial monitor by themselves */
   | { type: 'serial'; text: string; quiet?: boolean }
   | { type: 'stats'; speed: number; seconds: number; baud: number }
-  | { type: 'error'; message: string; problem?: HexProblem; line?: number };
+  | { type: 'error'; message: string; problem?: HexProblem; line?: number }
+  /** what a character display shows now */
+  | { type: 'lcd'; id: string; state: LcdState };
 
 /** how often the pins are reported (the circuit is recalculated about as often) */
 const REPORT_MS = 25;
@@ -46,6 +52,12 @@ let wall = 0;
 
 const post = (m: McuResponse) => (self as unknown as Worker).postMessage(m);
 
+const lcds = new LcdBus();
+let lcdLinks: LcdLink[] = [];
+const level = (num: number | undefined) => (num === undefined || !chip ? 0 : chip.level(num));
+/** DIP pin number of each port bit, for the displays */
+const dipOf = (port: string, bit: number) => IO_PINS.find((p) => p.port === port && p.bit === bit)?.num;
+
 function applyInputs() {
   if (!chip || !inputs) return;
   for (const [num, high] of Object.entries(inputs.digital)) chip.setInput(Number(num), high);
@@ -60,6 +72,15 @@ function boot() {
   if (!flash) return;
   chip = new Atmega328p(flash, frequency);
   chip.usart.onByteTransmit = (b) => (serialOut += String.fromCharCode(b));
+  chip.watch((port, value, changed) => {
+    if (!lcds.size) return;
+    for (let bit = 0; bit < 8; bit++) {
+      if (!(changed & (1 << bit))) continue;
+      const num = dipOf(port, bit);
+      if (num !== undefined && lcds.pins.has(num)) lcds.edge(num, (value >> bit) & 1 ? 1 : 0, level);
+    }
+  });
+  lcds.update(lcdLinks, level);
   applyInputs();
   lastTick = performance.now();
   lastDrives = '';
@@ -74,6 +95,7 @@ function report(force = false) {
     lastDrives = key;
     post({ type: 'drives', drives });
   }
+  for (const { id, state } of lcds.changed()) post({ type: 'lcd', id, state });
 }
 
 function tick() {
@@ -145,6 +167,11 @@ self.onmessage = (e: MessageEvent<McuRequest>) => {
       break;
     case 'serial':
       for (const c of m.text) rx.push(c.charCodeAt(0) & 0xff);
+      break;
+    case 'lcds':
+      lcdLinks = m.lcds;
+      lcds.update(lcdLinks, level);
+      for (const { id, state } of lcds.changed()) post({ type: 'lcd', id, state });
       break;
   }
 };

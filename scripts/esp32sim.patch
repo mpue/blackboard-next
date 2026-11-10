@@ -19,10 +19,10 @@ index 36d2fee..929e992 100644
      fn gpio_set_input(&mut self, pin: u8, level: bool) {
          self.periph.gpio.set_input(pin, level);
 diff --git a/wasm/src/lib.rs b/wasm/src/lib.rs
-index 706ab35..bb3f211 100644
+index 706ab35..95749d5 100644
 --- a/wasm/src/lib.rs
 +++ b/wasm/src/lib.rs
-@@ -518,3 +518,72 @@ pub extern "C" fn esp32sim_test_gpio_waveform() -> u32 {
+@@ -518,3 +518,110 @@ pub extern "C" fn esp32sim_test_gpio_waveform() -> u32 {
      gpio_waveform_tests::run();
      24
  }
@@ -94,4 +94,42 @@ index 706ab35..bb3f211 100644
 +    // SAFETY: The caller provides exclusive access to a live emulator and a readable buffer.
 +    let (e, data) = unsafe { (&mut *e, bytes(ptr, len)) };
 +    e.m.bus().uart_input(n as usize, data);
++}
++
++thread_local! {
++    /// GPIO edges handed out by esp32sim_gpio_events, as pin | level << 8
++    static EDGES: std::cell::RefCell<Vec<u32>> = const { std::cell::RefCell::new(Vec::new()) };
++}
++
++/// Start (1) or stop (0) recording GPIO edges for esp32sim_gpio_events.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_gpio_observe(e: *mut Emu, on: u32) {
++    // SAFETY: The caller provides exclusive access to a live emulator.
++    unsafe { &mut *e }.m.bus().observe_gpio(on != 0);
++}
++
++/// The GPIO edges since the last call, oldest first: their number; the edges (pin | level << 8, u32 each)
++/// are at esp32sim_gpio_events_ptr until the next call. Outputs as they change, and inputs set by the host.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_gpio_events(e: *mut Emu) -> u32 {
++    // SAFETY: The caller provides exclusive access to a live emulator.
++    let events = unsafe { &mut *e }.m.bus().take_gpio_events();
++    EDGES.with(|edges| {
++        let mut edges = edges.borrow_mut();
++        edges.clear();
++        edges.extend(events.iter().map(|&(_, pin, level)| pin as u32 | (level as u32) << 8));
++        edges.len() as u32
++    })
++}
++
++/// Where esp32sim_gpio_events put the edges.
++#[no_mangle]
++pub extern "C" fn esp32sim_gpio_events_ptr() -> *const u32 {
++    EDGES.with(|edges| edges.borrow().as_ptr())
 +}

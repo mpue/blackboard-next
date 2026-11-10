@@ -65,13 +65,18 @@ const GROUND_RE = /^(gnd|agnd|dgnd|ground|masse|0)$/i;
 
 /**
  * Name under which a symbol joins a global net: net labels by their name,
- * one-pin supply and ground symbols by their rail name.
+ * one-pin supply and ground symbols by their rail name. A net label named
+ * like a rail ("+5V", "GND") is that rail, as one would expect.
  */
 export function globalNetKey(s: SymbolItem): string | undefined {
   if (s.pins.length !== 1) return undefined;
   const n = s.name.trim();
   if (!n) return undefined;
-  if (s.properties?.netlabel === 'true') return `label:${n.toUpperCase()}`;
+  if (s.properties?.netlabel === 'true') {
+    if (GROUND_RE.test(n)) return 'ground';
+    if (SUPPLY_RE.test(n.replace(/\s+/g, ''))) return `supply:${n.replace(/\s+/g, '').toUpperCase()}`;
+    return `label:${n.toUpperCase()}`;
+  }
   if (GROUND_RE.test(n) || /gnd/i.test(s.symbolName)) return 'ground';
   if (s.properties?.power === 'true' || SUPPLY_RE.test(n.replace(/\s+/g, ''))) return `supply:${n.replace(/\s+/g, '').toUpperCase()}`;
   return undefined;
