@@ -5,7 +5,7 @@
 import type { Doc } from '../../model/types.ts';
 import { rotatePt, type Pt } from '../../geometry/geom.ts';
 import { mm, toMm } from '../units.ts';
-import { copperPrims, edgePrims, maskPrims, silkPrims, type PadGeom, type Prim } from './layers.ts';
+import { copperPrims, edgePrims, maskPrims, pastePrims, silkPrims, type PadGeom, type Prim } from './layers.ts';
 import { GENERATOR, safeProjectName, type FabFile, type Ring, type ZoneFills } from './types.ts';
 
 export interface GerberOptions {
@@ -232,11 +232,16 @@ export function gerberFiles(doc: Doc, opts: GerberOptions = {}): FabFile[] {
     name: `${p}-${suffix}`,
     content: writeGerber(doc.height, [`FileFunction,${fn}`, `FilePolarity,${polarity}`], prims),
   });
+  // stencils are only needed for sides with SMD pads
+  const pasteTop = pastePrims(doc, 'top');
+  const pasteBottom = pastePrims(doc, 'bottom');
   return [
     file('F_Cu.gtl', 'Copper,L1,Top', 'Positive', copperPrims(doc, 'top', opts.zoneFills)),
     file('B_Cu.gbl', 'Copper,L2,Bot', 'Positive', copperPrims(doc, 'bottom', opts.zoneFills)),
     file('F_Mask.gts', 'Soldermask,Top', 'Negative', maskPrims(doc, 'top', e)),
     file('B_Mask.gbs', 'Soldermask,Bot', 'Negative', maskPrims(doc, 'bottom', e)),
+    ...(pasteTop.length ? [file('F_Paste.gtp', 'Paste,Top', 'Positive', pasteTop)] : []),
+    ...(pasteBottom.length ? [file('B_Paste.gbp', 'Paste,Bot', 'Positive', pasteBottom)] : []),
     file('F_Silkscreen.gto', 'Legend,Top', 'Positive', silkPrims(doc, 'top')),
     file('B_Silkscreen.gbo', 'Legend,Bot', 'Positive', silkPrims(doc, 'bottom')),
     file('Edge_Cuts.gm1', 'Profile,NP', 'Positive', edgePrims(doc)),

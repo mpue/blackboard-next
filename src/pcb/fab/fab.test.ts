@@ -112,6 +112,8 @@ describe('gerber', () => {
       'demo-B_Cu.gbl',
       'demo-F_Mask.gts',
       'demo-B_Mask.gbs',
+      // the test board has SMD pads on the bottom side only
+      'demo-B_Paste.gbp',
       'demo-F_Silkscreen.gto',
       'demo-B_Silkscreen.gbo',
       'demo-Edge_Cuts.gm1',
@@ -277,6 +279,7 @@ describe('fabrication zip', () => {
         'My_Board-B_Cu.gbl',
         'My_Board-F_Mask.gts',
         'My_Board-B_Mask.gbs',
+        'My_Board-B_Paste.gbp',
         'My_Board-F_Silkscreen.gto',
         'My_Board-B_Silkscreen.gbo',
         'My_Board-Edge_Cuts.gm1',
@@ -346,5 +349,17 @@ describe('etching', () => {
     expect(bottom).toContain('fill-rule="evenodd"');
     expect(bottom).toContain('<circle cx="30" cy="25.4" r="0.2"/>');
     expect(etchingSvg(doc, 'bottom', { mirror: true })).toContain('scale(-1 1)');
+  });
+});
+
+describe('solder paste', () => {
+  it('has stencil apertures for SMD pads only, on their side', () => {
+    const { get, files } = gerbers();
+    expect(files.some((f) => f.name.endsWith('F_Paste.gtp'))).toBe(false);
+    const paste = get('B_Paste.gbp');
+    expect(paste).toContain('%TF.FileFunction,Paste,Bot*%');
+    expect(paste).toContain('D03*');
+    // the THT pad 1 of the test board is never in a stencil
+    expect(paste).not.toContain('X12700000Y54600000D03*');
   });
 });

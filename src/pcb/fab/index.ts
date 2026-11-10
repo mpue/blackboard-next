@@ -28,6 +28,8 @@ const DESCRIPTIONS: [string, string][] = [
   ['-B_Cu.gbl', 'Bottom copper (L2)'],
   ['-F_Mask.gts', 'Top solder mask, openings (negative)'],
   ['-B_Mask.gbs', 'Bottom solder mask, openings (negative)'],
+  ['-F_Paste.gtp', 'Top solder paste (stencil), SMD pads only'],
+  ['-B_Paste.gbp', 'Bottom solder paste (stencil), SMD pads only'],
   ['-F_Silkscreen.gto', 'Top silkscreen (legend)'],
   ['-B_Silkscreen.gbo', 'Bottom silkscreen (legend)'],
   ['-Edge_Cuts.gm1', 'Board outline (profile)'],

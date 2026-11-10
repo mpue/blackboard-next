@@ -303,6 +303,20 @@ export function maskPrims(doc: Doc, side: CopperSide, expansion: number): Prim[]
   return out;
 }
 
+/** Solder paste (stencil apertures): SMD pads of one side, at pad size. */
+export function pastePrims(doc: Doc, side: CopperSide): Prim[] {
+  const out: Prim[] = [];
+  for (const fp of footprintsOf(doc)) {
+    if (fp.side !== side) continue;
+    for (const pad of fp.footprint.pads) {
+      if (pad.drill || pad.npth) continue;
+      const shape = padGeom(fp, pad, 0);
+      if (shape) out.push({ kind: 'flash', shape, fn: 'SMDPad,CuDef' });
+    }
+  }
+  return out;
+}
+
 export function silkPrims(doc: Doc, side: CopperSide): Prim[] {
   const out: Prim[] = [];
   for (const fp of footprintsOf(doc)) {
