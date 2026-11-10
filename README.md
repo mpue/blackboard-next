@@ -63,20 +63,27 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   resistors, capacitors, diodes, LEDs, TO-92/TO-220/SOT, DIP/SOIC/TSSOP/QFP, headers,
   terminal blocks, crystals, switches, mounting holes …) plus every part of the classic
   part library as a through-hole footprint
+- Footprint editor: pads of all shapes, pad arrays (row, DIP, zig-zag, QFP, BGA),
+  silkscreen, auto courtyard, validation; own footprints are kept in the browser and
+  can replace the footprint of placed parts
 - Two copper layers (or single sided for home etching), silkscreen top/bottom, board
-  outline with rounded corners
+  outline with rounded corners or drawn freely (Shift+O), fit to parts, corner
+  mounting holes
 - Interactive routing (W): 45°/90° postures (`/` flips the bend), `V` switches the layer
   and sets a via, tracks snap to pads and never end on copper of another net; tracks
   stay attached when footprints are moved, rotated or flipped to the other side
 - Copper zones (Z) with clearance, thermal reliefs, priorities and dead copper removal
+- Autorouter (Shift+A): two layer maze router with rip-up & reroute, runs in the
+  background; unroute all or single nets, select connected tracks (U)
 - Ratsnest, net highlighting (K), cross probing between schematic and PCB
 - Design rule check (Shift+D): clearance, shorts, unrouted nets, track width, drill,
   annular ring, board edge, overlapping parts — with markers on the board
 - Design rules with presets for PCB manufacturers and for home etching
-- Fabrication output: Gerber X2 (copper, mask, silkscreen, edge cuts), Excellon drill
-  files, pick & place, BOM — one zip ready for upload; 1:1 artwork for toner transfer
-  / UV exposure
-- Layer colour view and realistic view (solder mask, HASL pads, silkscreen)
+- Fabrication output: Gerber X2 (copper, mask, paste, silkscreen, edge cuts), Excellon
+  drill files, pick & place (part centres), BOM — one zip ready for upload; 1:1
+  artwork for toner transfer / UV exposure
+- Layer colour view, realistic view (solder mask, HASL pads, silkscreen) and a 3D view
+  (key 3) with component bodies
 - PCB data is stored inside the `.bb` archive (`bbnext/document.json`); BlackBoard
   1.x/2.x still open such files (as blank boards)
 
@@ -88,15 +95,28 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   while held, potentiometer wipers can be dragged
 - **Slow motion** (Shift+T): a transient analysis is played back over a few seconds —
   blinking LEDs, charging capacitors, oscillators
+- Measuring by hovering: voltage of a wire; voltage, current and power of a part; in
+  slow motion with a small oscilloscope trace
+- Incandescent lamps glow with their power; switches, buttons and potentiometers are
+  operated directly in the schematic
 - LEDs, Zener diodes and generic transistors without a SPICE model get built-in
   textbook models (LEDs by colour)
 
+### Schematics
+
+- Net labels and supply symbols (VCC, +5V …) connect by name; junction dots
+- Orthogonal wires (`/` flips the bend), annotate (renumber designators)
+- Electrical rule check (Shift+D): open pins, duplicate designators, unreadable values,
+  missing ground, parts without footprint
+- Designators and values always readable, whatever the rotation
+
 ### Learning
 
-- **Learn electronics** (F1): interactive lessons from the first circuit, Ohm's law and
-  voltage dividers via diodes, LEDs, Zener diodes and transistor switches to RC circuits
-  and your first PCB. Every task is checked automatically against your circuit
-  (structure, values, simulated voltages and currents, routing, DRC)
+- **Learn electronics** (F1): 16 interactive lessons from the first circuit, Ohm's law
+  and voltage dividers via diodes, LEDs, Zener diodes, rectifiers and transistor
+  switches to RC circuits, a 555 blinker, logic gates and your first PCB. Every task
+  is checked automatically against your circuit (structure, values, simulated
+  voltages and currents, routing, DRC)
 - Component guide: selecting a symbol explains the component (how it works, formulas,
   typical values, common mistakes) and links to the lessons that practise it
 
@@ -116,6 +136,12 @@ npm run preview    # serve dist/ on http://localhost:4173
 `npm run dev -- --host` makes the dev server reachable from other devices in the
 network. Over plain http on a LAN address the browser does not allow installing the
 app for offline use, and "save" falls back to downloading the file.
+
+### Direct links
+
+`?lesson=<id>` starts a lesson, `?demo=pcb|bench` opens a demo,
+`?sample=schematics/<file>.bb` a sample, `?view=3d|realistic|live|slowmo` adds a view —
+e.g. `…/?lesson=led-resistor` or `…/?demo=pcb&view=3d`.
 
 ### Docker
 
