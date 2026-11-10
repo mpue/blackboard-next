@@ -67,6 +67,18 @@ body {
   overscroll-behavior: none;
 }
 
+/* the editor fills the window; the landing page scrolls like any page */
+html.bb-landing,
+html.bb-landing body,
+html.bb-landing #root {
+  height: auto;
+  overflow: visible;
+}
+
+html.bb-landing body {
+  overscroll-behavior: auto;
+}
+
 .bb-canvas {
   background-color: var(--bb-workspace);
   background-image: radial-gradient(var(--bb-workspace-dots) 1px, transparent 1px);

@@ -10,7 +10,6 @@ const de = {
   'nav.signUp': 'Registrieren',
   'nav.editor': 'Editor öffnen',
   'nav.account': 'Konto',
-  'hero.badge': 'Im Browser, offline und als Desktop-App',
   'hero.title': 'Schaltungen entwerfen, simulieren und verstehen.',
   'hero.text':
     'BlackBoard plant Lochraster, Streifenraster, Schaltpläne und Platinen – mit echter SPICE-Simulation, Messgeräten wie im Labor und Mikrocontrollern, die ihre Firmware wirklich ausführen.',
@@ -133,7 +132,6 @@ const en: Record<Key, string> = {
   'nav.signUp': 'Sign up',
   'nav.editor': 'Open editor',
   'nav.account': 'Account',
-  'hero.badge': 'In the browser, offline and as a desktop app',
   'hero.title': 'Design, simulate and understand circuits.',
   'hero.text':
     'BlackBoard plans perfboards, stripboards, schematics and PCBs – with real SPICE simulation, instruments like on a lab bench and microcontrollers that really run their firmware.',

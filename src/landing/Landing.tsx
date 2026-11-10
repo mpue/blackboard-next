@@ -2,7 +2,7 @@
 // editor (no account needed) and the account (cloud projects, sharing).
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, ArrowRight, CircuitBoard, Cloud, Cpu, Gauge, Grid3x3, Lock, LogIn, Share2, Sparkles, UserPlus, Waves, CheckCircle2 } from 'lucide-react';
+import { Activity, ArrowRight, CircuitBoard, Cloud, Cpu, Gauge, Grid3x3, Lock, LogIn, Share2, UserPlus, Waves, CheckCircle2 } from 'lucide-react';
 import { Logo } from '../ui/Logo.tsx';
 import { authClient, editorUrl, serverConfig } from '../account/auth.ts';
 import { AuthDialog, type AuthMode } from './AuthDialog.tsx';
@@ -167,10 +167,7 @@ export function Landing() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(99,102,241,0.35),transparent),radial-gradient(ellipse_50%_40%_at_90%_30%,rgba(16,185,129,0.15),transparent)]" />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_at_top,black,transparent_75%)]" />
             <Section className="relative pb-20 pt-20 text-center md:pt-28">
-              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-400/10 px-3.5 py-1 text-[13px] text-indigo-200">
-                <Sparkles size={14} /> {t('hero.badge')}
-              </span>
-              <h1 className="mx-auto mt-6 max-w-[900px] bg-gradient-to-b from-white to-slate-300 bg-clip-text text-[40px] font-bold leading-[1.08] tracking-tight text-transparent md:text-[64px]">
+              <h1 className="mx-auto max-w-[900px] bg-gradient-to-b from-white to-slate-300 bg-clip-text text-[40px] font-bold leading-[1.08] tracking-tight text-transparent md:text-[64px]">
                 {t('hero.title')}
               </h1>
               <p className="mx-auto mt-6 max-w-[720px] text-[17px] leading-relaxed text-slate-400 md:text-[19px]">{t('hero.text')}</p>

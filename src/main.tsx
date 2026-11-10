@@ -19,6 +19,7 @@ if (editor) {
     </StrictMode>,
   );
 } else {
+  document.documentElement.classList.add('bb-landing');
   const { Landing } = await import('./landing/Landing.tsx');
   root.render(
     <StrictMode>
