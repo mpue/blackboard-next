@@ -35,6 +35,15 @@ export interface DocState {
   currentLayer: string;
   /** view from the solder side */
   mirror: boolean;
+  /** the cloud project this document was opened from or saved to */
+  cloud?: CloudLink;
+}
+
+/** A document's project in the cloud: its id, the version it is based on, and what we may do with it. */
+export interface CloudLink {
+  id: string;
+  version: number;
+  role: 'owner' | 'edit' | 'view';
 }
 
 export interface Settings {
@@ -101,6 +110,7 @@ interface State {
     | { kind: 'about' }
     | { kind: 'shortcuts' }
     | { kind: 'samples' }
+    | { kind: 'cloud' }
     | { kind: 'boardProps' }
     | { kind: 'symbolFromSelection' }
     | { kind: 'pcbRules' }
@@ -234,7 +244,7 @@ function defaultLayerFor(doc: Doc): string {
   return (doc.layers.find((l) => l.name.toLowerCase() === 'top') ?? doc.layers.find((l) => !isBoardLayer(l)) ?? doc.layers[0]).id;
 }
 
-export function openDoc(doc: Doc, fileName: string, handle?: unknown, saved = true) {
+export function openDoc(doc: Doc, fileName: string, handle?: unknown, saved = true, cloud?: CloudLink) {
   const id = uid('d');
   const ds: DocState = {
     id,
@@ -250,6 +260,7 @@ export function openDoc(doc: Doc, fileName: string, handle?: unknown, saved = tr
     fitted: false,
     currentLayer: defaultLayerFor(doc),
     mirror: false,
+    ...(cloud ? { cloud } : {}),
   };
   set((s) => ({ docs: [...s.docs, ds], active: id, tool: 'select', placement: null }));
   return id;
@@ -276,6 +287,11 @@ export function setActive(id: string) {
 
 export function markSaved(id: string, fileName: string, handle: unknown) {
   set((s) => ({ docs: s.docs.map((d) => (d.id === id ? { ...d, fileName, handle, savedDoc: d.doc } : d)) }));
+}
+
+/** Saved to (or linked with) a cloud project; `doc` is the version that was saved. */
+export function markCloudSaved(id: string, fileName: string, cloud: CloudLink, doc: Doc) {
+  set((s) => ({ docs: s.docs.map((d) => (d.id === id ? { ...d, fileName, cloud, savedDoc: doc } : d)) }));
 }
 
 export function undo() {

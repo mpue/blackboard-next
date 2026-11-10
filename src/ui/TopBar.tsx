@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Monitor, Moon, Sun, Languages, Activity } from 'lucide-react';
+import { AccountButton } from './AccountButton.tsx';
 import { commands, runCommand, type Command } from '../editor/commands.ts';
 import { useStore, updateSettings, activeDoc } from '../store/store.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
@@ -190,6 +191,7 @@ export function TopBar() {
         {[commands.grid, commands.snap, commands.magnet, commands.mirror].map(quick)}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        <AccountButton />
         <IconButton icon={commands.learn.icon!} label={`${t('learn.title')} (F1)`} active={learnOpen} onClick={() => runCommand(commands.learn)} />
         <IconButton icon={Languages} className="max-sm:hidden" label={t('view.language')} onClick={() => updateSettings({ lang: lang === 'de' ? 'en' : 'de' })} />
         <IconButton icon={ThemeIcon} className="max-sm:hidden" label={`${t('view.theme')}: ${t(`view.theme.${theme}`)}`} onClick={() => updateSettings({ theme: nextTheme })} />

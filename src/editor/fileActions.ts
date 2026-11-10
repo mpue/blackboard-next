@@ -48,6 +48,11 @@ export async function openSample(group: string, file: string) {
 export async function saveActive(saveAs = false) {
   const ds = activeDoc();
   if (!ds) return;
+  // a cloud document saves back to the cloud; "save as" writes a local file
+  if (ds.cloud && !saveAs) {
+    const { saveToCloud } = await import('../account/cloudActions.ts');
+    return saveToCloud(ds);
+  }
   try {
     const name = /\.bbs?$/i.test(ds.fileName) ? ds.fileName : `${ds.fileName}.bb`;
     const bytes = await writeBoardArchive(ds.doc, name, fetchBytes);

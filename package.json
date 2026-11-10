@@ -3,7 +3,7 @@
   "private": true,
   "version": "3.0.0",
   "description": "BlackBoard Circuit Designer – portable rebuild (web, PWA, Tauri desktop)",
-  "license": "GPL-2.0-only",
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "library": "node scripts/build-library.ts",
@@ -11,7 +11,8 @@
     "build": "npm run library && tsc --noEmit -p . && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p .",
-    "test": "vitest run",
+    "test": "npm run library && vitest run && npm --prefix server test",
+    "server": "npm --prefix server run dev",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-fs": "^2.7.1",
     "avr8js": "^0.21.1",
+    "better-auth": "^1.7.19",
     "eecircuit-engine": "^1.9.0",
     "fflate": "^0.8.3",
     "immer": "^11.2.9",

@@ -1,0 +1,11 @@
+.git/
+.claude/
+**/node_modules/
+dist/
+public/library/
+public/samples/
+src-tauri/
+build-assets/
+docs/
+server/data/
+*.local

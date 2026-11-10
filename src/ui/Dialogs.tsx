@@ -11,7 +11,7 @@ import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { commands, MOD, type Command } from '../editor/commands.ts';
 import { openFromDisk, openSample } from '../editor/fileActions.ts';
 import { createSymbolFromSelection } from '../editor/symbolActions.ts';
-import { openViaInput } from '../platform/files.ts';
+import { isTauri, openViaInput } from '../platform/files.ts';
 import { dataUrl } from '../io/bbfile.ts';
 import { Button, Check, Dialog, Field, Kbd, NumberInput, Select, cx } from './primitives.tsx';
 import { Logo } from './Logo.tsx';
@@ -20,6 +20,8 @@ import { setLiveMode, setLiveValues } from '../store/live.ts';
 import { mm, toMm } from '../pcb/units.ts';
 import { DesignRulesDialog } from './DesignRulesDialog.tsx';
 
+// the cloud dialog (accounts) and the footprint editor are only loaded when opened
+const CloudDialog = lazy(() => import('./CloudDialog.tsx').then((m) => ({ default: m.CloudDialog })));
 // the footprint editor is only loaded when it is opened
 const FootprintEditor = lazy(() => import('../pcb/editor/FootprintEditor.tsx'));
 
@@ -67,6 +69,12 @@ export function Dialogs() {
       return <NewBoardDialog onClose={close} />;
     case 'samples':
       return <SamplesDialog onClose={close} />;
+    case 'cloud':
+      return (
+        <Suspense fallback={null}>
+          <CloudDialog onClose={close} />
+        </Suspense>
+      );
     case 'about':
       return <AboutDialog onClose={close} />;
     case 'shortcuts':
@@ -285,7 +293,13 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
           <p className="text-[15px] font-semibold">BlackBoard Circuit Designer 3.0</p>
           <p>{t('about.text')}</p>
           <p>{t('about.compat')}</p>
-          <p className="text-muted">{t('about.license')}</p>
+          <p>
+            {t('about.plans')}{' '}
+            <a className="underline" href={isTauri() ? 'https://pueski.de/blackboard/#pricing' : new URL('./#pricing', document.baseURI).href} target="_blank" rel="noreferrer">
+              {t('about.pricing')}
+            </a>
+          </p>
+          <p className="text-muted">{t('about.credits')}</p>
           <p className="text-muted">© Matthias Pueski & contributors · React · TypeScript · Vite · Tauri</p>
         </div>
       </div>

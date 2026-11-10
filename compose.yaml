@@ -1,11 +1,36 @@
-# docker compose up -d --build   (run from blackboard-next/)
+# docker compose up -d --build
+#
+# The app on 127.0.0.1:8080 (for a reverse proxy on the same host) and the
+# account server behind it. Secrets go into server.env next to this file (see
+# server/.env.example); the settings under `environment` take precedence.
 services:
   blackboard:
     build:
-      context: ..
-      dockerfile: blackboard-next/Dockerfile
+      context: .
+      target: web
     image: blackboard-next:latest
     restart: unless-stopped
+    environment:
+      API_URL: http://api:8787
     # only reachable from the host; publish it through the reverse proxy
     ports:
       - "127.0.0.1:8080:8080"
+    depends_on:
+      - api
+  api:
+    build:
+      context: .
+      target: api
+    image: blackboard-api:latest
+    restart: unless-stopped
+    env_file:
+      - path: server.env
+        required: false
+    environment:
+      ORIGIN: http://localhost:8080
+      PUBLIC_PATH: ""
+    volumes:
+      - data:/data
+
+volumes:
+  data:

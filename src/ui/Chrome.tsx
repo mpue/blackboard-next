@@ -1,6 +1,6 @@
 // Tool rail, document tabs, status bar and toasts.
 
-import { Plus, X, CheckCircle2, AlertTriangle, Info, Magnet } from 'lucide-react';
+import { Plus, X, CheckCircle2, AlertTriangle, Info, Magnet, Cloud } from 'lucide-react';
 import { commands, runCommand, type Command } from '../editor/commands.ts';
 import { activeDoc, isDirty, openDialog, setActive, updateSettings, useStore } from '../store/store.ts';
 import { useCursor } from '../store/cursor.ts';
@@ -67,6 +67,7 @@ export function TabBar() {
           >
             <span className={cx('h-2 w-2 shrink-0 rounded-full', d.doc.type === 'SCHEMATICS' ? 'bg-sky-500' : d.doc.type === 'STRIPES' ? 'bg-orange-500' : 'bg-amber-500')} />
             <span className="truncate">{d.fileName}</span>
+            {d.cloud && <Cloud size={12} className="shrink-0 text-accent" aria-label={d.cloud.role === 'view' ? t('cloud.readOnly') : t('cloud.title')} />}
             <button
               className="-mr-1.5 flex h-5 w-5 items-center justify-center rounded text-muted hover:bg-hover hover:text-fg"
               aria-label={t('file.close')}

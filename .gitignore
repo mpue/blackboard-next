@@ -5,3 +5,6 @@ public/samples/
 src-tauri/target/
 src-tauri/gen/
 *.local
+server/data/
+.claude/
+server.env

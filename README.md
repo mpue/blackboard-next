@@ -167,8 +167,8 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
 
 ## Development
 
-Requirements: Node.js ≥ 23.6 (the library converter is plain TypeScript, run
-natively by Node).
+Requirements: Node.js ≥ 24 (the library converter and the server are plain
+TypeScript, run natively by Node).
 
 ```bash
 npm install
@@ -197,18 +197,35 @@ Licences: `public/esp32/NOTICE.txt`.
 `?sample=schematics/<file>.bb` a sample, `?view=3d|realistic|live|slowmo` adds a view —
 e.g. `…/?lesson=led-resistor` or `…/?demo=pcb&view=3d`.
 
-### Docker
+### Accounts and cloud (server/)
 
-The image builds the app and serves it with nginx (unprivileged, port 8080). The
-build needs the library in the repository root, so the build context is the root:
+Accounts are only needed for the cloud: the editor works without one. `server/` is a
+small Node server (Hono, [Better Auth](https://better-auth.com), SQLite via `node:sqlite`)
+under `<PUBLIC_PATH>/api`: sign-up with e-mail confirmation, password reset, optional
+"Sign in with Google", cloud projects with version check and sharing with other users
+(view or edit). Without the server (desktop app, static hosting) the app shows no cloud
+functions.
 
 ```bash
-docker build -f blackboard-next/Dockerfile -t blackboard-next .   # in the repository root
-docker run -d -p 8080:8080 blackboard-next
+npm --prefix server install
+npm run server     # API on http://localhost:8787, Vite passes /api through
 ```
 
-or, from `blackboard-next/`, `docker compose up -d --build` (publishes on
-`127.0.0.1:8080` for a reverse proxy on the same host).
+Settings come from the environment, see `server/.env.example`. Without `SMTP_HOST` the
+mails (confirmation, password reset, shares) are written to the log.
+
+The landing page and the editor share one `index.html`: `./` shows the landing page,
+`./?app` (and every direct link below) the editor; the desktop app always opens the
+editor.
+
+### Docker
+
+The Dockerfile builds two images: `web` (the app, nginx unprivileged on port 8080, which
+passes `/api/` on to the API) and `api` (the server, data in `/data`).
+
+```bash
+docker compose up -d --build     # both, the app on 127.0.0.1:8080
+```
 
 The app only uses relative URLs, so it also runs below a path prefix. Example for
 Caddy serving it at `https://example.org/blackboard/`:
@@ -224,14 +241,23 @@ example.org {
 }
 ```
 
-`handle_path` strips the prefix before proxying. Hashed assets are cached for a
-year, `index.html` and the service worker are always revalidated, so a new image
-reaches users on their next visit.
+`handle_path` strips the prefix before proxying; the API then runs with
+`PUBLIC_PATH=/blackboard` and the web container gets `API_URL=http://api:8787/blackboard`.
+Hashed assets are cached for a year, `index.html` and the service worker are always
+revalidated, so a new image reaches users on their next visit.
 
-`scripts/deploy.sh` builds the image, copies it to a server over SSH and restarts
-the container there (`DEPLOY_HOST`, default `root@pueski.de`; `DEPLOY_PORT`, default
-`8210`; `DEPLOY_DIR`, default `/opt/blackboard`). The live instance runs at
-https://pueski.de/blackboard/.
+`scripts/deploy.sh` builds both images, copies them to a server over SSH and restarts
+the containers there (`DEPLOY_HOST`, default `root@pueski.de`; `DEPLOY_PORT`, default
+`8210`; `DEPLOY_DIR`, default `/opt/blackboard`; `DEPLOY_ORIGIN` and `DEPLOY_PATH`,
+default `https://pueski.de` and `/blackboard`). The secrets of the API live in
+`$DEPLOY_DIR/server.env` (created from `server/.env.example` on the first deploy), the
+database in `$DEPLOY_DIR/data`. The live instance runs at https://pueski.de/blackboard/.
+
+### Plans
+
+Free / Edu costs nothing; commercial use needs the Individual Commercial subscription
+(29 € per month), sold through a Stripe payment link (`CHECKOUT_URL` in
+`src/landing/Pricing.tsx`; a signed-in user's id goes along as `client_reference_id`).
 
 ### Desktop app (Tauri)
 
@@ -247,7 +273,11 @@ npm run tauri build   # installers in src-tauri/target/release/bundle/
 ## Architecture
 
 ```
-scripts/build-library.ts   parts/symbols/models/samples (XML) -> public/library/*.json
+library/                   the classic BlackBoard library: parts, symbols, models (XML), samples
+scripts/build-library.ts   library/ -> public/library/*.json, public/samples/
+server/                    accounts and cloud projects (Node, Better Auth, SQLite)
+src/landing/               landing page, sign-in dialogs, plans, legal pages
+src/account/               auth client, cloud projects in the editor
 src/io/                    XML reader/writer, legacy BoardBean format, .bb archives, KiCad
 src/model/                 document model, item operations, engineering values
 src/geometry/              transforms, bounds, hit testing, pin positions
@@ -276,9 +306,13 @@ BlackBoard 1.x so `plot v(5)` in existing schematics still shows the same signal
 - Newer ngspice versions sometimes settle oscillators into a static operating point.
   Transient analyses therefore start from 0 V (`uic`) by default; if that does not
   converge the simulation is repeated automatically from the DC operating point.
-- `samples/schematics/phasenschieber.bbs` is a damaged archive and is not shipped.
+- `library/samples/schematics/phasenschieber.bbs` is a damaged archive and is not shipped.
 - The NGSpice engine (~20 MB) is loaded on the first simulation and cached for
   offline use.
 
-Licence: GPL-2.0 (like BlackBoard). The part library is partly CC BY 3.0
-(Gerd Bartelt). Simulation: ngspice (BSD-3) via eecircuit-engine (MIT).
+© 2026 Matthias Püski. All rights reserved.
+
+Third-party components keep their own licences: the part library is partly
+CC BY 3.0 (Gerd Bartelt); simulation: ngspice (BSD-3) via eecircuit-engine (MIT);
+microcontrollers: avr8js, esp32sim and MicroPython (MIT), see
+`public/esp32/NOTICE.txt`.

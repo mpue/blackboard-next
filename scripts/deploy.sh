@@ -1,51 +1,83 @@
 #!/usr/bin/env bash
-# Builds the Docker image locally, copies it to the server over SSH and
-# (re)starts the container there. The server needs Docker; the reverse proxy
-# route (see README, "Docker") is set up once by hand.
+# Builds the Docker images locally (web: the app, api: accounts and cloud
+# projects), copies them to the server over SSH and (re)starts the containers
+# there. The server needs Docker; the reverse proxy route (see README,
+# "Docker") is set up once by hand.
 #
 #   scripts/deploy.sh                      # defaults below
 #   DEPLOY_HOST=root@example.org DEPLOY_PORT=8210 scripts/deploy.sh
+#
+# On the server, $DEPLOY_DIR/server.env holds the secrets of the API (SMTP,
+# Google sign-in; see server/.env.example). The first deploy creates it from
+# the example; the database lives in $DEPLOY_DIR/data.
 
 set -euo pipefail
 
 DEPLOY_HOST="${DEPLOY_HOST:-root@pueski.de}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/blackboard}"
 DEPLOY_PORT="${DEPLOY_PORT:-8210}"
-IMAGE="blackboard-next:latest"
+# what the browser sees: origin and the path the reverse proxy serves the app under
+DEPLOY_ORIGIN="${DEPLOY_ORIGIN:-https://pueski.de}"
+DEPLOY_PATH="${DEPLOY_PATH:-/blackboard}"
+WEB_IMAGE="blackboard-next:latest"
+API_IMAGE="blackboard-api:latest"
 
 here="$(cd "$(dirname "$0")/.." && pwd)"
-repo="$(cd "$here/.." && pwd)"
 
-echo "==> building $IMAGE"
-docker build -f "$here/Dockerfile" -t "$IMAGE" "$repo"
+echo "==> building $WEB_IMAGE and $API_IMAGE"
+docker build --target web -t "$WEB_IMAGE" "$here"
+docker build --target api -t "$API_IMAGE" "$here"
 
-echo "==> copying image to $DEPLOY_HOST"
-docker save "$IMAGE" | gzip -1 | ssh "$DEPLOY_HOST" 'gunzip | docker load'
+echo "==> copying images to $DEPLOY_HOST"
+docker save "$WEB_IMAGE" "$API_IMAGE" | gzip -1 | ssh "$DEPLOY_HOST" 'gunzip | docker load'
+ssh "$DEPLOY_HOST" "mkdir -p '$DEPLOY_DIR'"
+scp -q "$here/server/.env.example" "$DEPLOY_HOST:$DEPLOY_DIR/server.env.example"
 
-echo "==> starting container on 127.0.0.1:$DEPLOY_PORT"
-ssh "$DEPLOY_HOST" DEPLOY_DIR="$DEPLOY_DIR" DEPLOY_PORT="$DEPLOY_PORT" IMAGE="$IMAGE" 'bash -s' <<'REMOTE'
+echo "==> starting containers, the app on 127.0.0.1:$DEPLOY_PORT"
+ssh "$DEPLOY_HOST" DEPLOY_DIR="$DEPLOY_DIR" DEPLOY_PORT="$DEPLOY_PORT" DEPLOY_ORIGIN="$DEPLOY_ORIGIN" DEPLOY_PATH="$DEPLOY_PATH" \
+  WEB_IMAGE="$WEB_IMAGE" API_IMAGE="$API_IMAGE" 'bash -s' <<'REMOTE'
 set -euo pipefail
-mkdir -p "$DEPLOY_DIR"
-cat > "$DEPLOY_DIR/compose.yaml" <<EOF
-# managed by blackboard-next/scripts/deploy.sh
+cd "$DEPLOY_DIR"
+if [ ! -e server.env ]; then
+  install -m 600 server.env.example server.env
+  echo "created $DEPLOY_DIR/server.env: fill in SMTP and Google sign-in there, then deploy again"
+fi
+# the API runs as user node (uid 1000)
+mkdir -p data
+chown 1000:1000 data
+cat > compose.yaml <<EOF
+# managed by scripts/deploy.sh
 services:
   blackboard:
-    image: $IMAGE
+    image: $WEB_IMAGE
     container_name: blackboard
     restart: unless-stopped
+    environment:
+      API_URL: http://api:8787$DEPLOY_PATH
     ports:
       - "127.0.0.1:$DEPLOY_PORT:8080"
+    depends_on:
+      - api
+  api:
+    image: $API_IMAGE
+    container_name: blackboard-api
+    restart: unless-stopped
+    env_file: server.env
+    environment:
+      ORIGIN: $DEPLOY_ORIGIN
+      PUBLIC_PATH: $DEPLOY_PATH
+    volumes:
+      - ./data:/data
 EOF
-cd "$DEPLOY_DIR"
-docker compose up -d --force-recreate
-for i in $(seq 1 20); do
-  if curl -fs -o /dev/null "http://127.0.0.1:$DEPLOY_PORT/"; then
-    echo "container answers on 127.0.0.1:$DEPLOY_PORT"
+docker compose up -d --force-recreate --remove-orphans
+for i in $(seq 1 30); do
+  if curl -fs -o /dev/null "http://127.0.0.1:$DEPLOY_PORT/" && curl -fs -o /dev/null "http://127.0.0.1:$DEPLOY_PORT/api/health"; then
+    echo "app and API answer on 127.0.0.1:$DEPLOY_PORT"
     exit 0
   fi
   sleep 1
 done
-echo "container does not answer" >&2
+echo "containers do not answer" >&2
 docker compose logs --tail 50 >&2
 exit 1
 REMOTE

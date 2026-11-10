@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -17,12 +18,16 @@ const esp32Version = createHash('sha256')
 export default defineConfig({
   base: './',
   clearScreen: false,
-  server: { port: 5173, strictPort: true },
+  // the account and cloud server (server/) answers /api; run it with `npm run server`
+  server: { port: 5173, strictPort: true, proxy: { '/api': 'http://localhost:8787' } },
+  preview: { proxy: { '/api': 'http://localhost:8787' } },
   build: {
     target: 'es2023',
     chunkSizeWarningLimit: 25_000,
   },
   worker: { format: 'es' },
+  // the server (server/) has its own tests on node:test
+  test: { exclude: ['**/node_modules/**', 'server/**', 'dist/**'] },
   define: { __ESP32_VERSION__: JSON.stringify(esp32Version) },
   plugins: [
     react(),
@@ -38,19 +43,22 @@ export default defineConfig({
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',
-        start_url: '.',
+        // the installed app opens the editor, not the landing page
+        start_url: './?app',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
-        file_handlers: [{ action: '.', accept: { 'application/x-blackboard': ['.bb'] } }],
+        file_handlers: [{ action: './?app', accept: { 'application/x-blackboard': ['.bb'] } }],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,json,wasm,bb}'],
         // the NGSpice engine is ~20 MB and the ESP32 emulator ~6 MB; they are cached on first use instead of precached
         globIgnores: ['**/spice.worker-*.js', 'esp32/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // links from the account mails and the Google sign-in land on the server, not on the cached page
+        navigateFallbackDenylist: [/\/api\//],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.includes('spice.worker'),

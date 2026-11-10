@@ -3,7 +3,7 @@ name = "blackboard"
 version = "3.0.0"
 description = "BlackBoard Circuit Designer"
 authors = ["Matthias Pueski"]
-license = "GPL-2.0-only"
+publish = false
 edition = "2021"
 rust-version = "1.77"
 

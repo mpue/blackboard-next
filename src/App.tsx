@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
-import { openDoc, setLibrary, toast, updateSettings, useStore } from './store/store.ts';
+import { openDialog, openDoc, setLibrary, toast, updateSettings, useStore } from './store/store.ts';
 import { handleShortcut } from './editor/commands.ts';
 import { openBytes } from './editor/fileActions.ts';
 import { Canvas } from './editor/Canvas.tsx';
@@ -69,7 +69,14 @@ async function openDeepLink() {
   const demo = q.get('demo');
   const view = q.get('view');
   const sample = q.get('sample');
-  if (lesson) {
+  const project = q.get('project');
+  if (project) {
+    // a project shared with this user (link in the mail): open it, or ask to sign in
+    const [{ authClient }, { openCloudProject }] = await Promise.all([import('./account/auth.ts'), import('./account/cloudActions.ts')]);
+    const session = await authClient.getSession();
+    if (session.data) await openCloudProject(project);
+    else openDialog({ kind: 'cloud' });
+  } else if (lesson) {
     const [{ LESSONS }, { startLesson }] = await Promise.all([import('./learn/lessons/index.ts'), import('./learn/state.ts')]);
     const l = LESSONS.find((x) => x.id === lesson);
     if (l) startLesson(l);
