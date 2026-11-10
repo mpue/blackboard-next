@@ -135,7 +135,8 @@ function ellipsePts(g: EllipseItem): { pts: Pt[]; full: boolean; c: Pt; rx: numb
 }
 
 /** `outline`: board edge drawings are always thin centre lines without fill. */
-function drawingPrims(it: Drawing, outline: boolean, fn?: string): Prim[] {
+/** `mirror`: text on bottom layers reads correctly when the board is seen from below. */
+function drawingPrims(it: Drawing, outline: boolean, fn?: string, mirror = false): Prim[] {
   const width = (t: number) => (outline ? EDGE_WIDTH : t > 0 ? t : SILK_WIDTH);
   switch (it.kind) {
     case 'line':
@@ -170,7 +171,13 @@ function drawingPrims(it: Drawing, outline: boolean, fn?: string): Prim[] {
       const text = plainText(it.text);
       const cap = it.fontSize * 0.7;
       if (!text.trim() || cap <= 0) return [];
-      const segs = strokeText(text, it.x, it.y, cap, { rotation: it.rotation, lineSpacing: (it.fontSize * 1.2) / cap });
+      let segs = strokeText(text, it.x, it.y, cap, { rotation: it.rotation, lineSpacing: (it.fontSize * 1.2) / cap });
+      if (mirror && segs.length) {
+        // flipped in world x around its own centre, like the editor shows it
+        const xs = segs.flatMap((sg) => [sg.x1, sg.x2]);
+        const c2 = Math.min(...xs) + Math.max(...xs);
+        segs = segs.map((sg) => ({ ...sg, x1: c2 - sg.x1, x2: c2 - sg.x2 }));
+      }
       return textPrims(segs, Math.max(cap * 0.15, mm(0.1)), fn);
     }
   }
@@ -277,7 +284,7 @@ export function copperPrims(doc: Doc, side: CopperSide, fills?: ZoneFills): Prim
     if (t.kind !== 'track' || !onSide(t.layer)) continue;
     out.push({ kind: 'path', width: t.width, pts: [{ x: t.x1, y: t.y1 }, { x: t.x2, y: t.y2 }], fn: 'Conductor' });
   }
-  for (const d of drawingsOn(doc, (l) => onSide(l.id))) out.push(...drawingPrims(d, false, 'Conductor'));
+  for (const d of drawingsOn(doc, (l) => onSide(l.id))) out.push(...drawingPrims(d, false, 'Conductor', side === 'bottom'));
   for (const v of doc.items) {
     if (v.kind !== 'via') continue;
     out.push({ kind: 'flash', shape: { kind: 'circle', c: { x: v.x, y: v.y }, d: v.diameter }, fn: 'ViaPad' });
@@ -324,7 +331,7 @@ export function silkPrims(doc: Doc, side: CopperSide): Prim[] {
     for (const g of fp.footprint.silk) out.push(...graphicPrims(fp, g));
     out.push(...designatorPrims(fp));
   }
-  for (const d of drawingsOn(doc, (l) => l.role === `${side}-silk`)) out.push(...drawingPrims(d, false));
+  for (const d of drawingsOn(doc, (l) => l.role === `${side}-silk`)) out.push(...drawingPrims(d, false, undefined, side === 'bottom'));
   return out;
 }
 

@@ -8,6 +8,13 @@ import type { CopperSide, Doc, FootprintGraphic, FootprintItem, Item, Layer, Lay
 import { footprintToWorld, footprintTransform } from '../pcb/geometry.ts';
 import { mm } from '../pcb/units.ts';
 import { ItemView, type RenderFlags } from './ItemView.tsx';
+import { rectOfPoints, textWorldCorners } from '../geometry/geom.ts';
+import type { TextItem } from '../model/types.ts';
+
+function textCentreX(t: TextItem): number {
+  const r = rectOfPoints(textWorldCorners(t));
+  return r.x + r.w / 2;
+}
 
 export interface PcbRenderOptions extends RenderFlags {
   realistic: boolean;
@@ -228,8 +235,18 @@ export const PcbView = memo(function PcbView({ doc, idPrefix, opts, mirror }: { 
     const ids = idsOfRole(role_);
     return others.filter((i) => ids.has(i.layer));
   };
+  // texts on the bottom side are mirrored, as seen through the board from the top
   const legacy = (items: Item[], layerRole: LayerRole) =>
-    items.map((it) => <ItemView key={it.id} item={it} flags={flags} bottomLayer={layerRole.startsWith('bottom')} />);
+    items.map((it) =>
+      it.kind === 'text' && layerRole.startsWith('bottom') ? (
+        // mirrored around its own centre, so it stays where it is picked
+        <g key={it.id} transform={`translate(${2 * textCentreX(it)} 0) scale(-1 1)`}>
+          <ItemView item={it} flags={flags} bottomLayer />
+        </g>
+      ) : (
+        <ItemView key={it.id} item={it} flags={flags} bottomLayer={layerRole.startsWith('bottom')} />
+      ),
+    );
 
   const copperLayer = (side: CopperSide, dim: boolean) => {
     const lr = role(side, 'copper');
