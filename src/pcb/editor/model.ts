@@ -426,7 +426,7 @@ export function validateFootprint(def: FootprintDef): FootprintIssue[] {
   const out: FootprintIssue[] = [];
   const id = def.id.trim();
   if (!id) out.push({ severity: 'error', code: 'emptyId' });
-  else if (/[^A-Za-z0-9._+\-]/.test(id)) out.push({ severity: 'warning', code: 'idChars', detail: id });
+  else if (/[^A-Za-z0-9._+:\-]/.test(id)) out.push({ severity: 'warning', code: 'idChars', detail: id });
   if (!def.name.trim()) out.push({ severity: 'warning', code: 'emptyName' });
   if (!def.pads.length) out.push({ severity: 'error', code: 'noPads' });
 

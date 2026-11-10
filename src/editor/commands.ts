@@ -104,6 +104,7 @@ import {
   updatePcbFromSchematic,
 } from './pcbActions.ts';
 import { setDrcOpen } from '../ui/drcState.ts';
+import { exportKicadFootprints, exportKicadNetlist, importKicadFootprints } from './kicadActions.ts';
 import { runAutorouter } from './autorouteAction.ts';
 import { setView3d, useView3d } from '../ui/Board3DHost.tsx';
 import { setLiveMode, setLiveValues, useLive } from '../store/live.ts';
@@ -251,6 +252,14 @@ export const commands = {
   exportGerber: { id: 'exportGerber', label: 'pcb.exportGerber', icon: Factory, run: () => void exportFabrication(), enabled: isPcb },
   exportEtching: { id: 'exportEtching', label: 'pcb.exportEtching', icon: Printer, run: () => void exportEtching(), enabled: isPcb },
   newFootprint: { id: 'newFootprint', label: 'fpe.newFootprint', icon: PenLine, run: () => openDialog({ kind: 'footprintEditor' }) },
+  exportKicadNetlist: { id: 'exportKicadNetlist', label: 'kicad.exportNetlist', icon: FileCode2, run: () => void exportKicadNetlist(), enabled: isSchematic },
+  importKicadFootprints: { id: 'importKicadFootprints', label: 'kicad.importFootprints', icon: FolderOpen, run: () => void importKicadFootprints() },
+  exportKicadFootprints: {
+    id: 'exportKicadFootprints',
+    label: 'kicad.exportFootprints',
+    run: () => void exportKicadFootprints(),
+    enabled: () => useStore.getState().library.userFootprints.length > 0,
+  },
   editFootprint: {
     id: 'editFootprint',
     label: 'fpe.editFootprint',

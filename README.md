@@ -84,6 +84,11 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   artwork for toner transfer / UV exposure
 - Layer colour view, realistic view (solder mask, HASL pads, silkscreen) and a 3D view
   (key 3) with component bodies
+- **KiCad**: import `.kicad_mod` footprints (KiCad 5–8, several files at once, e.g. a
+  whole `.pretty` folder) into the user library; export the user footprints as a
+  `.pretty` library; export a schematic as KiCad netlist (*File → Export KiCad
+  netlist*) for KiCad's PCB editor — built-in footprints are mapped to the KiCad
+  standard libraries, others are written into an accompanying `BlackBoard.pretty`
 - PCB data is stored inside the `.bb` archive (`bbnext/document.json`); BlackBoard
   1.x/2.x still open such files (as blank boards)
 
@@ -194,7 +199,7 @@ npm run tauri build   # installers in src-tauri/target/release/bundle/
 
 ```
 scripts/build-library.ts   parts/symbols/models/samples (XML) -> public/library/*.json
-src/io/                    XML reader/writer, legacy BoardBean format, .bb archives
+src/io/                    XML reader/writer, legacy BoardBean format, .bb archives, KiCad
 src/model/                 document model, item operations, engineering values
 src/geometry/              transforms, bounds, hit testing, pin positions
 src/render/                SVG rendering of boards, parts, symbols, resistors, diodes

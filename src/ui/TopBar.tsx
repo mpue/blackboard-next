@@ -17,7 +17,7 @@ function useMenus(): { title: I18nKey; items: MenuEntry[] }[] {
   const t = useT();
   const c = commands;
   return [
-    { title: 'menu.file', items: [c.new, c.open, c.samples, 'sep', c.save, c.saveAs, 'sep', c.exportPng, c.exportSvg, c.exportNetlist, c.exportBom, 'sep', c.print] },
+    { title: 'menu.file', items: [c.new, c.open, c.samples, 'sep', c.save, c.saveAs, 'sep', c.exportPng, c.exportSvg, c.exportNetlist, c.exportKicadNetlist, c.exportBom, 'sep', c.print] },
     {
       title: 'menu.edit',
       items: [c.undo, c.redo, 'sep', c.cut, c.copy, c.paste, c.duplicate, c.delete, 'sep', c.selectAll, c.selectLines, 'sep', c.rotateCW, c.rotateCCW, c.flipH, c.flipV, 'sep', c.front, c.forward, c.backward, c.back, 'sep', c.makeSymbol, c.breakSymbol],
@@ -52,7 +52,7 @@ function useMenus(): { title: I18nKey; items: MenuEntry[] }[] {
     { title: 'menu.board', items: [c.boardProps, 'sep', c.simulate, c.live, c.liveTran, c.check, c.erc, c.exportNetlist] },
     {
       title: 'menu.pcb',
-      items: [c.annotate, c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, c.outline, c.resetOutline, c.fitBoard, c.mountingHoles, c.autoroute, c.selectConnected, c.unrouteNet, c.unrouteAll, 'sep', c.newFootprint, c.editFootprint, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.view3d, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
+      items: [c.annotate, c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, c.outline, c.resetOutline, c.fitBoard, c.mountingHoles, c.autoroute, c.selectConnected, c.unrouteNet, c.unrouteAll, 'sep', c.newFootprint, c.editFootprint, c.importKicadFootprints, c.exportKicadFootprints, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.view3d, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
     },
     { title: 'menu.tools', items: [c.select, c.pan, c.wire, c.resistor, c.diode, c.box, c.ellipse, c.text, c.measure, c.check, 'sep', c.track, c.via, c.zone] },
     { title: 'menu.help', items: [c.learn, 'sep', c.shortcuts, c.about] },

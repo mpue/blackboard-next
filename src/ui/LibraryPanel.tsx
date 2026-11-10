@@ -1,8 +1,9 @@
 import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Search, Trash2, Copy, Plus, PenLine } from 'lucide-react';
+import { ChevronRight, Search, Trash2, Copy, Plus, PenLine, FolderInput } from 'lucide-react';
 import { activeDoc, openDialog, setLibrary, startPlacement, toast, useStore, type Placement } from '../store/store.ts';
 import { saveUserFootprints, withoutUserFootprint } from '../platform/userFootprints.ts';
 import { setDragPayload } from '../editor/dragPayload.ts';
+import { importKicadFootprints } from '../editor/kicadActions.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import type { FootprintDef, PartDef, SpiceModel, SymbolDef } from '../model/types.ts';
 import { FOOTPRINT_CATEGORIES, FOOTPRINTS, searchFootprints } from '../pcb/footprints/index.ts';
@@ -200,12 +201,20 @@ const FootprintsList = memo(function FootprintsList({ q }: { q: string }) {
   };
   return (
     <>
-      <div className="border-b border-line/60 p-2">
+      <div className="flex gap-2 border-b border-line/60 p-2">
         <button
-          className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-line text-[12px] text-muted hover:border-accent hover:text-accent"
+          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-dashed border-line text-[12px] text-muted hover:border-accent hover:text-accent"
           onClick={() => openDialog({ kind: 'footprintEditor' })}
         >
           <Plus size={14} /> {t('fpe.newFootprint')}
+        </button>
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-dashed border-line text-muted hover:border-accent hover:text-accent"
+          title={t('kicad.importFootprints')}
+          aria-label={t('kicad.importFootprints')}
+          onClick={() => void importKicadFootprints()}
+        >
+          <FolderInput size={14} />
         </button>
       </div>
       {!groups.length && <p className="p-4 text-muted">{t('lib.empty')}</p>}

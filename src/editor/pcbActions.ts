@@ -89,7 +89,7 @@ function shelfPack(fps: FootprintItem[], x0: number, y0: number, rowWidth: numbe
   return { w: maxX - x0, h: y + rowH - y0 };
 }
 
-function reportWarnings(warnings: FromSchematicWarning[]) {
+export function reportWarnings(warnings: FromSchematicWarning[]) {
   for (const w of warnings.slice(0, 4)) {
     switch (w.key) {
       case 'noFootprint':

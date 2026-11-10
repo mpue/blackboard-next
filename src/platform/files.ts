@@ -57,6 +57,42 @@ export async function openFile(type: FileType = BB_TYPE): Promise<PickedFile | n
   return openViaInput(type.extensions.join(','));
 }
 
+/** Several files at once (e.g. all footprints of a KiCad .pretty folder). */
+export async function openFiles(type: FileType): Promise<PickedFile[]> {
+  if (isTauri()) {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const { readFile } = await import('@tauri-apps/plugin-fs');
+    const paths = await open({ multiple: true, filters: [{ name: type.description, extensions: type.extensions.map((e) => e.slice(1)) }] });
+    if (!paths) return [];
+    const list = Array.isArray(paths) ? paths : [paths];
+    return Promise.all(list.map(async (path) => ({ name: path.split(/[\\/]/).pop() ?? path, data: await readFile(path) })));
+  }
+  const w = fsWindow();
+  if (w.showOpenFilePicker) {
+    try {
+      const handles = await w.showOpenFilePicker({ types: pickerTypes(type), multiple: true });
+      return Promise.all(
+        handles.map(async (h) => {
+          const f = await h.getFile();
+          return { name: f.name, data: new Uint8Array(await f.arrayBuffer()) };
+        }),
+      );
+    } catch (e) {
+      if (isAbort(e)) return [];
+      throw e;
+    }
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = type.extensions.join(',');
+    input.onchange = async () => resolve(Promise.all([...(input.files ?? [])].map(async (f) => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }))));
+    input.oncancel = () => resolve([]);
+    input.click();
+  });
+}
+
 export function openViaInput(accept: string): Promise<PickedFile | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
