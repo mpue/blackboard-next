@@ -13,7 +13,7 @@ import { evaluate, needsLive } from '../checks.ts';
 import { libraryModels, librarySymbols, operatingPoint } from '../testing.ts';
 import type { L10n, Lesson, LessonCheck } from '../types.ts';
 import { LESSONS } from './index.ts';
-import type { LessonDef } from './kit.ts';
+import { change, type LessonDef } from './kit.ts';
 
 const lib = librarySymbols();
 const models = libraryModels();
@@ -27,9 +27,13 @@ const IDS = [
   'diode',
   'led-resistor',
   'zener',
+  'rectifier',
   'transistor-switch',
   'rc-time-constant',
+  'capacitor-charging',
   'rc-lowpass-bench',
+  'logic-gates',
+  'blinker-555',
   'schematic-to-pcb',
 ];
 
@@ -37,10 +41,11 @@ const IDS = [
 const EXPECTED_WARNINGS: Record<string, string[]> = {
   'series-parallel': ['unconnected:R4'],
   'transistor-switch': ['unconnected:Q1'],
+  'logic-gates': ['unconnected:Q4'],
 };
 
-/** wire ends that are left open on purpose (the gap for the base resistor) */
-const OPEN_ENDS: Record<string, number> = { 'transistor-switch': 2 };
+/** wire ends that are left open on purpose (the gap for the base resistor, the gaps of the bridge) */
+const OPEN_ENDS: Record<string, number> = { 'transistor-switch': 2, rectifier: 3 };
 
 type Quiz = Extract<LessonCheck, { kind: 'quiz' }>;
 
@@ -88,7 +93,7 @@ const live = (doc: Doc) => {
 };
 
 describe('lesson catalogue', () => {
-  it('has exactly the twelve lessons in learning order', () => {
+  it('has exactly the sixteen lessons in learning order', () => {
     expect(LESSONS.map((l) => l.id)).toEqual(IDS);
     expect(new Set(LESSONS.map((l) => l.id)).size).toBe(LESSONS.length);
   });
@@ -180,4 +185,31 @@ describe('schematic-to-pcb', () => {
     expect(nl.components.map((c) => c.ref).sort()).toEqual(['D1', 'R1', 'S1', 'V1']);
     expect(lesson.steps.map((s) => s.check?.kind)).toEqual(expect.arrayContaining(['isPcb', 'pcbRouted', 'drcClean']));
   });
+});
+
+const lessonById = (id: string) => LESSONS.find((l) => l.id === id) as LessonDef;
+const ref = (doc: Doc, name: string) => symbols(doc).find((s) => s.name === name)!;
+
+describe('logic-gates in the simulator', () => {
+  it('follows the truth tables of AND (D1) and OR (D2)', async () => {
+    const lesson = lessonById('logic-gates');
+    const solved = lesson.solve!(lesson.start!(lib, 'de'), lib);
+    for (const [a, b] of [
+      [false, false],
+      [true, false],
+      [false, true],
+      [true, true],
+    ]) {
+      const doc = change(solved, {
+        S1: { props: { closed: String(a) } },
+        S2: { props: { closed: String(b) } },
+        S3: { props: { closed: String(a) } },
+        S4: { props: { closed: String(b) } },
+      });
+      const values = await operatingPoint(doc, models);
+      const lit = (led: string) => (values.deviceCurrent.get(ref(doc, led).id) ?? 0) > 5e-3;
+      expect(lit('D1'), `AND ${a} ${b}`).toBe(a && b);
+      expect(lit('D2'), `OR ${a} ${b}`).toBe(a || b);
+    }
+  }, 30_000);
 });

@@ -18,6 +18,7 @@ import {
   quiz,
   resistorH,
   resistorV,
+  switchV,
   t,
   value,
   voltage,
@@ -394,7 +395,7 @@ export const voltageDivider: LessonDef = {
     const v1 = battery(b, 'V1', { x: 96, y: 320 }, 9);
     const r1 = resistorV(b, 'R1', { x: 320, y: 192 }, '10k');
     const r2 = resistorV(b, 'R2', { x: 320, y: 400 }, '10k');
-    const s1 = b.add('elektor-EIN-Schalter-klein', 'S1', { x: 512, y: 368 }, { pin: 1, props: { closed: 'false' } });
+    const s1 = switchV(b, 'S1', { x: 512, y: 368 }, false);
     const rl = resistorV(b, 'RL', { x: 512, y: 464 }, '10k');
     b.wire(b.pin(v1, '+'), { x: 96, y: top }, { x: 320, y: top }, b.pin(r1, 1));
     b.wire(b.pin(r1, 2), b.pin(r2, 1));

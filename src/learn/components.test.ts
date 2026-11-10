@@ -6,23 +6,12 @@ import { symbolItemFromDef } from '../io/legacy.ts';
 import type { SymbolItem } from '../model/types.ts';
 import { matches } from './checks.ts';
 import { COMPONENTS, componentFor } from './components.ts';
+import { LESSONS } from './lessons/index.ts';
 import { librarySymbols } from './testing.ts';
 import type { ComponentInfo, L10n } from './types.ts';
 
-const LESSON_IDS = new Set([
-  'first-circuit',
-  'ohms-law',
-  'series-parallel',
-  'voltage-divider',
-  'potentiometer',
-  'diode',
-  'led-resistor',
-  'zener',
-  'transistor-switch',
-  'rc-time-constant',
-  'rc-lowpass-bench',
-  'schematic-to-pcb',
-]);
+// links must point to lessons that exist
+const LESSON_IDS = new Set(LESSONS.map((l) => l.id));
 
 const items: SymbolItem[] = librarySymbols().map((d, i) => symbolItemFromDef(d, 0, 0, 'schematic', `X${i}`));
 

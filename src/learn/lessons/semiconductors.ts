@@ -1,14 +1,20 @@
 // Lessons on semiconductors: the diode, the LED series resistor, Zener
-// stabilisation and the transistor as a switch.
+// stabilisation, rectifiers and the transistor as a switch.
 
+import type { LineItem } from '../../model/types.ts';
+import { INSTRUMENT_DEFS } from '../../spice/instruments.ts';
 import { CircuitBuilder } from '../build.ts';
+import type { LessonCheck } from '../types.ts';
 import {
   all,
+  any,
+  anyBetween,
   battery,
-  between,
   change,
   connected,
   current,
+  edit,
+  elko,
   extend,
   heading,
   ledV,
@@ -17,6 +23,8 @@ import {
   quiz,
   resistorH,
   resistorV,
+  spiceDirective,
+  switchV,
   t,
   value,
   voltage,
@@ -377,7 +385,222 @@ export const zener: LessonDef = {
   solve: (doc) => change(doc, { R1: { value: '470' }, V1: { value: '9V', props: { dcVoltage: '9' } } }),
 };
 
-// ---- 9. the transistor as a switch -------------------------------------------------------------------
+// ---- 9. rectifiers ---------------------------------------------------------------------------------------
+
+/**
+ * Half-wave rectifier on the left (function generator FG1 -> D1 -> R1), bridge
+ * rectifier on the right: the floating sine source V1 sits between the left
+ * diode column (D2 on top, gap for D5 below) and the right one (gap for D4 on
+ * top, D3 below), load R2. The oscilloscope shows the generator on CH1 and R1
+ * on CH2. There are no loose parts: the bench simulates with UIC and would
+ * find no solution for nodes that hang in the air.
+ */
+const RECT = {
+  /** signal line of the half-wave rectifier and its ground */
+  signal: 320,
+  ground: 512,
+  r1: 432,
+  /** oscilloscope pins: CH1, CH2, GND */
+  scope: { x: 512, ch1: 128, ch2: 144, gnd: 176 },
+  /** bridge: + and - bus, left and right diode column, source, load, place for the capacitor */
+  plus: 304,
+  minus: 624,
+  left: 608,
+  right: 800,
+  source: 704,
+  load: 928,
+  cap: 1024,
+};
+
+const RECT_SINE = { shape: 'SIN', frequency: '50', frequencyUnit: 'HZ', acAmplitude: '10', dcOffset: '0', acPhase: '0' };
+
+/** the vertical diode of the library, cathode (bar) on top, anode 80 below */
+const DIODE_V = 'D45-Diode-vertikal_1a.xml';
+
+/**
+ * Some diode with its cathode on the net of `k` and its anode on the net of
+ * `a`. Diodes the learner adds are numbered on from the highest designator, so
+ * any of D1 … D12 counts – unlike the `between` check this one sees which way
+ * round the diode sits.
+ */
+function diodeFromTo(a: [string, number | string], k: [string, number | string]): LessonCheck {
+  const names = Array.from({ length: 12 }, (_, i) => `D${i + 1}`);
+  return any(...names.map((n) => all(connected(n, 'A', ...a), connected(n, 'K', ...k))));
+}
+
+const rectifierTitle = t('Gleichrichter: aus Wechsel- wird Gleichspannung', 'Rectifiers: from AC to DC');
+
+export const rectifier: LessonDef = {
+  id: 'rectifier',
+  topic: 'semiconductors',
+  level: 2,
+  minutes: 15,
+  title: rectifierTitle,
+  summary: t(
+    'Erst eine Diode, dann vier: Mach aus Wechselspannung eine Gleichspannung und glätte sie mit einem Elko – am Oszilloskop und in Zeitlupe.',
+    'One diode, then four: turn an AC voltage into DC and smooth it with an electrolytic capacitor – on the oscilloscope and in slow motion.',
+  ),
+  start: (library, lang) => {
+    const b = new CircuitBuilder([...library, ...Object.values(INSTRUMENT_DEFS)]);
+    heading(b, lang, rectifierTitle, t('Links ein Einweg-, rechts ein Brückengleichrichter. F5 öffnet den Messplatz, Shift+T die Zeitlupe.', 'On the left a half-wave, on the right a bridge rectifier. F5 opens the bench, Shift+T slow motion.'));
+    const { signal, ground, r1: xr1, scope, plus, minus, left, right, source, load } = RECT;
+
+    // half-wave: FG1 -> D1 -> R1 to ground
+    b.text(96, 272, lang === 'de' ? 'Einweggleichrichter' : 'Half-wave rectifier', 12, true);
+    const fg = b.add('Function generator', 'FG1', { x: 224, y: signal }, { pin: 1, value: '50 Hz', props: RECT_SINE });
+    const d1 = b.add('elektor-DUS.xml', 'D1', { x: 288, y: signal }, { pin: 1, value: '1N4148' });
+    const r1 = resistorV(b, 'R1', { x: xr1, y: signal + 32 }, '1k');
+    b.wire(b.pin(fg, 1), b.pin(d1, 'A'));
+    b.wire(b.pin(d1, 'K'), { x: xr1, y: signal }, b.pin(r1, 1));
+    const com = b.pin(fg, 2);
+    b.wire(com, { x: 240, y: com.y }, { x: 240, y: ground }, { x: xr1, y: ground }, b.pin(r1, 2));
+    b.ground({ x: 336, y: ground });
+
+    // oscilloscope: CH1 on the generator, CH2 on R1
+    const osc = b.add('Oscilloscope', 'OSC1', { x: scope.x, y: scope.ch1 }, {
+      pin: 1,
+      props: { timeDiv: '0.005', ch1Div: '5', ch2Div: '5', ch1Pos: '1', ch2Pos: '-3', trigSource: '1', trigLevel: '0', trigEdge: 'rise' },
+    });
+    b.wire(b.pin(osc, 1), { x: 272, y: scope.ch1 }, { x: 272, y: signal });
+    b.wire(b.pin(osc, 2), { x: xr1, y: scope.ch2 }, { x: xr1, y: signal });
+    b.wire(b.pin(osc, 3), { x: scope.x, y: scope.gnd + 32 });
+    b.ground({ x: scope.x, y: scope.gnd + 32 });
+
+    // bridge: V1 floats between the diode columns like a transformer winding
+    b.text(left - 32, plus - 16, lang === 'de' ? 'Brückengleichrichter' : 'Bridge rectifier', 12, true);
+    const v1 = b.add('Sine Voltage Source', 'V1', { x: source, y: 400 }, { pin: 1, value: '10 V 50 Hz', props: { mode: 'AC', ...RECT_SINE } });
+    const d2 = b.add(DIODE_V, 'D2', { x: left, y: plus }, { pin: 2, value: '1N4148' });
+    const d3 = b.add(DIODE_V, 'D3', { x: right, y: minus - 80 }, { pin: 2, value: '1N4148' });
+    const r2 = resistorV(b, 'R2', { x: load, y: 416 }, '1k');
+    // left column: D2, then the gap for D5 down to the - bus; right column: the gap for D4, then D3
+    b.wire(b.pin(d2, 'A'), { x: left, y: minus - 80 });
+    b.wire({ x: right, y: plus + 80 }, b.pin(d3, 'K'));
+    b.wire(b.pin(v1, 1), { x: left, y: b.pin(v1, 1).y });
+    b.wire(b.pin(v1, 2), { x: right, y: b.pin(v1, 2).y });
+    b.wire(b.pin(d2, 'K'), { x: right, y: plus });
+    b.wire({ x: right, y: plus }, { x: load, y: plus }, b.pin(r2, 1));
+    b.wire({ x: left, y: minus }, { x: right, y: minus });
+    b.wire(b.pin(d3, 'A'), { x: load, y: minus }, b.pin(r2, 2));
+    b.ground({ x: 864, y: minus });
+    b.text(right + 24, plus + 48, 'D4 ?', 12, true);
+    b.text(left + 24, minus - 32, 'D5 ?', 12, true);
+    spiceDirective(b, 48, minus + 80, '.tran 0.1m 40m');
+    b.text(168, minus + 80, lang === 'de' ? '← Zeitlupe: zwei Perioden (40 ms) in 6 s' : '← slow motion: two periods (40 ms) over 6 s', 11);
+    return b.doc();
+  },
+  steps: [
+    {
+      text: t(
+        '**Der Einweggleichrichter (links).**\n\nDer Funktionsgenerator FG1 liefert eine Sinusspannung mit 10 V Amplitude und 50 Hz. Die Diode D1 lässt nur eine Richtung durch. Drücke F5: Kanal 1 des Oszilloskops zeigt die Spannung des Generators, Kanal 2 die an R1.',
+        '**The half-wave rectifier (left).**\n\nThe function generator FG1 supplies a sine wave with 10 V amplitude at 50 Hz. The diode D1 only lets one direction through. Press F5: channel 1 of the oscilloscope shows the generator voltage, channel 2 the voltage across R1.',
+      ),
+      check: quiz(
+        t('Wie hoch ist die Spitze der Spannung an R1?', 'How high is the peak of the voltage across R1?'),
+        [t('10 V', '10 V'), t('etwa 9,3 V', 'about 9.3 V'), t('5 V', '5 V'), t('0,7 V', '0.7 V')],
+        1,
+      ),
+      explain: t(
+        'Nur die positiven Halbwellen kommen durch, jeweils um die Durchlassspannung der Diode (etwa 0,7 V) kleiner: Die Spitze liegt bei etwa 9,3 V. In der negativen Halbwelle sperrt D1, R1 bekommt nichts ab. Dieser **Einweggleichrichter** nutzt also nur die Hälfte der Wechselspannung – im Mittel kommen an R1 nur knapp 3 V an.',
+        'Only the positive half-waves get through, each reduced by the forward voltage of the diode (about 0.7 V): the peak is about 9.3 V. During the negative half-wave D1 blocks and R1 gets nothing. So this **half-wave rectifier** uses only half of the AC voltage – on average R1 sees just under 3 V.',
+      ),
+    },
+    {
+      text: t(
+        '**Vervollständige die Brücke (rechts).**\n\nV1 liefert dieselbe Wechselspannung wie FG1, ist aber **erdfrei** wie die Wicklung eines Trafos. Von den vier Dioden der Brücke sind erst D2 und D3 eingebaut. Setze zwei weitere Dioden in die Lücken D4 und D5 – wie D2 und D3 mit dem Strich (der Kathode) nach oben, zur Plusleitung hin.',
+        '**Complete the bridge (right).**\n\nV1 supplies the same AC voltage as FG1 but is **floating** like a transformer winding. Of the four diodes of the bridge only D2 and D3 are in place. Put two more diodes into the gaps D4 and D5 – like D2 and D3 with the bar (the cathode) on top, towards the + wire.',
+      ),
+      check: all(diodeFromTo(['V1', 2], ['D2', 'K']), diodeFromTo(['D3', 'A'], ['V1', 1])),
+      hint: t(
+        'Bibliothek → Kategorie *Halbleiter* → „elektor-Diode-vertikal“: Sie steht schon richtig, mit dem Strich oben. Ihre beiden Anschlüsse müssen genau auf den Leitungsenden der Lücke landen.',
+        'Library → category *Semiconductors* → “elektor-Diode-vertikal”: it already stands the right way, bar on top. Both of its pins have to land exactly on the wire ends of the gap.',
+      ),
+      explain: t(
+        'Warum nicht einfach FG1? Generator und Oszilloskop sind über den Schutzleiter **geerdet**, ihr Minuspol liegt immer auf Masse. Bei der Brücke liegt aber der Minuspol des *Ausgangs* auf Masse – die Quelle muss frei schweben, sonst wäre eine Diode kurzgeschlossen. Darum sitzt vor jedem Brückengleichrichter ein Trafo.',
+        'Why not simply FG1? The generator and the oscilloscope are **earthed** through the protective earth, their minus is always on ground. In a bridge, however, the minus of the *output* is on ground – the source has to float, otherwise one diode would be short-circuited. That is why every bridge rectifier sits behind a transformer.',
+      ),
+    },
+    {
+      text: t(
+        '**Sieh dir die Brücke in Zeitlupe an.**\n\nDrücke **Shift+T** oder klicke oben auf die Uhr neben *Live*: Die Zeitlupe spielt zwei Perioden (40 ms) in 6 s ab. Beobachte die Strompunkte in der Brücke und in R2.',
+        '**Watch the bridge in slow motion.**\n\nPress **Shift+T** or click the clock next to *Live* at the top: slow motion plays two periods (40 ms) back over 6 s. Watch the current dots in the bridge and in R2.',
+      ),
+      check: quiz(
+        t('Welche Dioden leiten in der negativen Halbwelle, wenn der untere Anschluss von V1 positiv ist?', 'Which diodes conduct during the negative half-wave, when the lower terminal of V1 is positive?'),
+        [t('D2 und D3', 'D2 and D3'), t('D4 und D5', 'D4 and D5'), t('alle vier', 'all four'), t('keine', 'none')],
+        1,
+      ),
+      explain: t(
+        'In der positiven Halbwelle fließt der Strom über D2, R2 und D3, in der negativen über D4, R2 und D5 – also genau über die beiden Dioden, die du eingesetzt hast. Durch R2 fließt er **immer in dieselbe Richtung**, von oben nach unten. So nutzt der **Brückengleichrichter** (Graetz-Schaltung) beide Halbwellen.',
+        'During the positive half-wave the current flows through D2, R2 and D3, during the negative one through D4, R2 and D5 – exactly the two diodes you put in. Through R2 it **always flows the same way**, from top to bottom. That is how the **bridge rectifier** (Graetz circuit) uses both half-waves.',
+      ),
+    },
+    {
+      text: t(
+        '**Häng Kanal 2 um.**\n\nKanal 2 misst noch an R1. Lösche seine Leitung und verbinde CH2 mit dem oberen Anschluss von R2. Sieh dir dann am Messplatz (F5) die Spannung an R2 an.',
+        '**Move channel 2.**\n\nChannel 2 still measures across R1. Delete its wire and connect CH2 to the top pin of R2. Then look at the voltage across R2 on the bench (F5).',
+      ),
+      check: all(connected('OSC1', 2, 'R2', 1), notConnected('R1', 1, 'R2', 1)),
+      hint: t(
+        'Klick die Leitungen von CH2 an und drück Entf. Zieh dann mit dem Werkzeug *Leitung* (W) eine neue Leitung von CH2 um das Oszilloskop herum zum oberen Ende von R2, ohne andere Leitungen zu berühren.',
+        'Click the wires of CH2 and press Del. Then use the *Wire* tool (W) to draw a new wire from CH2 around the oscilloscope to the top of R2 without touching other wires.',
+      ),
+      explain: t(
+        'Jetzt kommt jede Halbwelle an: Die Spannung an R2 pulsiert mit 100 Hz statt 50 Hz, ihr Mittelwert (gut 5 V) ist fast doppelt so groß wie beim Einweggleichrichter. Die Spitze ist dafür etwas kleiner, denn in jeder Halbwelle liegen **zwei** Dioden im Stromweg: $10 V − 2 · 0,7 V ≈ 8,6 V$. Für eine Schaltung, die Gleichspannung braucht, ist das aber noch viel zu wellig.',
+        'Now every half-wave arrives: the voltage across R2 pulses at 100 Hz instead of 50 Hz, its average (just over 5 V) is almost twice that of the half-wave rectifier. The peak is a little lower, though, because in each half-wave there are **two** diodes in the current path: $10 V − 2 · 0.7 V ≈ 8.6 V$. For a circuit that needs DC it is still far too bumpy.',
+      ),
+    },
+    {
+      text: t(
+        '**Glätte die Spannung.**\n\nSchalte einen Elko parallel zu R2 – **Plus an die Plusleitung**, Minus an die Minusleitung – und gib ihm mindestens 220 µF, zum Beispiel 470 µF.',
+        '**Smooth the voltage.**\n\nConnect an electrolytic capacitor in parallel to R2 – **plus to the + wire**, minus to the − wire – and give it at least 220 µF, for example 470 µF.',
+      ),
+      check: anyBetween(['R2', 1], ['R2', 2], { spiceType: 'CAPACITOR' }, 220e-6, 0.1),
+      hint: t(
+        'Bibliothek → Kategorie *Passiv* → „Elko-stehen“ (Plus ist oben). Setz ihn rechts neben R2 und verbinde seine Anschlüsse mit der Plus- und der Minusleitung. Den Wert trägst du im Eigenschaften-Panel ein, z. B. `470µ`.',
+        'Library → category *Passive* → “Elko-stehen” (plus on top). Place it to the right of R2 and connect its pins to the + and − wires. Type the value into the properties panel, e.g. `470µ`.',
+      ),
+      explain: t(
+        'Der Elko lädt sich in jeder Spitze auf und liefert dazwischen den Strom für R2. Statt der 100-Hz-Buckel bleibt eine fast glatte Gleichspannung von gut 8 V mit einer kleinen **Brummspannung** (Restwelligkeit). Elkos sind gepolt: Falsch herum angeschlossen werden sie heiß und können platzen.',
+        'The capacitor charges at every peak and supplies the current for R2 in between. Instead of the 100 Hz bumps, an almost smooth DC voltage of just over 8 V is left with a small **ripple**. Electrolytic capacitors are polarised: connected the wrong way round they get hot and can burst.',
+      ),
+    },
+    {
+      text: t(
+        '**Wie groß ist die Brummspannung?**\n\nZwischen zwei Spitzen (10 ms) muss der Elko den Laststrom allein liefern. Für den Brückengleichrichter gilt ungefähr $ΔU = I / (2 · f · C)$.',
+        '**How large is the ripple?**\n\nBetween two peaks (10 ms) the capacitor has to supply the load current on its own. For the bridge rectifier, roughly $ΔU = I / (2 · f · C)$.',
+      ),
+      check: quiz(
+        t('R2 zieht etwa 8 mA. Was passiert mit der Brummspannung, wenn ein zweiter Verbraucher noch einmal 8 mA zieht?', 'R2 draws about 8 mA. What happens to the ripple if a second load draws another 8 mA?'),
+        [t('Sie halbiert sich.', 'It halves.'), t('Sie bleibt gleich.', 'It stays the same.'), t('Sie verdoppelt sich.', 'It doubles.'), t('Sie verschwindet.', 'It disappears.')],
+        2,
+      ),
+      explain: t(
+        'Mit 470 µF und 8 mA ist $ΔU ≈ 8 mA / (2 · 50 Hz · 470 µF) ≈ 0,17 V$. Die Simulation zeigt sogar nur etwa 0,14 V, weil der Elko schon vor der nächsten Spitze nachgeladen wird – die Formel ist eine sichere Abschätzung. Mit 16 mA wird die Brummspannung doppelt so groß, mehr Laststrom braucht also einen größeren Elko. Hinter dem Elko folgt meist ein **Spannungsregler** wie der 7805, der aus der welligen Spannung glatte 5 V macht – so sind die meisten einfachen Netzteile aufgebaut.',
+        'With 470 µF and 8 mA, $ΔU ≈ 8 mA / (2 · 50 Hz · 470 µF) ≈ 0.17 V$. The simulation even shows only about 0.14 V, because the capacitor is recharged before the next peak – the formula is a safe estimate. With 16 mA the ripple doubles, so more load current needs a larger capacitor. The capacitor is usually followed by a **voltage regulator** such as the 7805, which turns the rippled voltage into a smooth 5 V – that is how most simple power supplies are built.',
+      ),
+    },
+  ],
+  solve: (doc, library) => {
+    const { scope, r1, plus, minus, left, right, load, cap } = RECT;
+    // the CH2 probe wire moves from R1 to R2
+    const probe = (w: LineItem) => (w.y1 === scope.ch2 && w.y2 === scope.ch2 && Math.max(w.x1, w.x2) === scope.x) || (w.x1 === r1 && w.x2 === r1 && Math.min(w.y1, w.y2) === scope.ch2);
+    const unprobed = edit(doc, (d) => {
+      d.items = d.items.filter((i) => i.kind !== 'line' || !probe(i));
+    });
+    return extend(unprobed, library, (b, find) => {
+      // D4 and D5 into the gaps, cathode on top
+      b.add(DIODE_V, 'D4', { x: right, y: plus }, { pin: 2, value: '1N4148' });
+      b.add(DIODE_V, 'D5', { x: left, y: minus - 80 }, { pin: 2, value: '1N4148' });
+      const ch2 = b.pin(find('OSC1'), 2);
+      b.wire(ch2, { x: ch2.x - 32, y: ch2.y }, { x: ch2.x - 32, y: 256 }, { x: load, y: 256 }, { x: load, y: plus });
+      const c1 = elko(b, 'C1', { x: cap, y: 416 }, '470µ');
+      b.wire(b.pin(c1, 1), { x: cap, y: plus }, { x: load, y: plus });
+      b.wire(b.pin(c1, 2), { x: cap, y: minus }, { x: load, y: minus });
+    });
+  },
+};
+
+// ---- 10. the transistor as a switch -------------------------------------------------------------------
 
 /** gap for the base resistor between S1 and the base of Q1 */
 const BASE_GAP = { x: 256, y: 448 };
@@ -400,7 +623,7 @@ export const transistorSwitch: LessonDef = {
     const top = 128;
     const bottom = 528;
     const v1 = battery(b, 'V1', { x: 96, y: 288 }, 9);
-    const s1 = b.add('elektor-EIN-Schalter-klein', 'S1', { x: 224, y: 192 }, { pin: 1, props: { closed: 'false' } });
+    const s1 = switchV(b, 'S1', { x: 224, y: 192 }, false);
     const r1 = resistorV(b, 'R1', { x: 448, y: 160 }, '470');
     const d1 = ledV(b, 'D1', { x: 448, y: 288 });
     const q1 = b.add('elektor-npn', 'Q1', { x: 448, y: 400 }, { pin: 1, value: 'BC548' });
@@ -422,10 +645,11 @@ export const transistorSwitch: LessonDef = {
         '**Setze den Basiswiderstand ein.**\n\nZwischen S1 und der Basis (B) von Q1 fehlt ein Widerstand. Hol dir einen Widerstand „R#“ aus der Bibliothek, setz ihn in die Lücke und gib ihm einen Wert zwischen 4,7 kΩ und 22 kΩ, z. B. 10 kΩ.',
         '**Insert the base resistor.**\n\nA resistor is missing between S1 and the base (B) of Q1. Take a resistor “R#” from the library, put it into the gap and give it a value between 4.7 kΩ and 22 kΩ, e.g. 10 kΩ.',
       ),
-      check: all(between('R2', ['S1', 2], ['Q1', 'B']), notConnected('S1', 2, 'Q1', 'B'), value('R2', 4700, 22000)),
+      // any resistor in the gap counts, whatever the learner named it (a wire across the gap does not)
+      check: anyBetween(['S1', 2], ['Q1', 'B'], { spiceType: 'RESISTOR' }, 4700, 22000),
       hint: t(
-        'Bibliothek → Kategorie *Passive* → „R#“. Die Anschlüsse des Widerstands müssen genau auf den beiden Leitungsenden landen. Er sollte automatisch **R2** heißen – sonst benennst du ihn im Eigenschaften-Panel um.',
-        'Library → category *Passive* → “R#”. The resistor\'s pins have to land exactly on the two wire ends. It should be named **R2** automatically – otherwise rename it in the properties panel.',
+        'Bibliothek → Kategorie *Passiv* → „R#“. Die Anschlüsse des Widerstands müssen genau auf den beiden Leitungsenden landen. Er heißt automatisch **R2**, so nennt ihn auch diese Lektion – wie du ihn nennst, spielt für die Aufgabe aber keine Rolle.',
+        'Library → category *Passive* → “R#”. The resistor\'s pins have to land exactly on the two wire ends. It is named **R2** automatically, which is what this lesson calls it – but for the task its name does not matter.',
       ),
       explain: t(
         'Die Basis-Emitter-Strecke eines Transistors verhält sich wie eine Diode: Ab etwa 0,7 V leitet sie. Ohne Widerstand würde ein riesiger Basisstrom fließen und den Transistor zerstören. R2 begrenzt ihn: $I_B = (9 V − 0,7 V) / 10 kΩ ≈ 0,8 mA$.',
@@ -492,4 +716,4 @@ export const transistorSwitch: LessonDef = {
     ),
 };
 
-export const SEMICONDUCTORS: LessonDef[] = [diode, ledResistor, zener, transistorSwitch];
+export const SEMICONDUCTORS: LessonDef[] = [diode, ledResistor, zener, rectifier, transistorSwitch];

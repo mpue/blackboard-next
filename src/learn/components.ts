@@ -124,7 +124,7 @@ export const COMPONENTS: ComponentInfo[] = [
       l('$R_1$ kleiner als ca. 1 kΩ: Der Entladetransistor an Pin 7 wird überlastet.', '$R_1$ below about 1 kΩ: the discharge transistor at pin 7 gets overloaded.'),
       l('Elkos als Zeitkondensator haben große Toleranzen – die echte Frequenz kann 20 % und mehr vom berechneten Wert abweichen.', 'Electrolytic timing capacitors have wide tolerances – the real frequency can be 20 % or more off the calculated value.'),
     ],
-    lessons: ['rc-time-constant'],
+    lessons: ['blinker-555'],
   },
   {
     id: 'regulator',
@@ -567,7 +567,7 @@ export const COMPONENTS: ComponentInfo[] = [
       l('Einschaltstrom unterschätzt: Der leere Siebelko zieht beim Einschalten sehr hohe Spitzenströme – der Gleichrichter braucht Reserve.', 'Inrush current underestimated: the empty smoothing capacitor draws very high peak currents at power-on – the rectifier needs margin.'),
       l('Den Siebelko nach der Scheitelspannung (≈ 1,41 × Effektivwert) auswählen, nicht nach dem Effektivwert.', 'Choose the smoothing capacitor’s voltage rating by the peak voltage (≈ 1.41 × RMS), not by the RMS value.'),
     ],
-    lessons: ['diode'],
+    lessons: ['rectifier', 'diode'],
   },
   {
     id: 'schottky',
@@ -639,7 +639,7 @@ export const COMPONENTS: ComponentInfo[] = [
       l('Freilaufdiode vergessen: Relais- und Motorspulen erzeugen beim Abschalten Spannungsspitzen, die Transistoren zerstören.', 'Forgotten freewheeling diode: relay and motor coils produce voltage spikes at turn-off that destroy transistors.'),
       l('Sperrspannung zu knapp: Für Netzgleichrichter mit deutlicher Reserve über der Scheitelspannung auswählen.', 'Reverse voltage too tight: for mains rectifiers choose a rating well above the peak voltage.'),
     ],
-    lessons: ['diode'],
+    lessons: ['diode', 'rectifier'],
   },
 
   // ---- transistors ----------------------------------------------------------------------
@@ -754,7 +754,7 @@ export const COMPONENTS: ComponentInfo[] = [
       l('Spule ohne Freilaufdiode am Kollektor (Relais, Motor): Die Abschaltspitze zerstört den Transistor.', 'Coil at the collector without a freewheeling diode (relay, motor): the turn-off spike destroys the transistor.'),
       l('Basis offen gelassen: Ein Pull-down (z. B. 10 kΩ) von der Basis nach Masse hält den Transistor sicher aus, solange der Eingang undefiniert ist.', 'Base left open: a pull-down (e.g. 10 kΩ) from base to ground keeps the transistor reliably off while the input is undefined.'),
     ],
-    lessons: ['transistor-switch'],
+    lessons: ['transistor-switch', 'logic-gates'],
   },
   {
     id: 'pnp',
@@ -923,7 +923,7 @@ export const COMPONENTS: ComponentInfo[] = [
       l('Schaltstrom zu groß: Kleine Schiebeschalter vertragen oft nur einige hundert mA – Motoren und Lampen über ein Relais oder einen Transistor schalten.', 'Too much current: small slide switches often handle only a few hundred mA – switch motors and lamps through a relay or a transistor.'),
       l('Bei Gleichstrom steht beim Öffnen ein Lichtbogen länger als bei Wechselstrom – Schalter sind für DC oft deutlich geringer belastbar.', 'With DC an arc lasts longer at opening than with AC – switches are often rated much lower for DC.'),
     ],
-    lessons: ['first-circuit'],
+    lessons: ['first-circuit', 'logic-gates'],
   },
   {
     id: 'fuse',
@@ -1282,7 +1282,7 @@ export const COMPONENTS: ComponentInfo[] = [
       l('Elkos haben einen merklichen Innenwiderstand (ESR) und wirken bei hohen Frequenzen schlecht – parallel einen 100-nF-Keramikkondensator setzen.', 'Electrolytics have a noticeable internal resistance (ESR) and work poorly at high frequencies – add a 100 nF ceramic in parallel.'),
       l('Für genaue Zeiten ungeeignet: Toleranz und Leckstrom sind groß.', 'Not suited for accurate timing: tolerance and leakage are large.'),
     ],
-    lessons: ['rc-time-constant'],
+    lessons: ['capacitor-charging', 'rectifier', 'rc-time-constant'],
   },
   {
     id: 'capacitor',
@@ -1324,7 +1324,7 @@ export const COMPONENTS: ComponentInfo[] = [
       l('Keramikkondensatoren der Klassen X7R und besonders Y5V verlieren bei Gleichspannung und Temperatur deutlich Kapazität – für genaue Zeiten C0G/NP0 oder Folie nehmen.', 'Class X7R and especially Y5V ceramics lose a lot of capacitance with DC bias and temperature – use C0G/NP0 or film for accurate timing.'),
       l('Große Kondensatoren können auch ausgeschaltet noch geladen sein – vor Arbeiten an Netzteilen entladen.', 'Large capacitors can stay charged after power-off – discharge them before working on power supplies.'),
     ],
-    lessons: ['rc-time-constant', 'rc-lowpass-bench'],
+    lessons: ['rc-time-constant', 'capacitor-charging', 'rc-lowpass-bench'],
   },
 
   // ---- sources --------------------------------------------------------------------------
