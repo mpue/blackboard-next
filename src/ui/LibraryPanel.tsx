@@ -242,9 +242,11 @@ const PartsList = memo(function PartsList({ parts, q }: { parts: PartDef[]; q: s
     return [...m.entries()].sort((a, b) => (a[0] === 'Miscellaneous' ? 1 : b[0] === 'Miscellaneous' ? -1 : a[0].localeCompare(b[0])));
   }, [parts, q]);
   if (!groups.length) return <p className="p-4 text-muted">{t('lib.empty')}</p>;
+  // alphabetical in the language shown, "Miscellaneous" last
+  const shelves = [...groups].sort((a, b) => (a[0] === 'Miscellaneous' ? 1 : b[0] === 'Miscellaneous' ? -1 : t(`shelf.${a[0]}` as I18nKey).localeCompare(t(`shelf.${b[0]}` as I18nKey))));
   return (
     <>
-      {groups.map(([g, list]) => (
+      {shelves.map(([g, list]) => (
         <Group key={g} title={t(`shelf.${g}` as I18nKey)} count={list.length} defaultOpen={!!q}>
           {list.map((p) => (
             <Tile key={p.file} title={p.name} subtitle={p.description} placement={{ kind: 'part', ref: p.file }}>

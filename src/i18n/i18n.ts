@@ -293,7 +293,7 @@ const de = {
   'about.license': 'Lizenz: GPL-2.0. Bauteilbibliothek teilweise CC BY 3.0 (Gerd Bartelt). Simulation: ngspice (BSD) via EEcircuit-engine (MIT).',
 
   'welcome.title': 'Willkommen bei BlackBoard',
-  'welcome.text': 'Lochraster, Streifenraster und Schaltpläne entwerfen – und direkt im Browser mit NGSpice simulieren.',
+  'welcome.text': 'Schaltpläne, Leiterplatten, Lochraster- und Streifenrasterplatinen entwerfen, live simulieren und dabei Elektronik lernen.',
   'welcome.newBoard': 'Neue Lochrasterplatine',
   'welcome.newStripes': 'Neue Streifenrasterplatine',
   'welcome.newSchematic': 'Neuer Schaltplan',
@@ -796,7 +796,7 @@ const en: Dict = {
   'about.compat': 'Files (.bb) and the part, symbol and model libraries of BlackBoard 1.x/2.x are used as they are.',
   'about.license': 'Licence: GPL-2.0. Part library partly CC BY 3.0 (Gerd Bartelt). Simulation: ngspice (BSD) via EEcircuit-engine (MIT).',
   'welcome.title': 'Welcome to BlackBoard',
-  'welcome.text': 'Design perfboards, stripboards and schematics – and simulate them with NGSpice right in your browser.',
+  'welcome.text': 'Design schematics, PCBs, perfboards and stripboards, simulate them live and learn electronics along the way.',
   'welcome.newBoard': 'New perfboard',
   'welcome.newStripes': 'New stripboard',
   'welcome.newSchematic': 'New schematic',
