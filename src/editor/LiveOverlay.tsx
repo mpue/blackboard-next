@@ -5,7 +5,7 @@
 import { memo, useEffect, useMemo, useState, type PointerEvent as RPointerEvent } from 'react';
 import type { Doc, LineItem, SymbolItem } from '../model/types.ts';
 import { computeConnectivity } from '../spice/connectivity.ts';
-import { isPot, potPosition, switchClosed, switchOf, switchThrow } from '../spice/netlist.ts';
+import { isPot, lampOf, potPosition, switchClosed, switchOf, switchThrow } from '../spice/netlist.ts';
 import { useLive, useLiveHover, type LiveSeries } from '../store/live.ts';
 import { liveValues, type LiveValues } from '../spice/live.ts';
 import { pinKey, type Connectivity } from '../spice/connectivity.ts';
@@ -316,6 +316,27 @@ export const LiveOverlay = memo(function LiveOverlay({ doc, docId, z, showLabels
                 </radialGradient>
               </defs>
               <circle cx={c.x} cy={c.y} r={16 + 22 * b} fill={`url(#glow-${s.id})`} opacity={0.35 + 0.65 * b} />
+            </g>
+          );
+        })}
+        {symbols.map((s) => {
+          // lamps glow with their power, relative to their rating
+          const lamp = lampOf(s);
+          const i = lamp ? values.deviceCurrent.get(s.id) : undefined;
+          if (!lamp || i === undefined) return null;
+          const b = Math.min(1, (i * i * lamp.ohms) / lamp.watts);
+          if (b < 0.02) return null;
+          const r = itemBounds(s, lookup);
+          return (
+            <g key={`lamp${s.id}`}>
+              <defs>
+                <radialGradient id={`lamp-${s.id}`}>
+                  <stop offset="0%" stopColor="#fff7d6" stopOpacity={0.95} />
+                  <stop offset="45%" stopColor="#fcd34d" stopOpacity={0.7} />
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                </radialGradient>
+              </defs>
+              <circle cx={r.x + r.w / 2} cy={r.y + r.h / 2} r={14 + 30 * b} fill={`url(#lamp-${s.id})`} opacity={0.25 + 0.75 * b} />
             </g>
           );
         })}

@@ -34,3 +34,21 @@ describe('library logic gates', () => {
     expect(both).toBeGreaterThan(one + 1);
   }, 60_000);
 });
+
+describe('incandescent lamps', () => {
+  it('draws its rated current at its rated voltage', async () => {
+    const k = new CircuitBuilder(lib);
+    const bat = k.add('Battery', 'V1', { x: 96, y: 160 }, { props: { mode: 'DC', dcVoltage: '6' } });
+    const lamp = k.add('-Glühlampe-klein', 'LA1', { x: 320, y: 96 });
+    const plus = k.pin(bat, '+');
+    const minus = k.pin(bat, '-');
+    k.wire(plus, { x: plus.x, y: k.pin(lamp, 1).y - 32 }, { x: k.pin(lamp, 1).x, y: k.pin(lamp, 1).y - 32 }, k.pin(lamp, 1));
+    k.wire(k.pin(lamp, 2), { x: k.pin(lamp, 2).x, y: minus.y + 32 }, { x: minus.x, y: minus.y + 32 }, minus);
+    k.ground({ x: minus.x, y: minus.y + 32 });
+    const doc = k.doc();
+    const live = await operatingPoint(doc);
+    const la = findRef(doc, 'LA1')!;
+    // E10 6 V / 50 mA
+    expect(Math.abs(live.deviceCurrent.get(la.id)!)).toBeCloseTo(0.05, 3);
+  }, 60_000);
+});

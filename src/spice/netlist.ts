@@ -222,6 +222,18 @@ export function potPosition(s: SymbolItem): number {
 
 export const isPot = (s: SymbolItem) => s.spiceType === 'RESISTOR' && s.pins.length === 3;
 
+/** Incandescent lamps (no SPICE type in the library): a resistor from their rating. */
+export function lampOf(s: SymbolItem): { ohms: number; watts: number } | undefined {
+  if (s.spiceType || s.pins.length !== 2 || !/gl(ü|u)hl(a|ä)mp|lamp|bulb/i.test(`${s.symbolName} ${s.filename ?? ''}`) || /glimm/i.test(s.symbolName)) return undefined;
+  const v = /(\d+(?:[.,]\d+)?)\s*v/i.exec(s.value);
+  const a = /(\d+(?:[.,]\d+)?)\s*(m?)a\b/i.exec(s.value);
+  const w = /(\d+(?:[.,]\d+)?)\s*w\b/i.exec(s.value);
+  const volts = v ? parseFloat(v[1].replace(',', '.')) : 6;
+  const amps = a ? parseFloat(a[1].replace(',', '.')) * (a[2] ? 1e-3 : 1) : undefined;
+  const watts = w ? parseFloat(w[1].replace(',', '.')) : amps !== undefined ? volts * amps : 0.6;
+  return { ohms: (volts * volts) / watts, watts };
+}
+
 export function withUic(directive: string): string {
   return /^\.tran\b/i.test(directive) && !/\buic\b/i.test(directive) ? `${directive} uic` : directive;
 }
@@ -450,6 +462,14 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     const name = elementName(s, 'R', used);
     lines.push(`${name} ${node(s, common)} ${node(s, to)} ${sw === 'toggle' && !switchClosed(s) ? '1e9' : '0.01'}`);
     res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [common, to].map((index) => ({ index, node: node(s, index) })) });
+  }
+
+  for (const s of symbols) {
+    const lamp = lampOf(s);
+    if (!lamp) continue;
+    const name = elementName(s, 'R', used);
+    lines.push(`${name} ${node(s, 0)} ${node(s, 1)} ${parseFloat(lamp.ohms.toPrecision(6))}`);
+    res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [0, 1].map((index) => ({ index, node: node(s, index) })) });
   }
 
   // probes: oscilloscopes and voltmeters only read nodes, ammeters are 0 V sources in series
