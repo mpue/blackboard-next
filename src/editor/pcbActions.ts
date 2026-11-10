@@ -2,7 +2,7 @@
 
 import type { Draft } from 'immer';
 import type { Doc, FootprintDef, FootprintItem, Item } from '../model/types.ts';
-import { activeDoc, commit, openDoc, toast, useStore } from '../store/store.ts';
+import { activeDoc, commit, openDoc, select, toast, useStore } from '../store/store.ts';
 import { t } from '../i18n/i18n.ts';
 import { annotate, extractPcbNetlist, type FromSchematicWarning, type PcbComponent } from '../pcb/fromSchematic.ts';
 import { footprintById } from '../pcb/footprints/index.ts';
@@ -286,4 +286,21 @@ export function unroute(scope: 'all' | 'selection') {
   commit((d) => {
     d.items = d.items.filter((i) => i.kind !== 'track' && i.kind !== 'via') as Draft<Item>[];
   });
+}
+
+/** Selects all tracks and vias connected to the selected copper (KiCad "U"). */
+export function selectConnectedCopper() {
+  const ds = activeDoc();
+  if (!ds || ds.doc.type !== 'PCB' || !ds.selection.length) return;
+  const conn = computePcbConnectivity(ds.doc);
+  const sel = new Set(ds.selection);
+  const islands = new Set<number>();
+  conn.objects.forEach((o, i) => {
+    if (sel.has(o.itemId) && (o.kind === 'track' || o.kind === 'via')) islands.add(conn.island[i]);
+  });
+  const ids = new Set(ds.selection);
+  conn.objects.forEach((o, i) => {
+    if ((o.kind === 'track' || o.kind === 'via') && islands.has(conn.island[i])) ids.add(o.itemId);
+  });
+  select([...ids]);
 }

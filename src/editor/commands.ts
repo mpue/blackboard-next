@@ -89,7 +89,7 @@ import type { I18nKey } from '../i18n/i18n.ts';
 import { isSchematicDoc } from '../model/types.ts';
 import { exportBom, exportNetlist, exportPng, exportSvg, openFromDisk, printActive, saveActive } from './fileActions.ts';
 import { breakSymbols } from './symbolActions.ts';
-import { annotateSchematic, createPcbFromSchematic, exportEtching, exportFabrication, unroute, updatePcbFromSchematic } from './pcbActions.ts';
+import { annotateSchematic, createPcbFromSchematic, exportEtching, exportFabrication, selectConnectedCopper, unroute, updatePcbFromSchematic } from './pcbActions.ts';
 import { setDrcOpen } from '../ui/drcState.ts';
 import { runAutorouter } from './autorouteAction.ts';
 import { setView3d, useView3d } from '../ui/Board3DHost.tsx';
@@ -226,6 +226,7 @@ export const commands = {
   createPcb: { id: 'createPcb', label: 'pcb.create', icon: Cpu, run: createPcbFromSchematic, enabled: isSchematic },
   updatePcb: { id: 'updatePcb', label: 'pcb.update', icon: RefreshCw, run: updatePcbFromSchematic, enabled: isPcb },
   autoroute: { id: 'autoroute', label: 'route.run', icon: Wand2, shortcut: 'Shift+A', run: runAutorouter, enabled: isPcb },
+  selectConnected: { id: 'selectConnected', label: 'route.selectConnected', shortcut: 'U', run: selectConnectedCopper, enabled: () => isPcb() && hasSel() },
   unrouteNet: { id: 'unrouteNet', label: 'route.unrouteNet', icon: Eraser, run: () => unroute('selection'), enabled: () => isPcb() && hasSel() },
   unrouteAll: { id: 'unrouteAll', label: 'route.unrouteAll', run: () => unroute('all'), enabled: isPcb },
   drc: { id: 'drc', label: 'pcb.drc', icon: ShieldCheck, shortcut: 'Shift+D', run: () => setDrcOpen(true), enabled: isPcb },
@@ -329,6 +330,7 @@ const bindings: KeyBinding[] = [
   B('v', c.via, { pcb: true, shift: true }),
   B('z', c.zone, { pcb: true }),
   B('a', c.autoroute, { pcb: true, shift: true }),
+  B('u', c.selectConnected, { pcb: true }),
   B('3', c.view3d, { pcb: true }),
   B('d', c.drc, { pcb: true, shift: true }),
   B('d', c.erc, { shift: true }),

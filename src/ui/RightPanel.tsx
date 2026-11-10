@@ -17,7 +17,7 @@ import {
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import type { DiodeType, EdgeType, Item, ShapeStyle, SpiceType, SymbolItem, TextType } from '../model/types.ts';
 import { isBoardLayer, isPcbItem, MM_PER_UNIT } from '../model/types.ts';
-import { PcbItemFields, SymbolFootprintField } from './PcbProperties.tsx';
+import { PcbItemFields, SymbolFootprintField, TrackWidthField } from './PcbProperties.tsx';
 import { formatOhm, parseEng } from '../model/ops.ts';
 import { resistorBands } from '../render/resistorColors.ts';
 import { Check, Field, IconButton, NumberInput, Section, Select, TextArea, TextInput, cx } from './primitives.tsx';
@@ -63,9 +63,11 @@ function PropertiesPanel() {
   if (!items.length) return <DrawStyleSection />;
   if (items.length > 1) {
     const lines = items.filter((i) => i.kind === 'line' || i.kind === 'box' || i.kind === 'ellipse');
+    const tracks = items.filter((i) => i.kind === 'track');
     return (
       <Section title={t('props.multiple', { count: items.length })}>
-        <LayerField items={items} />
+        {tracks.length > 0 && <TrackWidthField tracks={tracks} />}
+        {!items.some(isPcbItem) && <LayerField items={items} />}
         {lines.length > 0 && (
           <>
             <Field label={t('props.color')}>

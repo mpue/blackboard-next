@@ -214,3 +214,26 @@ export function PcbItemFields({ item }: { item: PcbItem }) {
       return <ZoneFields item={item} />;
   }
 }
+
+/** Width of several selected tracks at once. */
+export function TrackWidthField({ tracks }: { tracks: Item[] }) {
+  const t = useT();
+  const widths = new Set(tracks.map((i) => (i.kind === 'track' ? i.width : 0)));
+  const first = tracks[0];
+  return (
+    <Field label={t('props.width')}>
+      <MmInput
+        value={widths.size === 1 && first.kind === 'track' ? first.width : 0}
+        min={0.05}
+        onCommit={(v) =>
+          updateItems(
+            tracks.map((i) => i.id),
+            (i) => {
+              if (i.kind === 'track') i.width = v;
+            },
+          )
+        }
+      />
+    </Field>
+  );
+}
