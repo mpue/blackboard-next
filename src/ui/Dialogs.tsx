@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity, Cpu, GraduationCap, MemoryStick } from 'lucide-react';
+import { FilePlus2, FolderOpen, Library, CircuitBoard, Rows3, Workflow, ImagePlus, Activity, Cpu, GraduationCap, MemoryStick, Wifi } from 'lucide-react';
 import { setLearnOpen } from '../learn/state.ts';
 import { openPcbDemo } from '../editor/pcbActions.ts';
 import { activeDoc, newDocument, openDialog, openDoc, setLibrary, setSimulationOpen, toast, updateDoc, updateItems, updatePcbSettings, useStore } from '../store/store.ts';
@@ -28,6 +28,15 @@ export async function openMcuDemo() {
   const s = useStore.getState();
   const { buildMcuDemo } = await import('../mcu/mcuDemo.ts');
   openDoc(await buildMcuDemo(s.library.symbols, s.settings.lang), s.settings.lang === 'de' ? 'mikrocontroller-demo.bb' : 'microcontroller-demo.bb', undefined, false);
+  setLiveMode('dc');
+  setLiveValues(true);
+}
+
+/** Opens the ESP32 demo with the live values running. */
+export async function openEsp32Demo() {
+  const s = useStore.getState();
+  const { buildEsp32Demo } = await import('../mcu/mcuDemo.ts');
+  openDoc(buildEsp32Demo(s.library.symbols, s.settings.lang), 'esp32-demo.bb', undefined, false);
   setLiveMode('dc');
   setLiveValues(true);
 }
@@ -194,6 +203,19 @@ function SamplesDialog({ onClose }: { onClose: () => void }) {
         <span className="flex-1">
           <span className="block text-[12.5px] font-medium">{t('demo.mcuTitle')}</span>
           <span className="block text-[11.5px] text-muted">{t('demo.mcuText')}</span>
+        </span>
+      </button>
+      <button
+        className="-mt-2 mb-4 flex w-full items-center gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2.5 text-left hover:border-sky-500"
+        onClick={() => {
+          void openEsp32Demo();
+          onClose();
+        }}
+      >
+        <Wifi size={18} className="text-sky-600 dark:text-sky-400" />
+        <span className="flex-1">
+          <span className="block text-[12.5px] font-medium">{t('demo.esp32Title')}</span>
+          <span className="block text-[11.5px] text-muted">{t('demo.esp32Text')}</span>
         </span>
       </button>
       {!samples ? (
@@ -478,6 +500,18 @@ export function Welcome() {
           <span className="flex-1">
             <span className="block text-[13px] font-medium">{t('demo.mcuTitle')}</span>
             <span className="block text-[12px] text-muted">{t('demo.mcuText')}</span>
+          </span>
+        </button>
+        <button
+          onClick={() => void openEsp32Demo()}
+          className="mt-2.5 flex w-full items-center gap-3 rounded-xl border border-line bg-panel p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-500/60 hover:shadow-md"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-400">
+            <Wifi size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-[13px] font-medium">{t('demo.esp32Title')}</span>
+            <span className="block text-[12px] text-muted">{t('demo.esp32Text')}</span>
           </span>
         </button>
         <div className="mt-3 flex items-center justify-between">

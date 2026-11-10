@@ -1,0 +1,20 @@
+Files of the ESP32 in the live simulation (built by scripts/build-esp32.sh)
+==========================================================================
+
+esp32sim.wasm
+  esp32sim (https://github.com/mikroverk/esp32sim, commit 3d049f5c4df9efefb76406601db7a38661c328b6),
+  MIT License, Copyright (c) 2026 Joakim Eriksson, Alice and Mattia Fiumara; see LICENSE-esp32sim.txt.
+  Built with scripts/esp32sim.patch (exports for the circuit coupling, RTC pad pulls of the ESP32).
+
+esp32_rev300_rom.elf
+  The mask ROM of the ESP32 (rev 3) from Espressif's esp-rom-elfs release 20260528
+  (https://github.com/espressif/esp-rom-elfs), Apache License 2.0, Copyright Espressif Systems.
+  SHA-256 920b70635440517866aab2230964a570d2cf2b676658d93c52fbac108c1cca31.
+
+micropython-esp32.bin
+  MicroPython v1.29.0, ESP32_GENERIC (https://micropython.org/resources/firmware/ESP32_GENERIC-20260824-v1.29.0.bin),
+  SHA-256 e67ad6015a0a504c1fec9aa9bbf589d0432ed28e62546f4f8dd8a147f8bd95f6.
+  MicroPython is Copyright (c) 2013-2026 Damien P. George and contributors, MIT License. The image is
+  built with ESP-IDF v5.5.2 and links Espressif's components: ESP-IDF, Mbed TLS and Espressif's binary
+  Wi-Fi, PHY, coexistence and Bluetooth libraries (Apache-2.0), FreeRTOS (MIT), lwIP and newlib (BSD),
+  and other third-party code listed in ESP-IDF's docs/en/COPYRIGHT.rst and MicroPython's LICENSE.

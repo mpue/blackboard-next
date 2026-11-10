@@ -9,8 +9,9 @@ import { activeDoc, useStore } from '../store/store.ts';
 import { runLive, setLiveCoupling, useLive } from '../store/live.ts';
 import type { NetlistResult } from '../spice/netlist.ts';
 import { readInputs } from './coupling.ts';
-import { BROWN_OUT_VOLTS, isMcu, mcuClock, mcuFirmware, type Drives } from './pinout.ts';
+import { isMcu, mcuClock, mcuFirmware, mcuKind, MODELS, type Drives } from './pinout.ts';
 import type { McuRequest, McuResponse } from './mcu.worker.ts';
+import type { Esp32Request } from './esp32.worker.ts';
 import type { HexProblem } from './hex.ts';
 
 export type ChipStatus = 'off' | 'noFirmware' | 'unpowered' | 'running' | 'error';
@@ -40,14 +41,12 @@ export const useMcu = create<McuState>()(() => ({ chips: {}, serial: {}, monitor
 
 const IDLE: ChipState = { status: 'off', speed: 0, seconds: 0, baud: 0, vcc: 0, drives: {} };
 const SERIAL_KEEP = 20_000;
-/** brown-out hysteresis: a running chip only stops below this */
-const BROWN_OUT_OFF = BROWN_OUT_VOLTS - 0.1;
 
 interface Runner {
   worker: Worker;
   docId: string;
-  hex: string;
-  frequency: number;
+  /** what the worker runs: a change restarts it */
+  key: string;
   powered: boolean;
   digital: Record<number, boolean>;
   lastInputs: string;
@@ -59,9 +58,15 @@ function patch(id: string, p: Partial<ChipState>) {
   useMcu.setState((s) => ({ chips: { ...s.chips, [id]: { ...IDLE, ...s.chips[id], ...p } } }));
 }
 
-function start(id: string, docId: string, hex: string, frequency: number): Runner {
-  const worker = new Worker(new URL('./mcu.worker.ts', import.meta.url), { type: 'module', name: 'atmega328p' });
-  const r: Runner = { worker, docId, hex, frequency, powered: false, digital: {}, lastInputs: '' };
+/** Everything a chip's worker runs; a change restarts the chip. */
+const programKey = (s: SymbolItem) => [mcuKind(s), mcuFirmware(s), s.properties?.firmware ? s.properties?.firmwareOffset : s.properties?.script, mcuClock(s)].join('\u0000');
+
+function start(id: string, docId: string, s: SymbolItem): Runner {
+  const esp32 = mcuKind(s) === 'esp32';
+  const worker = esp32
+    ? new Worker(new URL('./esp32.worker.ts', import.meta.url), { type: 'module', name: 'esp32' })
+    : new Worker(new URL('./mcu.worker.ts', import.meta.url), { type: 'module', name: 'atmega328p' });
+  const r: Runner = { worker, docId, key: programKey(s), powered: false, digital: {}, lastInputs: '' };
   worker.onmessage = (e: MessageEvent<McuResponse>) => {
     if (runners.get(id) !== r) return;
     const m = e.data;
@@ -73,7 +78,7 @@ function start(id: string, docId: string, hex: string, frequency: number): Runne
       case 'serial':
         useMcu.setState((s) => ({
           serial: { ...s.serial, [id]: ((s.serial[id] ?? '') + m.text).slice(-SERIAL_KEEP) },
-          monitor: s.monitor ?? (s.dismissed[id] ? null : id),
+          monitor: s.monitor ?? (s.dismissed[id] || m.quiet ? null : id),
         }));
         break;
       case 'stats':
@@ -85,12 +90,19 @@ function start(id: string, docId: string, hex: string, frequency: number): Runne
     }
   };
   worker.onerror = (e) => patch(id, { status: 'error', error: { message: e.message || 'worker failed' }, drives: {} });
-  send(r, { type: 'load', hex, frequency });
+  const p = s.properties ?? {};
+  if (esp32) {
+    const base = new URL('esp32/', document.baseURI).href;
+    const load: Esp32Request = p.firmware
+      ? { type: 'load', base, io: MODELS.esp32.io, firmware: p.firmware, offset: Number(p.firmwareOffset ?? 0) }
+      : { type: 'load', base, io: MODELS.esp32.io, script: p.script ?? '' };
+    worker.postMessage(load);
+  } else send(r, { type: 'load', hex: p.firmware ?? '', frequency: mcuClock(s) });
   patch(id, { status: 'unpowered', drives: {}, error: undefined, seconds: 0 });
   return r;
 }
 
-const send = (r: Runner, m: McuRequest) => r.worker.postMessage(m);
+const send = (r: Runner, m: McuRequest | Esp32Request) => r.worker.postMessage(m);
 
 function stop(id: string) {
   const r = runners.get(id);
@@ -106,18 +118,16 @@ export function syncMcus() {
   const chips = live.on && live.mode === 'dc' && ds && isSchematicDoc(ds.doc) ? ds.doc.items.filter((i): i is SymbolItem => isMcu(i)) : [];
   const keep = new Set<string>();
   for (const s of chips) {
-    const hex = mcuFirmware(s);
-    if (!hex) {
+    if (!mcuFirmware(s)) {
       stop(s.id);
       patch(s.id, { ...IDLE, status: 'noFirmware' });
       continue;
     }
     keep.add(s.id);
-    const frequency = mcuClock(s);
     const r = runners.get(s.id);
-    if (r && r.docId === ds!.id && r.hex === hex && r.frequency === frequency) continue;
+    if (r && r.docId === ds!.id && r.key === programKey(s)) continue;
     stop(s.id);
-    runners.set(s.id, start(s.id, ds!.id, hex, frequency));
+    runners.set(s.id, start(s.id, ds!.id, s));
   }
   for (const id of [...runners.keys()]) {
     if (keep.has(id)) continue;
@@ -174,11 +184,13 @@ function result(docId: string, _doc: Doc, nl: NetlistResult, vectors: Map<string
     const chip = useMcu.getState().chips[m.symbolId];
     const inp = readInputs(m, vectors, r.digital, chip?.drives);
     r.digital = inp.digital;
-    const on = r.powered ? inp.vcc >= BROWN_OUT_OFF : inp.vcc >= BROWN_OUT_VOLTS;
-    const key = JSON.stringify(inp);
+    const [runAt, stopBelow] = MODELS[m.kind].brownOut;
+    const on = r.powered ? inp.vcc >= stopBelow : inp.vcc >= runAt;
+    const open = MODELS[m.kind].io.filter((p) => m.nodes[p.num] === undefined).map((p) => p.num);
+    const key = JSON.stringify([inp, open]);
     if (key !== r.lastInputs) {
       r.lastInputs = key;
-      send(r, { type: 'inputs', digital: inp.digital, analog: inp.analog, avcc: inp.avcc, aref: inp.aref });
+      send(r, { type: 'inputs', digital: inp.digital, analog: inp.analog, avcc: inp.avcc, aref: inp.aref, open });
     }
     if (on !== r.powered) {
       r.powered = on;

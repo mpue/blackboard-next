@@ -76,6 +76,9 @@ async function openDeepLink() {
   } else if (demo === 'pcb') {
     const { openPcbDemo } = await import('./editor/pcbActions.ts');
     await openPcbDemo();
+  } else if (demo === 'esp32') {
+    const { openEsp32Demo } = await import('./ui/Dialogs.tsx');
+    await openEsp32Demo();
   } else if (demo === 'mcu') {
     const { openMcuDemo } = await import('./ui/Dialogs.tsx');
     await openMcuDemo();

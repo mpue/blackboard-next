@@ -38,14 +38,19 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,json,wasm,bb}'],
-        // the NGSpice engine is ~20 MB; it is cached on first use instead of precached
-        globIgnores: ['**/spice.worker-*.js'],
+        // the NGSpice engine is ~20 MB and the ESP32 emulator ~6 MB; they are cached on first use instead of precached
+        globIgnores: ['**/spice.worker-*.js', 'esp32/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.includes('spice.worker'),
             handler: 'CacheFirst',
             options: { cacheName: 'ngspice-engine' },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/esp32/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'esp32-emulator' },
           },
         ],
       },

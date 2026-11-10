@@ -2,7 +2,7 @@
 // broken: an NE555 that keeps oscillating in long transient runs.
 
 import type { LineGeom, Pin, SymbolDef, SymbolShape, TextGeom } from '../model/types.ts';
-import { PINOUT } from '../mcu/pinout.ts';
+import { ESP32_PINS, PINOUT } from '../mcu/pinout.ts';
 
 /**
  * Simplified behavioural model of the NE555: the internal 3 x 5 kΩ divider,
@@ -159,4 +159,47 @@ function atmega328pSymbol(): SymbolDef {
 
 export const ATMEGA328P_SYMBOL = atmega328pSymbol();
 
-export const BUILTIN_SYMBOLS: SymbolDef[] = [NE555_SYMBOL, ATMEGA328P_SYMBOL];
+/**
+ * ESP32-DevKitC (V4) as the board looks: the two pin headers in their real
+ * order with the silkscreen names, the USB socket below. Header J2 is pins
+ * 1..19, J3 20..38. Runs firmware or MicroPython in the live values.
+ */
+function esp32DevkitSymbol(): SymbolDef {
+  const W = 256;
+  const H = 400;
+  const pins: Pin[] = [];
+  const shapes: SymbolShape[] = [
+    { kind: 'box', x: 48, y: 16, w: 160, h: 368, color: '#000000', thickness: 2, style: 'OUTLINED' },
+    // the module's shield and antenna at the top, the USB socket below
+    { kind: 'box', x: 88, y: 24, w: 80, h: 30, color: '#000000', thickness: 1, style: 'OUTLINED' },
+    { kind: 'box', x: 112, y: 384, w: 32, h: 14, color: '#000000', thickness: 1.5, style: 'OUTLINED' },
+    label(119, 395, 'USB', 7),
+  ];
+  for (const p of ESP32_PINS) {
+    const y = 64 + 16 * ((p.num - 1) % 19);
+    if (p.side === 'left') {
+      pins.push({ num: p.num, x: 0, y, name: p.name, orientation: 'TOP_LEFT' });
+      shapes.push(pinLine(0, y, 48, y), label(53, y + 3.5, p.name, 9));
+    } else {
+      pins.push({ num: p.num, x: W, y, name: p.name, orientation: 'BOTTOM_RIGHT' });
+      shapes.push(pinLine(208, y, W, y), label(203 - p.name.length * 5.1, y + 3.5, p.name, 9));
+    }
+  }
+  shapes.push(label(92, 36, 'U1', 11, 'NAME'), label(92, 49, 'ESP32-DevKitC', 8.5, 'VALUE'));
+  return {
+    name: 'ESP32-DevKitC',
+    filename: 'ESP32-DevKitC.xml',
+    category: 'Microcontrollers',
+    width: W,
+    height: H,
+    value: 'ESP32-DevKitC',
+    customModel: false,
+    properties: { prefix: 'U', mcu: 'esp32', usb: 'true', footprint: 'Module_ESP32-DevKitC_V4' },
+    pins,
+    shapes,
+  };
+}
+
+export const ESP32_DEVKIT_SYMBOL = esp32DevkitSymbol();
+
+export const BUILTIN_SYMBOLS: SymbolDef[] = [NE555_SYMBOL, ATMEGA328P_SYMBOL, ESP32_DEVKIT_SYMBOL];

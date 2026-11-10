@@ -6,7 +6,7 @@ import type { Doc, SpiceModel, SpiceType, SymbolItem } from '../model/types.ts';
 import { buildNetlist, isGround, lampOf, spiceValue, switchOf, type NetlistResult, type NetlistWarning } from './netlist.ts';
 import { instrumentOf } from './instruments.ts';
 import { globalNetKey } from './labels.ts';
-import { GND_PINS, isMcu, mcuFirmware, VCC_PIN } from '../mcu/pinout.ts';
+import { ESP32_3V3_PIN, ESP32_5V_PIN, isMcu, mcuFirmware, usbPowered } from '../mcu/pinout.ts';
 
 export type IssueKind =
   | 'empty'
@@ -33,8 +33,8 @@ export interface SimIssue {
   suggestion?: string;
   /** notSimulated: the SPICE type the symbol most likely is */
   guess?: SpiceType;
-  /** pins: what the netlist complained about */
-  detail?: NetlistWarning['key'];
+  /** pins: what the netlist complained about; mcuPower: the board ('esp32') */
+  detail?: NetlistWarning['key'] | 'esp32';
   volts?: number;
 }
 
@@ -100,7 +100,9 @@ export function checkSimulation(doc: Doc, models: SpiceModel[] = []): Readiness 
     return { issues, netlist: net };
   }
   if (net.errors.some((e) => e.key === 'noGround')) issues.push({ kind: 'noGround', severity: 'error' });
-  const hasSource = net.elements.some((e) => e.type === 'VOLTAGE_SOURCE') || net.supplies.length > 0;
+  // an ESP32 board on USB is a supply too (3V3 and 5V pins)
+  const usbBoard = net.mcus.some((m) => m.kind === 'esp32' && usbPowered(symbols.find((s) => s.id === m.symbolId) ?? {}));
+  const hasSource = net.elements.some((e) => e.type === 'VOLTAGE_SOURCE') || net.supplies.length > 0 || usbBoard;
   if (!hasSource) issues.push({ kind: 'noSource', severity: 'warning' });
 
   for (const s of parts) {
@@ -124,8 +126,10 @@ export function checkSimulation(doc: Doc, models: SpiceModel[] = []): Readiness 
   for (const m of net.mcus) {
     const s = symbols.find((x) => x.id === m.symbolId);
     if (!s) continue;
-    if (m.nodes[VCC_PIN] === undefined || !GND_PINS.some((g) => m.nodes[g] !== undefined)) issues.push({ kind: 'mcuPower', severity: 'warning', id: s.id, ref: s.name });
-    if (!mcuFirmware(s)) issues.push({ kind: 'mcuFirmware', severity: 'warning', id: s.id, ref: s.name });
+    // an ESP32 board without USB needs 5V or 3V3; an ATmega its VCC and GND pins
+    const powered = m.kind === 'esp32' ? usbPowered(s) || m.nodes[ESP32_5V_PIN] !== undefined || m.nodes[ESP32_3V3_PIN] !== undefined : m.vdd !== undefined;
+    if (!powered) issues.push({ kind: 'mcuPower', severity: 'warning', id: s.id, ref: s.name, detail: m.kind === 'esp32' ? 'esp32' : undefined });
+    if (!mcuFirmware(s)) issues.push({ kind: 'mcuFirmware', severity: 'warning', id: s.id, ref: s.name, detail: m.kind === 'esp32' ? 'esp32' : undefined });
     issues.push({ kind: 'mcuLiveOnly', severity: 'info', id: s.id, ref: s.name });
   }
 

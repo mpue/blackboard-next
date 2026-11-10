@@ -123,11 +123,21 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   their 25 Ω drivers, pull-ups are 35 kΩ, inputs read the node voltages (Schmitt
   trigger levels), A0–A5 feed the ADC, the chip resets below 2.7 V. PWM pins are
   averaged over their high and low state, so a LED dims correctly
+- **ESP32** (ESP32-DevKitC V4 board, 38 pins as on the real board): the
+  [esp32sim](https://github.com/mikroverk/esp32sim) emulator (MIT, Rust → WebAssembly)
+  boots Espressif's mask ROM into real firmware: an Arduino sketch (Arduino IDE:
+  *Export compiled binary* → `*.merged.bin`) or MicroPython with code edited in the
+  app (examples: blink, push button, running light, PWM dimmer, serial echo). The
+  board is powered over USB by default (GND is the reference, 5V and 3V3 are outputs)
+  or through its 3.3 V regulator from the 5V pin; 40 Ω pin drivers, 45 kΩ pulls,
+  ADC on the ADC1/ADC2 pins, LEDC PWM, UART0 console at 115200 baud
 - Pin levels and PWM duty cycles are shown on the chip; serial monitor with input
 - Limits: the coupling runs at the rate of the operating point (tens of times per
   second), so analog interplay faster than that (PWM through an RC filter back into
   the ADC) is only averaged; in the analyses of the simulation panel the pins are
-  open inputs
+  open inputs. The ESP32 runs code that keeps its CPU busy at about half real time
+  (MicroPython busy-waits the last 10 ms of every `sleep_ms`, so loops should pause
+  50 ms or more); Wi-Fi and Bluetooth are not part of the circuit simulation
 
 ### Schematics
 
@@ -164,9 +174,17 @@ npm run preview    # serve dist/ on http://localhost:4173
 network. Over plain http on a LAN address the browser does not allow installing the
 app for offline use, and "save" falls back to downloading the file.
 
+### ESP32 emulator
+
+`public/esp32/` is committed, so the app builds without Rust. `scripts/build-esp32.sh`
+rebuilds it: it checks out esp32sim at a pinned commit, applies `scripts/esp32sim.patch`
+(WebAssembly exports for the circuit coupling, pulls of the ESP32's RTC pads), builds
+the module (needs rustup) and fetches the mask ROM and MicroPython image by SHA-256.
+Licences: `public/esp32/NOTICE.txt`.
+
 ### Direct links
 
-`?lesson=<id>` starts a lesson, `?demo=pcb|bench|mcu` opens a demo,
+`?lesson=<id>` starts a lesson, `?demo=pcb|bench|mcu|esp32` opens a demo,
 `?sample=schematics/<file>.bb` a sample, `?view=3d|realistic|live|slowmo` adds a view —
 e.g. `…/?lesson=led-resistor` or `…/?demo=pcb&view=3d`.
 
@@ -227,7 +245,9 @@ src/geometry/              transforms, bounds, hit testing, pin positions
 src/render/                SVG rendering of boards, parts, symbols, resistors, diodes
 src/editor/                canvas interaction, commands & shortcuts, file actions
 src/spice/                 connectivity (union-find), netlist, ngspice web worker, live values
-src/mcu/                   ATmega328P on avr8js (web worker), Intel HEX, examples, coupling
+src/mcu/                   ATmega328P on avr8js, ESP32 on esp32sim (web workers), firmware
+                           formats, examples, coupling to the operating point
+public/esp32/              esp32sim.wasm, ESP32 mask ROM, MicroPython (scripts/build-esp32.sh)
 src/pcb/                   PCB: footprints, copper geometry, connectivity, ratsnest, DRC,
                            zones, schematic -> PCB, autorouter, fabrication outputs (fab/)
 src/pcb3d/                 3D board viewer (three.js, loaded on demand)

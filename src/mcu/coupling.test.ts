@@ -95,7 +95,7 @@ describe('microcontroller in the netlist', () => {
   });
 
   it('reads levels with hysteresis and the analog inputs', () => {
-    const m = { symbolId: 'u', ref: 'U1', nodes: { 7: '1', 8: '0', 4: '2', 5: '3', 23: '4' } as Record<number, string> };
+    const m = { symbolId: 'u', ref: 'U1', kind: 'atmega328p' as const, nodes: { 7: '1', 8: '0', 4: '2', 5: '3', 23: '4' } as Record<number, string>, vdd: '1', gnd: '0' };
     const v = new Map([
       ['v(1)', 5],
       ['v(2)', 0.4],
@@ -111,7 +111,8 @@ describe('microcontroller in the netlist', () => {
     expect(readInputs(m, v, { 5: false }).digital[5]).toBe(false);
     // unconnected pin with pull-up reads high
     expect(a.digital[6]).toBe(true);
-    expect(a.analog[0]).toBeCloseTo(1.7);
+    // analog inputs by pin: A0 is pin 23
+    expect(a.analog[23]).toBeCloseTo(1.7);
   });
 
   it(
@@ -175,7 +176,7 @@ describe('microcontroller demo', () => {
         const inp = readInputs(nl.mcus[0], v, digital, drives);
         digital = inp.digital;
         for (const [num, high] of Object.entries(inp.digital)) chip.setInput(Number(num), high);
-        for (const [ch, volts] of Object.entries(inp.analog)) chip.setAnalog(Number(ch), volts);
+        for (const [num, volts] of Object.entries(inp.analog)) chip.setAnalog(Number(num) - 23, volts);
         chip.setReferences(inp.avcc, inp.aref);
         chip.run(0.02 * chip.frequency);
         drives = chip.drives();
@@ -184,8 +185,8 @@ describe('microcontroller demo', () => {
       // the wiper sits in the middle: about half the supply on A0, half brightness on D9
       let r = await step(doc);
       expect(r.inp.vcc).toBeCloseTo(5, 1);
-      expect(r.inp.analog[0]).toBeGreaterThan(2);
-      expect(r.inp.analog[0]).toBeLessThan(3);
+      expect(r.inp.analog[23]).toBeGreaterThan(2);
+      expect(r.inp.analog[23]).toBeLessThan(3);
       r = await step(doc);
       expect(typeof drives[15]).toBe('number');
       expect(drives[15] as number).toBeGreaterThan(0.35);

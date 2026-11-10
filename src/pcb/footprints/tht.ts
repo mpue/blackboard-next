@@ -432,6 +432,42 @@ function misc(): FootprintDef[] {
   ];
 }
 
+/**
+ * ESP32-DevKitC V4 plugged in (or soldered) as a module: two rows of 19 pins,
+ * 25.4 mm apart (the board's Gerber files, reported on esp32.com), numbered
+ * like the symbol: J2 1..19 on the left and J3 as 20..38 on the right, both
+ * from the antenna end. The outline is the 27.9 x 54.4 mm board.
+ */
+function esp32DevkitC(): FootprintDef {
+  const W = 25.4;
+  const pads: PadDef[] = [];
+  for (let i = 0; i < 19; i++) pads.push(tht(String(i + 1), 0, i * P, i === 0 ? 'rect' : 'oval', 1.7, 1.7, 1.0), tht(String(i + 20), W, i * P, 'oval', 1.7, 1.7, 1.0));
+  const x1 = (W - 27.9) / 2;
+  const x2 = x1 + 27.9;
+  const y1 = (18 * P - 54.4) / 2;
+  const y2 = y1 + 54.4;
+  return build({
+    id: 'Module_ESP32-DevKitC_V4',
+    name: 'ESP32-DevKitC V4',
+    description: 'ESP32-DevKitC V4 board, 2x19 pins 2.54 mm pitch, rows 25.4 mm apart, 27.9 x 54.4 mm',
+    category: 'Misc',
+    tags: ['esp32', 'devkit', 'devkitc', 'module', 'microcontroller', 'tht'],
+    pads,
+    silk: [
+      ...polyline([
+        { x: x1, y: y1 },
+        { x: x2, y: y1 },
+        { x: x2, y: y2 },
+        { x: x1, y: y2 },
+        { x: x1, y: y1 },
+      ]),
+      // the module's antenna end
+      line(x1, y1 + 6, x2, y1 + 6),
+    ],
+    body: { x1, y1, x2, y2 },
+  });
+}
+
 export function thtFootprints(): FootprintDef[] {
   const out: FootprintDef[] = [...resistors(), ...diodes(), ...capacitors(), ...inductors(), led(3, 1.99, -0.29, true), led(5, 3.0, -1.29, false)];
   // TO-92 narrow (1.27 mm) and wide (2.54 mm)
@@ -445,6 +481,6 @@ export function thtFootprints(): FootprintDef[] {
   for (let n = 2; n <= 6; n++) out.push(terminal(n, 5.08, 2.6, 1.3, -5.2, 4.6, [-2.3, 2.6, 4.1], 'Phoenix MKDS'));
   for (let n = 2; n <= 4; n++) out.push(terminal(n, 3.5, 2.4, 1.2, -3.1, 4.5, [3.0, 4.1], 'Phoenix PT'));
   out.push(crystal('Crystal_HC49-U', 'HC-49/U', -0.685, 5.565), crystal('Crystal_HC49-4H', 'HC-49/4H', -0.76, 5.64));
-  out.push(...potentiometers(), ...misc());
+  out.push(...potentiometers(), ...misc(), esp32DevkitC());
   return out;
 }

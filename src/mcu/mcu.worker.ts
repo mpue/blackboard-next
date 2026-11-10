@@ -5,18 +5,20 @@
 
 import { Atmega328p } from './atmega328p.ts';
 import { HexError, parseHex, type HexProblem } from './hex.ts';
-import type { Drives } from './pinout.ts';
+import { IO_PINS, type Drives } from './pinout.ts';
 
 export type McuRequest =
   | { type: 'load'; hex: string; frequency: number }
   | { type: 'power'; on: boolean }
   | { type: 'reset' }
-  | { type: 'inputs'; digital: Record<number, boolean>; analog: Record<number, number>; avcc: number; aref: number }
+  /** levels and ADC voltages by symbol pin number; `open` pins have nothing attached */
+  | { type: 'inputs'; digital: Record<number, boolean>; analog: Record<number, number>; avcc: number; aref: number; open?: number[] }
   | { type: 'serial'; text: string };
 
 export type McuResponse =
   | { type: 'drives'; drives: Drives }
-  | { type: 'serial'; text: string }
+  /** `quiet`: boot messages, which do not open the serial monitor by themselves */
+  | { type: 'serial'; text: string; quiet?: boolean }
   | { type: 'stats'; speed: number; seconds: number; baud: number }
   | { type: 'error'; message: string; problem?: HexProblem; line?: number };
 
@@ -47,7 +49,10 @@ const post = (m: McuResponse) => (self as unknown as Worker).postMessage(m);
 function applyInputs() {
   if (!chip || !inputs) return;
   for (const [num, high] of Object.entries(inputs.digital)) chip.setInput(Number(num), high);
-  for (const [ch, volts] of Object.entries(inputs.analog)) chip.setAnalog(Number(ch), volts);
+  for (const [num, volts] of Object.entries(inputs.analog)) {
+    const channel = IO_PINS.find((p) => p.num === Number(num))?.adc;
+    if (channel !== undefined) chip.setAnalog(channel, volts);
+  }
   chip.setReferences(inputs.avcc, inputs.aref);
 }
 

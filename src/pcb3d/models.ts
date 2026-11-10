@@ -86,6 +86,8 @@ const RULES: [RegExp, BodyKind][] = [
   [/^Crystal/i, 'crystal'],
   [/^PinHeader/i, 'header'],
   [/^PinSocket/i, 'socket'],
+  // a dev board plugs into two socket strips on its carrier board
+  [/^Module_ESP32-DevKitC/i, 'socket'],
   [/^TerminalBlock/i, 'terminal'],
   [/^SW_(PUSH|Tactile)/i, 'switch'],
   [/Trimmer/i, 'trimmer'],

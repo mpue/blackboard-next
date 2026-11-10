@@ -1,0 +1,97 @@
+diff --git a/esp32/src/soc.rs b/esp32/src/soc.rs
+index 36d2fee..929e992 100644
+--- a/esp32/src/soc.rs
++++ b/esp32/src/soc.rs
+@@ -201,9 +201,14 @@ impl esp_soc::SocBus for SocBus {
+         if pin >= 40 || pin == 20 || pin == 24 || (28..=31).contains(&pin) { return None; }
+         let gpio = &self.periph.gpio;
+         let mux = gpio.mux(pin as usize);
++        // RTC-capable pads take their pulls from RTC_IO (IDF gpio_pullup_en -> rtcio_hal on the ESP32):
++        // RUE/RDE bits of the pad register, read back from MicroPython v1.29 / IDF v5.5.2 on the emulator
++        const RTC_PULLS: [(u8, u32, u32); 12] = [(4, 0x94, 27), (0, 0x98, 27), (2, 0x9c, 27), (15, 0xa0, 27), (13, 0xa4, 27), (12, 0xa8, 27),
++            (14, 0xac, 27), (27, 0xb0, 27), (25, 0x84, 27), (26, 0x88, 27), (32, 0x8c, 22), (33, 0x8c, 27)];
++        let rtc = RTC_PULLS.iter().find(|p| p.0 == pin).map_or(0, |&(_, off, rue)| (self.periph.adc.rtc_io.read(off) >> rue) & 3);
+         Some(esp_soc::GpioState::new( gpio.gpio.out & (1 << pin) != 0,
+             gpio.gpio.enable & (1 << pin) != 0,
+-            pin < 34 && mux & (1 << 8) != 0, pin < 34 && mux & (1 << 7) != 0))
++            pin < 34 && (mux & (1 << 8) != 0 || rtc & 1 != 0), pin < 34 && (mux & (1 << 7) != 0 || rtc & 2 != 0)))
+     }
+     fn gpio_set_input(&mut self, pin: u8, level: bool) {
+         self.periph.gpio.set_input(pin, level);
+diff --git a/wasm/src/lib.rs b/wasm/src/lib.rs
+index 706ab35..bb3f211 100644
+--- a/wasm/src/lib.rs
++++ b/wasm/src/lib.rs
+@@ -518,3 +518,72 @@ pub extern "C" fn esp32sim_test_gpio_waveform() -> u32 {
+     gpio_waveform_tests::run();
+     24
+ }
++
++// ---- circuit coupling (feasibility test for BlackBoard): pins, PWM, ADC and UART for a host circuit ----
++
++/// Drive a GPIO input from the host circuit: level 0 or 1; 2 releases the pin again.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_gpio_input(e: *mut Emu, pin: u32, level: u32) {
++    // SAFETY: The caller provides exclusive access to a live emulator.
++    let b = unsafe { &mut *e }.m.bus();
++    if level > 1 { b.gpio_release_input(pin as u8) } else { b.gpio_set_input(pin as u8, level == 1) }
++}
++
++/// Output latch, output enable and pulls of a GPIO: bit 0 valid, 1 output level, 2 output enable,
++/// 3 pull-up, 4 pull-down; 0 for an unavailable pin.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_gpio_state(e: *mut Emu, pin: u32) -> u32 {
++    // SAFETY: The caller provides exclusive access to a live emulator.
++    match unsafe { &mut *e }.m.bus().gpio_state(pin as u8) {
++        Some(s) => 1 | (s.output as u32) << 1 | (s.output_enable as u32) << 2 | (s.pull_up as u32) << 3 | (s.pull_down as u32) << 4,
++        None => 0,
++    }
++}
++
++/// Duty cycle 0..1 of a running PWM at a GPIO, or -1 when none is routed there.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_pwm_duty(e: *mut Emu, pin: u32) -> f64 {
++    // SAFETY: The caller provides exclusive access to a live emulator.
++    unsafe { &mut *e }.m.bus().pwm_output(pin as u8).map_or(-1.0, |(_, d)| d as f64 / 65535.0)
++}
++
++/// Frequency in Hz of a running PWM at a GPIO, or -1 when none is routed there.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_pwm_hz(e: *mut Emu, pin: u32) -> f64 {
++    // SAFETY: The caller provides exclusive access to a live emulator.
++    unsafe { &mut *e }.m.bus().pwm_output(pin as u8).map_or(-1.0, |(hz, _)| hz)
++}
++
++/// Voltage on an analog pad, held until the next call.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_analog(e: *mut Emu, pin: u32, volts: f32) {
++    // SAFETY: The caller provides exclusive access to a live emulator.
++    unsafe { &mut *e }.m.bus().analog_set(pin as u8, esp_periph::AnalogSource::Const(volts));
++}
++
++/// Bytes from the host into the receive FIFO of UART `n`.
++///
++/// # Safety
++/// `e` must point to a live emulator to which the caller has exclusive access. For nonzero `len`,
++/// `ptr` must be non-null and readable for `len` bytes throughout this call.
++#[no_mangle]
++pub unsafe extern "C" fn esp32sim_uart_in(e: *mut Emu, n: u32, ptr: *const u8, len: usize) {
++    // SAFETY: The caller provides exclusive access to a live emulator and a readable buffer.
++    let (e, data) = unsafe { (&mut *e, bytes(ptr, len)) };
++    e.m.bus().uart_input(n as usize, data);
++}

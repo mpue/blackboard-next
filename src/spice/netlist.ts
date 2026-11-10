@@ -5,7 +5,7 @@ import { computeConnectivity, pinKey } from './connectivity.ts';
 import { globalNetKey } from './labels.ts';
 import { parseEng } from '../model/ops.ts';
 import { dmmMode, earthedPinIndex, fgenSettings, fgenSource, instrumentOf, type Probes } from './instruments.ts';
-import { GND_PINS, isMcu, PIN_OHMS, PULLUP_OHMS, SUPPLY_OHMS, VCC_PIN, type Drives } from '../mcu/pinout.ts';
+import { ESP32_3V3_PIN, ESP32_5V_PIN, ESP32_GND_PINS, MODELS, mcuKind, usbPowered, type Drives, type McuKind } from '../mcu/pinout.ts';
 
 export interface NetlistResult {
   netlist: string;
@@ -23,8 +23,8 @@ export interface NetlistResult {
   supplies: { name: string; volts: number; assumed: boolean; node: string; element: string }[];
   /** emitted elements: symbol, SPICE element name and its terminals in SPICE order (symbol pin index + node) */
   elements: { symbolId: string; name: string; type: NonNullable<SymbolItem['spiceType']>; pins: { index: number; node: string }[] }[];
-  /** microcontrollers: SPICE node of every connected pin (by pin number) */
-  mcus: { symbolId: string; ref: string; nodes: Record<number, string> }[];
+  /** microcontrollers: SPICE node of every connected pin (by pin number), of their supply and ground (when powered) */
+  mcus: { symbolId: string; ref: string; kind: McuKind; nodes: Record<number, string>; vdd?: string; gnd?: string }[];
 }
 
 export type NetlistWarning = {
@@ -280,6 +280,13 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
         if (n !== undefined) groundNets.add(n);
       });
     }
+    // an ESP32 board is the reference of its circuit, like a USB powered Arduino
+    if (mcuKind(s) === 'esp32') {
+      s.pins.forEach((p, i) => {
+        const n = conn.netOfPin.get(pinKey(s.id, i));
+        if (n !== undefined && ESP32_GND_PINS.includes(p.num)) groundNets.add(n);
+      });
+    }
     // bench instruments are earthed like their real counterparts
     const earthed = earthedPinIndex(s);
     if (earthed !== undefined) {
@@ -491,45 +498,6 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [0, 1].map((index) => ({ index, node: node(s, index) })) });
   }
 
-  // microcontrollers draw their supply current; while the firmware runs, the pins drive the circuit
-  for (const s of symbols) {
-    if (!isMcu(s)) continue;
-    // pins with something attached (every pin has a net of its own, even an open one)
-    const nodes: Record<number, string> = {};
-    s.pins.forEach((p, i) => {
-      const n = conn.netOfPin.get(pinKey(s.id, i));
-      if (n !== undefined && (conn.nets[n].pins.length > 1 || conn.nets[n].wires.length > 0)) nodes[p.num] = node(s, i);
-    });
-    res.mcus.push({ symbolId: s.id, ref: s.name, nodes });
-    const gndPin = GND_PINS.find((n) => nodes[n] !== undefined);
-    if (nodes[VCC_PIN] === undefined || gndPin === undefined) continue;
-    const resistor = (suffix: string, a: number, b: number, ohms: number) => {
-      const name = elementName({ ...s, name: `${s.name}_${suffix}` }, 'R', used);
-      lines.push(`${name} ${nodes[a]} ${nodes[b]} ${ohms}`);
-      res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: [a, b].map((num) => ({ index: byNum(s, num), node: nodes[num] })) });
-    };
-    resistor('VCC', VCC_PIN, gndPin, SUPPLY_OHMS);
-    // both GND pins are connected inside the chip
-    for (const g of GND_PINS) if (g !== gndPin && nodes[g] !== undefined && nodes[g] !== nodes[gndPin]) resistor(`GND${g}`, g, gndPin, 0.01);
-    for (const [key, d] of Object.entries(opts.mcu?.get(s.id) ?? {})) {
-      const num = Number(key);
-      if (nodes[num] === undefined || d === 'Z') continue;
-      // the state is in the name, so averaged operating points (PWM) keep high and low apart
-      if (d === 'H') resistor(`P${num}H`, num, VCC_PIN, PIN_OHMS);
-      else if (d === 'L') resistor(`P${num}L`, num, gndPin, PIN_OHMS);
-      else if (d === 'PU') resistor(`P${num}U`, num, VCC_PIN, PULLUP_OHMS);
-      else {
-        // PWM switches faster than the circuit is recalculated: its average, duty x VCC behind the pin driver
-        const e = elementName({ ...s, name: `${s.name}_P${num}` }, 'E', used);
-        const r = elementName({ ...s, name: `${s.name}_P${num}` }, 'R', used);
-        const mid = String(next++);
-        lines.push(`${e} ${mid} ${nodes[gndPin]} ${nodes[VCC_PIN]} ${nodes[gndPin]} ${d}`);
-        lines.push(`${r} ${nodes[num]} ${mid} ${PIN_OHMS}`);
-        res.elements.push({ symbolId: s.id, name: r, type: 'RESISTOR', pins: [{ index: byNum(s, num), node: nodes[num] }] });
-      }
-    }
-  }
-
   // supply symbols drive their rail like a lab supply, unless a real source already does
   const driven = new Set(res.elements.filter((e) => e.type === 'VOLTAGE_SOURCE').flatMap((e) => e.pins.map((p) => p.node)));
   const rails = new Map<string, SymbolItem>();
@@ -548,6 +516,78 @@ export function buildNetlist(doc: Doc, title: string, library: SpiceModel[] = []
     lines.push(`${name} ${n} 0 DC ${volts}`);
     driven.add(n);
     res.supplies.push({ name: s.name, volts, assumed: parsed === undefined, node: n, element: name });
+  }
+
+  // microcontrollers draw their supply current; while the firmware runs, the pins drive the circuit
+  for (const s of symbols) {
+    const kind = mcuKind(s);
+    if (!kind) continue;
+    const model = MODELS[kind];
+    // pins with something attached (every pin has a net of its own, even an open one)
+    const nodes: Record<number, string> = {};
+    s.pins.forEach((p, i) => {
+      const n = conn.netOfPin.get(pinKey(s.id, i));
+      if (n !== undefined && (conn.nets[n].pins.length > 1 || conn.nets[n].wires.length > 0)) nodes[p.num] = node(s, i);
+    });
+    // a resistor from a (a pin of the symbol, if `pins[0]` is one) to b; only real pins are reported to the live values
+    const resistor = (suffix: string, a: string, b: string, ohms: number, pins: (number | undefined)[]) => {
+      const name = elementName({ ...s, name: `${s.name}_${suffix}` }, 'R', used);
+      lines.push(`${name} ${a} ${b} ${ohms}`);
+      const known = pins.filter((num): num is number => num !== undefined && nodes[num] !== undefined);
+      if (known.length) res.elements.push({ symbolId: s.id, name, type: 'RESISTOR', pins: known.map((num) => ({ index: byNum(s, num), node: nodes[num] })) });
+    };
+    let vdd: string | undefined;
+    let gnd: string | undefined;
+    let gndPin: number | undefined;
+    if (kind === 'esp32') {
+      // the board: GND is the reference; 3V3 comes from its regulator, fed over USB or from the 5V pin
+      gnd = '0';
+      vdd = nodes[ESP32_3V3_PIN] ?? String(next++);
+      const v5 = nodes[ESP32_5V_PIN];
+      const source = (suffix: string, prefix: 'V' | 'B', spec: string, out: string, ohms: number, pin: number) => {
+        const mid = String(next++);
+        lines.push(`${elementName({ ...s, name: `${s.name}_${suffix}` }, prefix, used)} ${mid} 0 ${spec}`);
+        resistor(suffix, out, mid, ohms, [pin]);
+        driven.add(out);
+      };
+      if (usbPowered(s)) {
+        if (!driven.has(vdd)) source('REG', 'V', 'DC 3.3', vdd, 0.5, ESP32_3V3_PIN);
+        if (v5 !== undefined && !driven.has(v5)) source('USB', 'V', 'DC 5', v5, 0.2, ESP32_5V_PIN);
+      } else if (v5 !== undefined && !driven.has(vdd)) {
+        // AMS1117-3.3 style regulator: 3.3 V once the input is above about 4.4 V; its quiescent
+        // current (about 5 mA) loads the input, which also keeps an open 5V pin in the matrix
+        source('LDO', 'B', `V=max(0,min(3.3,V(${v5})-1.1))`, vdd, 0.5, ESP32_3V3_PIN);
+        resistor('LDOIN', v5, '0', 1000, [ESP32_5V_PIN]);
+      }
+      resistor('VDD', vdd, '0', model.supplyOhms, [ESP32_3V3_PIN]);
+    } else {
+      gndPin = model.gndPins.find((n) => nodes[n] !== undefined);
+      if (nodes[model.vddPin] !== undefined && gndPin !== undefined) {
+        vdd = nodes[model.vddPin];
+        gnd = nodes[gndPin];
+        resistor('VCC', vdd, gnd, model.supplyOhms, [model.vddPin, gndPin]);
+        // both GND pins are connected inside the chip
+        for (const g of model.gndPins) if (g !== gndPin && nodes[g] !== undefined && nodes[g] !== gnd) resistor(`GND${g}`, nodes[g], gnd, 0.01, [g, gndPin]);
+      }
+    }
+    res.mcus.push({ symbolId: s.id, ref: s.name, kind, nodes, vdd, gnd });
+    if (vdd === undefined || gnd === undefined) continue;
+    for (const [key, d] of Object.entries(opts.mcu?.get(s.id) ?? {})) {
+      const num = Number(key);
+      const at = nodes[num];
+      if (at === undefined || d === 'Z') continue;
+      // the state is in the name, so averaged operating points (PWM) keep high and low apart
+      if (d === 'H') resistor(`P${num}H`, at, vdd, model.pinOhms, [num, model.vddPin]);
+      else if (d === 'L') resistor(`P${num}L`, at, gnd, model.pinOhms, [num, gndPin]);
+      else if (d === 'PU') resistor(`P${num}U`, at, vdd, model.pullupOhms, [num, model.vddPin]);
+      else if (d === 'PD') resistor(`P${num}D`, at, gnd, model.pulldownOhms, [num, gndPin]);
+      else {
+        // PWM switches faster than the circuit is recalculated: its average, duty x VDD behind the pin driver
+        const mid = String(next++);
+        lines.push(`${elementName({ ...s, name: `${s.name}_P${num}` }, 'E', used)} ${mid} ${gnd} ${vdd} ${gnd} ${d}`);
+        resistor(`P${num}`, at, mid, model.pinOhms, [num]);
+      }
+    }
   }
 
   // probes: oscilloscopes and voltmeters only read nodes, ammeters are 0 V sources in series

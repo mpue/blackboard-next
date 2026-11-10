@@ -9,7 +9,7 @@ import { LABEL_DEFS } from '../spice/labels.ts';
 import { INSTRUMENT_DEFS } from '../spice/instruments.ts';
 import { showItem } from '../editor/showItem.ts';
 import { setLiveMode, setLiveValues, useLive } from '../store/live.ts';
-import { loadExample } from '../mcu/firmwareActions.ts';
+import { loadEsp32Example, loadExample } from '../mcu/firmwareActions.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { cx } from './primitives.tsx';
 
@@ -72,7 +72,9 @@ function IssueRow({ issue, symbols }: { issue: SimIssue; symbols: SymbolDef[] })
       ? t(`sim.w.${issue.detail ?? 'pins2'}` as I18nKey, { name: issue.ref ?? '' })
       : issue.kind === 'notSimulated' && issue.guess
         ? t('check.notSimulatedGuess', { ref: issue.ref ?? '', type: typeName })
-        : t(`check.${issue.kind}` as I18nKey, { ref: issue.ref ?? '', value: issue.value ?? '', volts: issue.volts ?? '' });
+        : issue.kind === 'mcuPower' && issue.detail === 'esp32'
+          ? t('check.mcuPowerEsp32', { ref: issue.ref ?? '' })
+          : t(`check.${issue.kind}` as I18nKey, { ref: issue.ref ?? '', value: issue.value ?? '', volts: issue.volts ?? '' });
   const gnd = issue.kind === 'noGround' ? groundDef(symbols) : undefined;
   return (
     <li className="flex gap-2 py-1.5">
@@ -103,7 +105,7 @@ function IssueRow({ issue, symbols }: { issue: SimIssue; symbols: SymbolDef[] })
             </>
           )}
           {issue.kind === 'mcuFirmware' && issue.id && (
-            <FixButton icon={Cpu} onClick={() => void loadExample(issue.id!, 'blink')}>
+            <FixButton icon={Cpu} onClick={() => (issue.detail === 'esp32' ? loadEsp32Example(issue.id!, 'blink') : void loadExample(issue.id!, 'blink'))}>
               {t('fix.mcuExample')}
             </FixButton>
           )}
