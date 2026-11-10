@@ -6,9 +6,9 @@ import { memo, useEffect, useMemo, useState, type PointerEvent as RPointerEvent 
 import type { Doc, LineItem, SymbolItem } from '../model/types.ts';
 import { computeConnectivity } from '../spice/connectivity.ts';
 import { isPot, potPosition, switchClosed, switchOf, switchThrow } from '../spice/netlist.ts';
-import { useLive, type LiveSeries } from '../store/live.ts';
+import { useLive, useLiveHover, type LiveSeries } from '../store/live.ts';
 import { liveValues, type LiveValues } from '../spice/live.ts';
-import type { Connectivity } from '../spice/connectivity.ts';
+import { pinKey, type Connectivity } from '../spice/connectivity.ts';
 import { beginGesture, endGesture, gestureUpdate } from '../store/store.ts';
 import { itemBounds, symbolToWorld, type Pt } from '../geometry/geom.ts';
 import { formatEng, partLookup } from '../model/ops.ts';
@@ -133,25 +133,75 @@ function usePlayback(series: LiveSeries | null, conn: Connectivity): { values: L
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [series]);
-  // scales over the whole run, so colours and speeds do not jump between frames
+  const at = (i: number) => new Map([...series!.vectors].map(([k, v]) => [k, v[i]]));
+  // scales over the whole run (sampled), so colours and speeds do not jump
+  // between frames; only the visible nets count, not model internal nodes
   const scale = useMemo(() => {
     if (!series) return { maxAbs: 0, maxI: 0 };
     let maxAbs = 0;
-    for (const [name, v] of series.vectors) if (name.startsWith('v(')) for (const x of v) maxAbs = Math.max(maxAbs, Math.abs(x));
     let maxI = 0;
-    for (const [name, v] of series.vectors) if (name.startsWith('i(')) for (const x of v) maxI = Math.max(maxI, Math.abs(x));
+    const n = series.time.length;
+    for (let k = 0; k < Math.min(n, 60); k++) {
+      const v = liveValues(series.doc, series.nl, at(Math.floor((k * (n - 1)) / Math.max(1, Math.min(n, 60) - 1))), conn);
+      maxAbs = Math.max(maxAbs, Math.abs(v.minV), Math.abs(v.maxV));
+      maxI = Math.max(maxI, v.maxI);
+    }
     return { maxAbs, maxI };
-  }, [series]);
+  }, [series, conn]); // eslint-disable-line react-hooks/exhaustive-deps
   const phase = step / PLAYBACK_STEPS;
   const t = series ? series.time[0] + phase * (series.time[series.time.length - 1] - series.time[0]) : 0;
   const values = useMemo(() => {
     if (!series) return null;
     let i = 0;
     while (i < series.time.length - 1 && series.time[i + 1] <= t) i++;
-    const vectors = new Map([...series.vectors].map(([k, v]) => [k, v[i]]));
-    return liveValues(series.doc, series.nl, vectors, conn);
-  }, [series, t, conn]);
+    return liveValues(series.doc, series.nl, at(i), conn);
+  }, [series, t, conn]); // eslint-disable-line react-hooks/exhaustive-deps
   return { values, t, phase, ...scale };
+}
+
+/** Measurement tooltip: voltage of a wire, or U, I and P of a component. */
+function Probe({ doc, values, conn, z }: { doc: Doc; values: LiveValues; conn: Connectivity; z: number }) {
+  const { itemId, at } = useLiveHover();
+  const it = itemId ? doc.items.find((i) => i.id === itemId) : undefined;
+  if (!it || !at) return null;
+  const rows: string[] = [];
+  if (it.kind === 'line') {
+    const n = conn.netOfWire.get(it.id);
+    const v = n === undefined ? undefined : values.netVoltage.get(n);
+    if (v === undefined) return null;
+    rows.push(`U = ${formatEng(v, 'V')}`);
+  } else if (it.kind === 'symbol') {
+    const nets = it.pins.map((_, i) => conn.netOfPin.get(pinKey(it.id, i)));
+    const volts = nets.map((n) => (n === undefined ? undefined : values.netVoltage.get(n)));
+    const i = values.deviceCurrent.get(it.id);
+    if (it.pins.length === 2 && volts[0] !== undefined && volts[1] !== undefined) {
+      const u = volts[0] - volts[1];
+      rows.push(`U = ${formatEng(Math.abs(u), 'V')}`);
+      if (i !== undefined) {
+        rows.push(`I = ${formatEng(Math.abs(i), 'A')}`);
+        rows.push(`P = ${formatEng(Math.abs(u * i), 'W')}`);
+      }
+    } else {
+      it.pins.forEach((p, k) => {
+        if (volts[k] !== undefined) rows.push(`${p.name || p.num}: ${formatEng(volts[k]!, 'V')}`);
+      });
+      if (i !== undefined) rows.push(`I = ${formatEng(Math.abs(i), 'A')}`);
+    }
+    if (!rows.length) return null;
+    rows.unshift(it.name);
+  } else return null;
+  const s = 1 / Math.max(z, 0.25);
+  const w = Math.max(...rows.map((r) => r.length)) * 6.4 + 16;
+  return (
+    <g pointerEvents="none" transform={`translate(${at.x + 14 * s} ${at.y + 14 * s}) scale(${s})`}>
+      <rect width={w} height={rows.length * 15 + 8} rx={6} fill="#0f172a" fillOpacity={0.92} stroke="#facc15" strokeOpacity={0.6} />
+      {rows.map((r, k) => (
+        <text key={k} x={8} y={17 + k * 15} fontSize={11} fill={k === 0 && it.kind === 'symbol' ? '#ffffff' : '#fde047'} fontWeight={k === 0 ? 700 : 500} fontFamily={LABEL_FONT}>
+          {r}
+        </text>
+      ))}
+    </g>
+  );
 }
 
 export const LiveOverlay = memo(function LiveOverlay({ doc, docId, z, showLabels }: { doc: Doc; docId: string; z: number; showLabels: boolean }) {
@@ -250,6 +300,7 @@ export const LiveOverlay = memo(function LiveOverlay({ doc, docId, z, showLabels
       {symbols.filter(isPot).map((s) => (
         <PotSlider key={s.id} s={s} z={z} />
       ))}
+      <Probe doc={series ? series.doc : doc} values={values} conn={series ? seriesConn : conn} z={z} />
       {series && (
         <g pointerEvents="none" transform={`translate(16 ${-10 - 18 / z}) scale(${1 / Math.max(z, 0.25)})`}>
           <rect x={0} y={0} width={150} height={18} rx={9} fill="#0f172a" fillOpacity={0.85} />

@@ -54,7 +54,7 @@ import { useZoneFills } from './zoneFills.ts';
 import { useDrc } from '../ui/drcState.ts';
 import { usePcbStats } from '../ui/PcbStatus.tsx';
 import { LiveOverlay } from './LiveOverlay.tsx';
-import { useLive } from '../store/live.ts';
+import { useLive, useLiveHover } from '../store/live.ts';
 import { switchOf } from '../spice/netlist.ts';
 import { netAt as pcbNetAt } from '../pcb/connectivity.ts';
 
@@ -635,6 +635,11 @@ export function Canvas() {
     const raw = toWorld(e.clientX, e.clientY);
     const p = snapPt(raw);
     useCursor.setState({ x: raw.x, y: raw.y, inside: true });
+    if (useLive.getState().on && !drag.current && d.doc.type !== 'PCB') {
+      const hover = hitTest(d, raw);
+      const cur = useLiveHover.getState();
+      if (hover?.id !== cur.itemId || hover) useLiveHover.setState({ itemId: hover?.id, at: hover ? raw : undefined });
+    }
     const s = useStore.getState();
     const g = drag.current;
 

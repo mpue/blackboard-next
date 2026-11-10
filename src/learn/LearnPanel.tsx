@@ -227,7 +227,10 @@ export function LearnPanel() {
   const lessonId = useLearn((s) => s.lessonId);
   const lesson = LESSONS.find((l) => l.id === lessonId);
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-panel" aria-label={t('learn.title')}>
+    <aside
+      className="flex w-80 shrink-0 flex-col border-l border-line bg-panel max-md:absolute max-md:inset-y-11 max-md:right-0 max-md:z-30 max-md:w-full max-md:shadow-2xl"
+      aria-label={t('learn.title')}
+    >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
         <GraduationCap size={16} className="text-accent" />
         <h2 className="flex-1 text-[12.5px] font-semibold">{t('learn.title')}</h2>

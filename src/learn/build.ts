@@ -110,8 +110,9 @@ export class CircuitBuilder {
   doc(margin = 96): Doc {
     let r: Rect | undefined;
     for (const it of this.items) r = unionRect(r, itemBounds(it, () => undefined));
-    const w = Math.max(640, Math.ceil(((r ? r.x + r.w : 0) + margin) / RASTER) * RASTER);
-    const h = Math.max(480, Math.ceil(((r ? r.y + r.h : 0) + margin) / RASTER) * RASTER);
+    // tight around the circuit, so "fit" shows it large
+    const w = Math.max(320, Math.ceil(((r ? r.x + r.w : 0) + margin) / RASTER) * RASTER);
+    const h = Math.max(240, Math.ceil(((r ? r.y + r.h : 0) + margin) / RASTER) * RASTER);
     return { width: w, height: h, type: 'SCHEMATICS', layers: this.layers, items: this.items, parts: {} };
   }
 }

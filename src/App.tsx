@@ -37,6 +37,46 @@ async function loadLibrary() {
   }
 }
 
+/**
+ * Direct links: ?lesson=<id> starts a lesson, ?demo=pcb|bench opens a demo,
+ * ?sample=schematics/<file>.bb opens a sample, ?view=3d|realistic|live|slowmo
+ * adds a view (e.g. ?demo=pcb&view=3d).
+ */
+let deepLinkOpened = false;
+
+async function openDeepLink() {
+  // effects run twice in development (StrictMode): open the link once
+  if (deepLinkOpened) return;
+  deepLinkOpened = true;
+  const q = new URLSearchParams(location.search);
+  const lesson = q.get('lesson');
+  const demo = q.get('demo');
+  const view = q.get('view');
+  const sample = q.get('sample');
+  if (lesson) {
+    const [{ LESSONS }, { startLesson }] = await Promise.all([import('./learn/lessons/index.ts'), import('./learn/state.ts')]);
+    const l = LESSONS.find((x) => x.id === lesson);
+    if (l) startLesson(l);
+  } else if (demo === 'pcb') {
+    const { openPcbDemo } = await import('./editor/pcbActions.ts');
+    await openPcbDemo();
+  } else if (demo === 'bench') {
+    const { openBenchDemo } = await import('./ui/Dialogs.tsx');
+    openBenchDemo();
+  } else if (sample && /^(boards|schematics)\/[\w.-]+\.bb$/.test(sample)) {
+    const { openSample } = await import('./editor/fileActions.ts');
+    const [group, file] = sample.split('/');
+    await openSample(group, file);
+  }
+  if (view === 'realistic') updateSettings({ pcbRealistic: true });
+  if (view === '3d') (await import('./ui/Board3DHost.tsx')).setView3d(true);
+  if (view === 'live' || view === 'slowmo') {
+    const live = await import('./store/live.ts');
+    if (view === 'slowmo') live.setLiveMode('tran');
+    live.setLiveValues(true);
+  }
+}
+
 async function restoreSession() {
   const s = await loadSession();
   if (!s?.docs.length || useStore.getState().docs.length) return;
@@ -119,7 +159,7 @@ export function App() {
 
   useEffect(() => {
     if (window.innerWidth < 900) updateSettings({ leftPanel: false, rightPanel: false });
-    void loadLibrary().then(restoreSession);
+    void loadLibrary().then(restoreSession).then(openDeepLink);
     const off = () => toast('Offline', 'info');
     window.addEventListener('offline', off);
     return () => window.removeEventListener('offline', off);

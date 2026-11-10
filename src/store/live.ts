@@ -106,3 +106,6 @@ export function installLiveUpdates(): () => void {
     if (cur && (cur.doc !== before?.doc || s.active !== prev.active)) scheduleLive();
   });
 }
+
+/** Item under the mouse while live values are shown (for the measurement tooltip). */
+export const useLiveHover = create<{ itemId?: string; at?: { x: number; y: number } }>()(() => ({}));
