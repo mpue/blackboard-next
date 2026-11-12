@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Monitor, Moon, Sun, Languages, Activity } from 'lucide-react';
 import { AccountButton } from './AccountButton.tsx';
+import { AssistantButton } from '../assistant/AssistantButton.tsx';
 import { commands, runCommand, type Command } from '../editor/commands.ts';
 import { useStore, updateSettings, activeDoc } from '../store/store.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
@@ -55,7 +56,7 @@ function useMenus(): { title: I18nKey; items: MenuEntry[] }[] {
       title: 'menu.pcb',
       items: [c.annotate, c.createPcb, c.updatePcb, 'sep', c.track, c.via, c.zone, c.outline, c.resetOutline, c.fitBoard, c.mountingHoles, c.autoroute, c.selectConnected, c.unrouteNet, c.unrouteAll, 'sep', c.newFootprint, c.editFootprint, c.importKicadFootprints, c.exportKicadFootprints, 'sep', c.drc, c.pcbRules, 'sep', c.realistic, c.view3d, c.ratsnest, 'sep', c.exportGerber, c.exportEtching],
     },
-    { title: 'menu.tools', items: [c.select, c.pan, c.wire, c.resistor, c.diode, c.box, c.ellipse, c.text, c.measure, c.check, 'sep', c.track, c.via, c.zone, 'sep', c.scaleDesigner, c.newPart] },
+    { title: 'menu.tools', items: [c.select, c.pan, c.wire, c.resistor, c.diode, c.box, c.ellipse, c.text, c.measure, c.check, 'sep', c.track, c.via, c.zone, 'sep', c.scaleDesigner, c.newPart, 'sep', c.assistant] },
     { title: 'menu.help', items: [c.learn, 'sep', c.shortcuts, c.about] },
   ];
 }
@@ -192,6 +193,7 @@ export function TopBar() {
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <AccountButton />
+        <AssistantButton />
         <IconButton icon={commands.learn.icon!} label={`${t('learn.title')} (F1)`} active={learnOpen} onClick={() => runCommand(commands.learn)} />
         <IconButton icon={Languages} className="max-sm:hidden" label={t('view.language')} onClick={() => updateSettings({ lang: lang === 'de' ? 'en' : 'de' })} />
         <IconButton icon={ThemeIcon} className="max-sm:hidden" label={`${t('view.theme')}: ${t(`view.theme.${theme}`)}`} onClick={() => updateSettings({ theme: nextTheme })} />

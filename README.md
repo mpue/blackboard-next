@@ -172,6 +172,19 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   missing ground, parts without footprint
 - Designators and values always readable, whatever the rotation
 
+### Claude as design assistant
+
+- **Claude** (F2, the button in the top bar): describe a circuit or ask about the open
+  one, and Claude designs, builds and checks it right in the schematic. It searches the
+  part library, places parts, wires them (routes that would touch another net are
+  refused, so it never shorts anything), sets GND/supply/net labels, changes values,
+  deletes, and runs the DC operating point or a transient analysis in ngspice to check
+  currents and voltages before it answers. Its progress notes and every step show in the
+  panel; all changes of one answer undo with one click (one undo step)
+- Needs an account with Professional or Individual Commercial and the user's own
+  Anthropic API key (entered in the panel or the account dialog). Claude Opus 5.5 by
+  default, Claude Sonnet 5.5 as the faster choice per conversation
+
 ### Learning
 
 - **Learn electronics** (F1): 16 interactive lessons from the first circuit, Ohm's law
@@ -234,6 +247,19 @@ mails (confirmation, password reset, shares) are written to the log.
 The landing page and the editor share one `index.html`: `./` shows the landing page,
 `./?app` (and every direct link below) the editor; the desktop app always opens the
 editor.
+
+### Claude (server/assistant.ts)
+
+The key is checked at Anthropic when it is stored, kept encrypted (AES-256-GCM, key
+derived from the session secret; a new `AUTH_SECRET` means re-entering it) and never
+returned, only its last four characters. `POST /api/assistant/messages` takes the
+conversation the editor keeps, adds key, model, system prompt and tool definitions
+(`server/assistantTools.ts`) and streams the answer back as JSON lines; the editor runs
+the tools on the open schematic (`src/assistant/`) and sends their results back. The
+server stores no conversation, only allows plans with the compiler, and at most
+`MAX_ASSISTANT_REQUESTS` requests per account in ten minutes. Adaptive thinking with
+progress notes, effort `medium`, prompt caching and Anthropic's server-side fallback on
+policy declines (`fallbacks: "default"`).
 
 ### Compiler (compiler/)
 
@@ -299,10 +325,12 @@ only for the password and restarts the API. The live instance runs at https://pu
 
 ### Plans
 
-- **Free / Edu**: every feature, without an account, except the online compiler
-- **Professional**: the online compiler with a daily limit (60). Free of charge with an
-  account until the day before `proFreeUntil` (1 February 2027), then 6 € per month
-- **Individual Commercial**: commercial use, the compiler without a daily limit, 29 € per month
+- **Free / Edu**: every feature, without an account, except the online compiler and Claude
+- **Professional**: the online compiler with a daily limit (60) and Claude with the user's
+  own Anthropic API key. Free of charge with an account until the day before
+  `proFreeUntil` (1 February 2027), then 6 € per month
+- **Individual Commercial**: commercial use, the compiler without a daily limit, Claude,
+  29 € per month
 
 New accounts get Professional. Prices, the end of the free start, the daily limit and the
 Stripe payment links are settings of the admin page (stored in the database, served with
@@ -353,7 +381,7 @@ npm run tauri build   # installers in src-tauri/target/release/bundle/
 library/                   the classic BlackBoard library: parts, symbols, models (XML), samples
 scripts/build-library.ts   library/ -> public/library/*.json, public/samples/
 server/                    accounts, plans, cloud projects, newsletter, admin API (Node, Better
-                           Auth, SQLite), /api/compile
+                           Auth, SQLite), /api/compile, /api/assistant (Claude)
 compiler/                  C/C++ -> Intel HEX for the ATmega328P (arduino-cli, own container)
 src/landing/               landing page, sign-in dialogs, plans, newsletter, legal pages
 src/admin/                 admin page (?admin): accounts, newsletter, plan settings
@@ -372,6 +400,8 @@ src/pcb/                   PCB: footprints, copper geometry, connectivity, ratsn
                            zones, schematic -> PCB, autorouter, fabrication outputs (fab/)
 src/pcb3d/                 3D board viewer (three.js, loaded on demand)
 src/learn/                 lessons, checks, component guide
+src/assistant/             Claude: panel, conversation loop, tools on the schematic (place,
+                           wire, label, simulate)
 src/store/                 zustand store with immer-based undo history
 src/ui/                    panels, menus, dialogs, simulation panel (uPlot)
 src/platform/              file access (Tauri / File System Access API / download), IndexedDB

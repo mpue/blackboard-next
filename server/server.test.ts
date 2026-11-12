@@ -11,14 +11,16 @@ import type { AddressInfo } from 'node:net';
 import { loadConfig } from './config.ts';
 import { createServer } from './main.ts';
 import type { Mail } from './mail.ts';
+import Anthropic from '@anthropic-ai/sdk';
+import type { ClaudeFactory } from './assistant.ts';
 
 const ORIGIN = 'http://localhost:5173';
 const P = '/blackboard';
 
-async function setup(env: Record<string, string> = {}) {
+async function setup(env: Record<string, string> = {}, claude?: ClaudeFactory) {
   const config = loadConfig({ DATA_DIR: mkdtempSync(join(tmpdir(), 'bb-')), ORIGIN, PUBLIC_PATH: P, MAX_PROJECT_MB: '1', ...env });
   const mails: Mail[] = [];
-  const server = await createServer(config, { file: ':memory:', mailer: async (m) => void mails.push(m) });
+  const server = await createServer(config, { file: ':memory:', mailer: async (m) => void mails.push(m), claude });
   const { app } = server;
   const call = async (path: string, init: RequestInit & { cookie?: string; json?: unknown } = {}) => {
     const headers = new Headers(init.headers);
@@ -220,6 +222,124 @@ test('compile: only with an account and a plan that has it, counted per day, the
   const { call, user } = await setup({ COMPILER_URL: fake.url });
   const bob = await user('Bob', 'bob@example.com');
   assert.equal((await call(`${P}/api/compile`, { method: 'POST', cookie: bob, headers: { 'content-type': 'application/json' }, body: '{}' })).status, 503);
+});
+
+const GOOD_KEY = `sk-ant-api03-${'a'.repeat(40)}Wxyz`;
+
+/** an Anthropic API stand-in: knows one key and answers every message with a text and a tool call */
+async function fakeAnthropic() {
+  const requests: { key: string; beta: string; body: Record<string, unknown> }[] = [];
+  const sse = (events: object[]) => events.map((e) => `event: ${(e as { type: string }).type}\ndata: ${JSON.stringify(e)}\n\n`).join('');
+  const fake = createHttpServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      const key = String(req.headers['x-api-key'] ?? /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1] ?? '');
+      if (key !== GOOD_KEY) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }));
+        return;
+      }
+      if (req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ id: 'claude-opus-5-5', type: 'model', display_name: 'Claude Opus 5.5', created_at: '2026-10-01T00:00:00Z' }));
+        return;
+      }
+      requests.push({ key, beta: String(req.headers['anthropic-beta'] ?? ''), body: JSON.parse(body) });
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end(
+        sse([
+          { type: 'message_start', message: { id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 12, output_tokens: 1 } } },
+          { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+          { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Ich lese ' } },
+          { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'die Schaltung.' } },
+          { type: 'content_block_stop', index: 0 },
+          { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'toolu_1', name: 'get_circuit', input: {} } },
+          { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{}' } },
+          { type: 'content_block_stop', index: 1 },
+          { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 20 } },
+          { type: 'message_stop' },
+        ]),
+      );
+    });
+  });
+  await new Promise<void>((r) => fake.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${(fake.address() as AddressInfo).port}`;
+  const claude: ClaudeFactory = (apiKey) => new Anthropic({ apiKey, baseURL: url, maxRetries: 0 });
+  return { claude, requests, close: () => fake.close() };
+}
+
+test('assistant: Professional and up keep their own API key, encrypted, and talk to Claude through the server', async () => {
+  const fake = await fakeAnthropic();
+  try {
+    const { call, user, server } = await setup({}, fake.claude);
+    const A = `${P}/api/assistant`;
+    assert.equal((await call(A)).status, 401);
+    const ada = await user('Ada', 'ada@example.com');
+    server.plans.saveSettings({ ...server.plans.settings(), proFreeUntil: '2999-01-01' });
+    const state = (await (await call(A, { cookie: ada })).json()) as { access: { ok: boolean }; key: null; models: string[] };
+    assert.deepEqual(state, { access: { ok: true }, key: null, models: ['opus', 'sonnet'] });
+
+    // no key yet
+    const chat = (cookie: string, messages: unknown = [{ role: 'user', content: 'Hallo' }]) => call(`${A}/messages`, { method: 'POST', cookie, json: { model: 'opus', messages } });
+    assert.equal(((await (await chat(ada)).json()) as { error: string }).error, 'nokey');
+
+    // keys are checked: the format, then at Anthropic
+    const put = (key: string) => call(`${A}/key`, { method: 'PUT', cookie: ada, json: { key } });
+    assert.equal((await put('hello')).status, 400);
+    assert.equal((await put(`sk-ant-admin01-${'a'.repeat(40)}`)).status, 400);
+    const wrong = await put(`sk-ant-api03-${'b'.repeat(44)}`);
+    assert.equal(wrong.status, 422);
+    assert.equal(((await wrong.json()) as { error: string }).error, 'invalid');
+    const saved = await put(GOOD_KEY);
+    assert.equal(saved.status, 200);
+    assert.equal(((await saved.json()) as { key: { hint: string } }).key.hint, 'sk-ant-…Wxyz');
+    // stored encrypted, shown only by its end
+    const row = server.db.prepare('select cipher from assistantKey').get() as { cipher: string };
+    assert.ok(!row.cipher.includes(GOOD_KEY.slice(7)));
+    assert.equal(JSON.stringify(await (await call(A, { cookie: ada })).json()).includes(GOOD_KEY), false);
+
+    // the conversation: the server adds key, model, prompt and tools and streams the answer as JSON lines
+    assert.equal((await chat(ada, [{ role: 'assistant', content: 'x' }])).status, 400);
+    assert.equal((await chat(ada, [{ role: 'system', content: 'x' }])).status, 400);
+    const r = await chat(ada);
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get('content-type')!, /ndjson/);
+    const lines = (await r.text()).trim().split('\n').map((l) => JSON.parse(l) as { t: string; d?: string; name?: string; stop?: string; message?: { content: { type: string }[] }; usage?: { input: number } });
+    assert.equal(lines.filter((l) => l.t === 'text').map((l) => l.d).join(''), 'Ich lese die Schaltung.');
+    assert.deepEqual(lines.find((l) => l.t === 'tool'), { t: 'tool', name: 'get_circuit' });
+    const done = lines.find((l) => l.t === 'done')!;
+    assert.equal(done.stop, 'tool_use');
+    assert.deepEqual(done.message!.content.map((b) => b.type), ['text', 'tool_use']);
+    assert.equal(done.usage!.input, 12);
+    const sent = fake.requests[0];
+    assert.equal(sent.key, GOOD_KEY);
+    assert.equal(sent.body.model, 'claude-opus-5-5');
+    assert.equal(sent.body.fallbacks, 'default');
+    assert.match(sent.beta, /server-side-fallback-2026-07-01/);
+    assert.match(String(sent.body.system), /circuit design assistant/);
+    assert.ok((sent.body.tools as { name: string }[]).some((t) => t.name === 'place_part'));
+    assert.ok((await call(A, { cookie: ada }).then((x) => x.json()) as { key: { lastUsedAt: number } }).key.lastUsedAt > 0);
+
+    // only for Professional and up
+    const id = ((await (await call(`${P}/api/auth/get-session`, { cookie: ada })).json()) as { user: { id: string } }).user.id;
+    server.plans.setPlan(id, { plan: 'free', paidUntil: null, note: '' });
+    assert.equal((await chat(ada)).status, 403);
+    assert.equal((await put(GOOD_KEY)).status, 403);
+    server.plans.setPlan(id, { plan: 'commercial', paidUntil: null, note: '' });
+    assert.equal((await chat(ada)).status, 200);
+    // other sites may not use the session
+    assert.equal((await call(`${A}/messages`, { method: 'POST', cookie: ada, headers: { origin: 'https://evil.example' }, json: { messages: [] } })).status, 403);
+
+    // removing the key, and deleting the account takes it along
+    assert.equal((await call(`${A}/key`, { method: 'DELETE', cookie: ada })).status, 200);
+    assert.equal(((await (await call(A, { cookie: ada })).json()) as { key: null }).key, null);
+    await put(GOOD_KEY);
+    await call(`${P}/api/auth/delete-user`, { method: 'POST', cookie: ada, json: { password: 'geheim-123' } });
+    assert.equal(server.keys.info(id), undefined);
+  } finally {
+    fake.close();
+  }
 });
 
 test('admin: only admins, accounts with plan, blocking and deleting, the plan settings', async () => {

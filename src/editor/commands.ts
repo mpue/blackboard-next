@@ -28,6 +28,7 @@ import {
   Ruler,
   Save,
   Scissors,
+  Sparkles,
   Spline,
   Square,
   Trash2,
@@ -112,6 +113,7 @@ import { runAutorouter } from './autorouteAction.ts';
 import { setView3d, useView3d } from '../ui/Board3DHost.tsx';
 import { setLiveMode, setLiveValues, useLive } from '../store/live.ts';
 import { setLearnOpen, useLearn } from '../learn/state.ts';
+import { setAssistantOpen, useAssistant } from '../assistant/state.ts';
 
 export interface Command {
   id: string;
@@ -307,6 +309,7 @@ export const commands = {
     checked: () => useLive.getState().on && useLive.getState().mode === 'tran',
   },
   learn: { id: 'learn', label: 'learn.open', icon: GraduationCap, shortcut: 'F1', run: () => setLearnOpen(!useLearn.getState().open), checked: () => useLearn.getState().open },
+  assistant: { id: 'assistant', label: 'ai.open', icon: Sparkles, shortcut: 'F2', run: () => setAssistantOpen(!useAssistant.getState().open), checked: () => useAssistant.getState().open },
   shortcuts: { id: 'shortcuts', label: 'help.shortcuts', shortcut: '?', run: () => openDialog({ kind: 'shortcuts' }) },
   about: { id: 'about', label: 'help.about', icon: FlaskConical, run: () => openDialog({ kind: 'about' }) },
 } satisfies Record<string, Command>;
@@ -369,6 +372,7 @@ const bindings: KeyBinding[] = [
   B('p', c.pins),
   B('f5', c.simulate),
   B('f1', c.learn),
+  B('f2', c.assistant),
   B('l', c.live, { shift: true }),
   B('t', c.liveTran, { shift: true }),
   B('v', c.select),

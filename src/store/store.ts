@@ -222,6 +222,24 @@ export function commitDoc(docId: string, recipe: (d: Draft<Doc>) => void) {
   set((s) => ({ docs: s.docs.map((ds) => (ds.id === docId ? step(ds, recipe) : ds)) }));
 }
 
+/**
+ * Joins the undo steps a document got since it was `base` into one, so the
+ * changes of one answer of the design assistant undo with one click.
+ */
+export function joinHistory(docId: string, base: Doc) {
+  set((s) => ({
+    docs: s.docs.map((ds) => {
+      const i = ds.id === docId && ds.doc !== base ? ds.past.lastIndexOf(base) : -1;
+      return i < 0 ? ds : { ...ds, past: ds.past.slice(0, i + 1) };
+    }),
+  }));
+}
+
+/** Fits the whole document into the view again, e.g. after a circuit was built in it. */
+export function refit(docId: string) {
+  set((s) => ({ docs: s.docs.map((ds) => (ds.id === docId ? { ...ds, fitted: false } : ds)) }));
+}
+
 /** Interactive gestures (drag, resize) are recorded as a single undo step. */
 export function beginGesture() {
   updateActive((ds) => ({ ...ds, gestureBase: ds.doc }));

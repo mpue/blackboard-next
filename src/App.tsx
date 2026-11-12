@@ -17,6 +17,7 @@ import { installLiveUpdates } from './store/live.ts';
 import { installMcus } from './mcu/controller.ts';
 import { Board3DHost } from './ui/Board3DHost.tsx';
 import { useLearn } from './learn/state.ts';
+import { useAssistant } from './assistant/state.ts';
 import { useApplyTheme } from './ui/theme.ts';
 import { loadSession, loadUserParts, loadUserSymbols, saveSession } from './platform/persist.ts';
 import { loadUserFootprints } from './platform/userFootprints.ts';
@@ -25,6 +26,7 @@ import { isDirty } from './store/store.ts';
 
 // lessons and the component guide are loaded when the learning panel opens
 const LearnPanel = lazy(() => import('./learn/LearnPanel.tsx').then((m) => ({ default: m.LearnPanel })));
+const AssistantPanel = lazy(() => import('./assistant/AssistantPanel.tsx').then((m) => ({ default: m.AssistantPanel })));
 // the code editor (CodeMirror) when it is opened
 const CodePanel = lazy(() => import('./ui/CodePanel.tsx').then((m) => ({ default: m.CodePanel })));
 
@@ -188,12 +190,18 @@ export function App() {
   const simOpen = useStore((s) => s.simulationOpen);
   const drcOpen = useDrc((s) => s.open);
   const learnOpen = useLearn((s) => s.open);
+  const aiOpen = useAssistant((s) => s.open);
   const codeOpen = useCode((s) => !!s.open);
   // on phones the learning panel sits below the canvas instead of beside it
   const phone = usePhone();
   const learnPanel = (
     <Suspense fallback={<aside className="w-80 shrink-0 border-l border-line bg-panel" />}>
       <LearnPanel />
+    </Suspense>
+  );
+  const aiPanel = (
+    <Suspense fallback={<aside className="w-[22rem] shrink-0 border-l border-line bg-panel" />}>
+      <AssistantPanel />
     </Suspense>
   );
   const isPcb = useStore((s) => s.docs.find((d) => d.id === s.active)?.doc.type === 'PCB');
@@ -225,6 +233,7 @@ export function App() {
                 <Board3DHost />
               </div>
               {learnOpen && phone && learnPanel}
+              {aiOpen && phone && aiPanel}
               {codeOpen && phone && (
                 <Suspense>
                   <CodePanel phone />
@@ -239,6 +248,7 @@ export function App() {
                 <Welcome />
               </div>
               {learnOpen && phone && learnPanel}
+              {aiOpen && phone && aiPanel}
             </>
           )}
         </main>
@@ -248,6 +258,7 @@ export function App() {
           </Suspense>
         )}
         {learnOpen && !phone && learnPanel}
+        {aiOpen && !phone && aiPanel}
         {hasDocs && right && <RightPanel />}
       </div>
       <StatusBar />

@@ -1,7 +1,8 @@
 // The plans and what they allow. Everything in BlackBoard works without an
-// account (Free); the online compiler of the code editor needs an account with
-// Professional (free of charge until `proFreeUntil`, then paid, a number of
-// compiles per day) or Commercial (no daily limit). Admins set the plan of an
+// account (Free); the online compiler of the code editor and Claude as design
+// assistant need an account with Professional (free of charge until
+// `proFreeUntil`, then paid, a number of compiles per day) or Commercial (no
+// daily limit). Admins set the plan of an
 // account by hand; the prices, the date and the Stripe payment links are
 // settings of the admin page.
 
@@ -56,7 +57,13 @@ export function compileAccess(p: UserPlan, admin: boolean, s: PlanSettings, now 
   return { ok: false, reason: 'payment' };
 }
 
-const URL_OK = (u: unknown) => typeof u === 'string' && (u === '' || (/^https:\/\/[^\s"'<>]+$/.test(u) && u.length <= 500));
+/** May this account use Claude with its own API key? The plans of the compiler, without a daily limit (the account pays Anthropic itself). */
+export function assistantAccess(p: UserPlan, admin: boolean, s: PlanSettings, now = Date.now()): { ok: true } | { ok: false; reason: 'plan' | 'payment' } {
+  const a = compileAccess(p, admin, s, now);
+  return a.ok ? { ok: true } : a;
+}
+
+const URL_OK =(u: unknown) => typeof u === 'string' && (u === '' || (/^https:\/\/[^\s"'<>]+$/.test(u) && u.length <= 500));
 
 /** The settings from the admin page, checked; undefined when something does not fit. */
 export function checkSettings(raw: unknown, base: PlanSettings): PlanSettings | undefined {

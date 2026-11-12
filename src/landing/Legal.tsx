@@ -77,6 +77,16 @@ function Privacy() {
         Tageslimit deines Tarifs einzuhalten. Für die Desktop-App kannst du einen Schlüssel erzeugen; wir speichern ihn nur als Hash, zusammen mit dem Zeitpunkt der Erzeugung und der
         letzten Nutzung. Die Verarbeitung dient der Bereitstellung des Online-Compilers (Art. 6 Abs. 1 lit. b DSGVO).
       </P>
+      <H>Claude als Entwurfsassistent</H>
+      <P>
+        Mit Professional oder Individual Commercial kannst du im Editor Claude als Entwurfsassistenten nutzen. Dafür hinterlegst du deinen eigenen API-Schlüssel von Anthropic. Wir
+        speichern ihn verschlüsselt, zeigen ihn nie wieder an (nur seine letzten vier Zeichen) und speichern dazu den Zeitpunkt der Hinterlegung und der letzten Nutzung. Stellst du Claude
+        eine Frage, schickt der Editor deine Nachricht, eine Beschreibung des Schaltplans, an dem Claude arbeitet, und die Ergebnisse von Claudes Arbeitsschritten (etwa Simulationswerte)
+        über unseren Server mit deinem Schlüssel an Anthropic, den Anbieter von Claude. Unser Server speichert diese Inhalte nicht; er leitet sie nur weiter und zählt die Anfragen, um
+        Missbrauch zu begrenzen. Mit Anthropic schließt du über deinen Schlüssel einen eigenen Vertrag; für die Verarbeitung dort gelten die Bedingungen und die Datenschutzerklärung von
+        Anthropic (anthropic.com/legal/privacy), und Anthropic kann die Daten auch in den USA verarbeiten. Die Nutzung ist freiwillig. Die Verarbeitung bei uns dient der Bereitstellung
+        dieser Funktion (Art. 6 Abs. 1 lit. b DSGVO); deinen Schlüssel kannst du jederzeit löschen, mit dem Konto wird er ebenfalls gelöscht.
+      </P>
       <H>Newsletter</H>
       <P>
         Den Newsletter schicken wir nur mit deiner Einwilligung (Art. 6 Abs. 1 lit. a DSGVO). Meldest du dich auf der Startseite an, bekommst du zuerst eine E-Mail mit einem
@@ -141,7 +151,7 @@ function Terms({ plans }: { plans: PlanSettings }) {
       <H>§ 1a Tarife und Online-Compiler</H>
       <P>
         (1) Alle Funktionen von BlackBoard stehen ohne Konto und in jedem Tarif zur Verfügung – mit Ausnahme des Online-Compilers, der im Code-Editor C- und C++-Quelltext auf dem Server des
-        Anbieters übersetzt. HEX-Dateien aus anderen Werkzeugen lassen sich immer laden.
+        Anbieters übersetzt, und von Claude als Entwurfsassistent (Absatz 5). HEX-Dateien aus anderen Werkzeugen lassen sich immer laden.
       </P>
       <P>
         (2) Professional: Mit einem Konto ist der Online-Compiler enthalten, derzeit mit bis zu {plans.proDailyCompiles} Übersetzungen pro Tag. Bis zum {longDate(lastFreeDay(plans), 'de')}{' '}
@@ -153,6 +163,12 @@ function Terms({ plans }: { plans: PlanSettings }) {
       <P>
         (4) Zum Schutz des Dienstes darf der Anbieter technische Grenzen setzen, etwa für die Zahl der Übersetzungen in kurzer Zeit, die Größe des Quelltexts und die Dauer einer
         Übersetzung. Der Schlüssel für die Desktop-App ist wie ein Passwort geheim zu halten.
+      </P>
+      <P>
+        (5) Claude als Entwurfsassistent: Mit Professional (solange der Online-Compiler enthalten ist) oder Individual Commercial kannst du einen eigenen API-Schlüssel von Anthropic
+        hinterlegen und Claude im Editor Schaltungen entwerfen, ändern und prüfen lassen. Die Nutzung von Claude rechnet Anthropic direkt mit dir ab; dafür gelten die Bedingungen von
+        Anthropic. Der Anbieter leitet die Anfragen nur weiter und darf ihre Zahl zum Schutz des Dienstes begrenzen. Claudes Antworten und Änderungen am Schaltplan entstehen automatisch
+        und können Fehler enthalten: Prüfe sie, bevor du eine Schaltung aufbaust, besonders bei Netzspannung, hohen Strömen und Akkus.
       </P>
       <H>§ 2 Nutzungsrecht</H>
       <P>(1) Der Anbieter räumt dir ein einfaches, nicht übertragbares Recht ein, BlackBoard nach diesen Bedingungen zu nutzen.</P>
@@ -170,7 +186,7 @@ function Terms({ plans }: { plans: PlanSettings }) {
         BlackBoard“ genannt.
       </P>
       <H>§ 3 Konto</H>
-      <P>(1) Für den Editor brauchst du kein Konto. Das Konto ist kostenlos; du brauchst es für Projekte in der Cloud, zum Teilen und für den Online-Compiler.</P>
+      <P>(1) Für den Editor brauchst du kein Konto. Das Konto ist kostenlos; du brauchst es für Projekte in der Cloud, zum Teilen, für den Online-Compiler und für Claude.</P>
       <P>(2) Deine Angaben müssen zutreffen. Halte dein Passwort geheim. Jedes Konto gehört einer Person.</P>
       <P>(3) Minderjährige brauchen die Zustimmung ihrer Erziehungsberechtigten.</P>
       <H>§ 4 Cloud-Projekte und Teilen</H>

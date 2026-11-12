@@ -109,6 +109,7 @@ export function Pricing({
             <Feature>{t('plan.pro.f2')}</Feature>
             <Feature>{t('plan.pro.f3', { n: String(plans.proDailyCompiles) })}</Feature>
             <Feature>{t('plan.pro.f4')}</Feature>
+            <Feature>{t('plan.pro.f5')}</Feature>
           </ul>
           <div className="mt-auto">{proCta}</div>
         </div>

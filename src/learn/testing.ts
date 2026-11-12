@@ -23,6 +23,13 @@ async function sim() {
   return engine;
 }
 
+/** Runs a netlist in ngspice and returns all vectors. */
+export async function runNetlist(netlist: string): Promise<{ name: string; values: number[] }[]> {
+  const s = await sim();
+  s.setNetList(netlist);
+  return (await s.runSim()).data.map((d) => ({ name: d.name, values: d.values.map(Number) }));
+}
+
 /** Operating point of a schematic as the editor's live values compute it. */
 export async function operatingPoint(doc: Doc, models: SpiceModel[] = libraryModels()): Promise<LiveValues> {
   const nl = opNetlist(doc, 'test', models);

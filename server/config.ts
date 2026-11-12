@@ -21,6 +21,8 @@ export interface Config {
   compilerUrl: string;
   /** compiles per account in ten minutes, against runaway scripts (the daily limit of a plan comes on top) */
   maxCompiles: number;
+  /** requests to Claude per account in ten minutes, against runaway loops (the account's own API key pays) */
+  maxAssistantRequests: number;
   /** addresses that are admins once confirmed (lower case) */
   adminEmails: string[];
   /** newsletter mails per minute */
@@ -62,6 +64,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxProjectsPerUser: Number(env.MAX_PROJECTS ?? 200),
     compilerUrl: (env.COMPILER_URL ?? 'http://localhost:8789').replace(/\/+$/, ''),
     maxCompiles: Number(env.MAX_COMPILES ?? 60),
+    maxAssistantRequests: Number(env.MAX_ASSISTANT_REQUESTS ?? 300),
     adminEmails: (env.ADMIN_EMAILS ?? '')
       .split(/[\s,;]+/)
       .map((e) => e.trim().toLowerCase())
