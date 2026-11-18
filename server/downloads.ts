@@ -21,7 +21,7 @@ export interface Release {
 }
 
 const FRESH_MS = 15 * 60_000;
-/** after a failed request: try again a little sooner */
+/** after a failed request or while there is no release: try again a little sooner */
 const RETRY_MS = 2 * 60_000;
 
 /** the files people install; not the updater's archives and signatures */
@@ -63,7 +63,8 @@ export function downloadRoutes(config: Config, fetchImpl: typeof fetch = fetch) 
     const now = Date.now();
     if (!cached || cached.until <= now) {
       pending ??= latest()
-        .then((release) => ((cached = { release, until: Date.now() + FRESH_MS }), release))
+        // no release yet: ask again soon, the first one may be on its way
+        .then((release) => ((cached = { release, until: Date.now() + (release ? FRESH_MS : RETRY_MS) }), release))
         .catch(() => {
           // keep showing what was there before
           cached = { release: cached?.release ?? null, until: Date.now() + RETRY_MS };
