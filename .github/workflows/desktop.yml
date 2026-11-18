@@ -1,0 +1,104 @@
+# Builds the desktop app (Tauri) for Windows, macOS and Linux and publishes
+# it as a GitHub release, which the landing page offers for download
+# (server/downloads.ts). Runs for a version tag or by hand:
+#
+#   git tag v3.0.1 && git push origin v3.0.1
+#
+# The version comes from src-tauri/tauri.conf.json, so raise it there first.
+# The release stays a draft until all three systems are built; only then do
+# visitors see it.
+
+name: Desktop app
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+      version: ${{ steps.draft.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: draft
+        name: Draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          cat > notes.md <<EOF
+          **BlackBoard ${version}** – Elektronik entwerfen, simulieren und verstehen. Kostenlos und Open Source (AGPL-3.0).
+
+          | System | Datei |
+          | --- | --- |
+          | Windows | \`BlackBoard_${version}_x64-setup.exe\` (oder \`.msi\`) |
+          | macOS (Apple Silicon und Intel) | \`BlackBoard_${version}_universal.dmg\` |
+          | Linux | \`.AppImage\` (jede Distribution), \`.deb\` (Debian, Ubuntu), \`.rpm\` (Fedora, openSUSE) |
+
+          Die Programme sind noch nicht signiert. Windows: beim ersten Start „Weitere Informationen“ → „Trotzdem ausführen“. macOS: beim ersten Öffnen Systemeinstellungen → Datenschutz & Sicherheit → „Dennoch öffnen“. Linux: das AppImage ausführbar machen (\`chmod +x\`).
+
+          The programs are not signed yet. Windows: on the first start “More info” → “Run anyway”. macOS: on the first start System Settings → Privacy & Security → “Open Anyway”. Linux: make the AppImage executable (\`chmod +x\`).
+
+          Im Browser: https://pueski.de/blackboard/
+          EOF
+          id=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
+            -f tag_name="v${version}" -f target_commitish="${GITHUB_SHA}" \
+            -f name="BlackBoard ${version}" -F body=@notes.md -F draft=true --jq .id)
+          echo "id=${id}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: ''
+          - os: macos-latest
+            args: --target universal-apple-darwin
+          - os: ubuntu-22.04
+            args: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.release.outputs.id }}
+          args: ${{ matrix.args }}
+
+  publish:
+    needs: [release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${{ needs.release.outputs.id }}" -F draft=false -F make_latest=true --jq .html_url

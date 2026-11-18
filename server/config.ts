@@ -27,6 +27,8 @@ export interface Config {
   adminEmails: string[];
   /** newsletter mails per minute */
   newsletterPerMinute: number;
+  /** the GitHub repository whose newest release holds the desktop app (owner/name) */
+  downloadsRepo: string;
 }
 
 /** The session secret: from AUTH_SECRET, else made once and kept in the data directory. */
@@ -70,5 +72,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),
     newsletterPerMinute: Number(env.NEWSLETTER_PER_MINUTE ?? 20),
+    downloadsRepo: env.DOWNLOADS_REPO ?? 'mpue/blackboard-next',
   };
 }

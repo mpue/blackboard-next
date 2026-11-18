@@ -28,8 +28,8 @@
     "active": true,
     "targets": "all",
     "category": "DeveloperTool",
-    "shortDescription": "Perfboard, stripboard and schematic designer",
-    "longDescription": "BlackBoard Circuit Designer – perfboards, stripboards and schematics with NGSpice simulation.",
+    "shortDescription": "Perfboard, stripboard, schematic and PCB designer",
+    "longDescription": "BlackBoard Circuit Designer – perfboards, stripboards, schematics and PCBs with NGSpice simulation and microcontrollers. Free and open source (AGPL-3.0).",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "fileAssociations": [
       {
@@ -39,6 +39,12 @@
         "mimeType": "application/x-blackboard",
         "role": "Editor"
       }
-    ]
+    ],
+    "copyright": "© 2026 Matthias Püski and contributors, AGPL-3.0",
+    "license": "AGPL-3.0-only",
+    "homepage": "https://pueski.de/blackboard/",
+    "macOS": {
+      "signingIdentity": "-"
+    }
   }
 }

@@ -17,8 +17,9 @@ import { meRoutes } from './me.ts';
 import { NewsletterSender, NewsletterStore, newsletterRoutes } from './newsletter.ts';
 import { adminRoutes } from './admin.ts';
 import { AssistantKeyStore, assistantRoutes, type ClaudeFactory } from './assistant.ts';
+import { downloadRoutes } from './downloads.ts';
 
-export async function createServer(config: Config, opts: { mailer?: Mailer; file?: string; claude?: ClaudeFactory } = {}) {
+export async function createServer(config: Config, opts: { mailer?: Mailer; file?: string; claude?: ClaudeFactory; github?: typeof fetch } = {}) {
   const db = new DatabaseSync(opts.file ?? join(config.dataDir, 'blackboard.db'));
   db.exec('pragma journal_mode = wal; pragma busy_timeout = 5000;');
   const mail = opts.mailer ?? createMailer(config);
@@ -49,6 +50,7 @@ export async function createServer(config: Config, opts: { mailer?: Mailer; file
   app.route(`${base}/me`, meRoutes(config, auth, plans, news));
   app.route(`${base}/assistant`, assistantRoutes(config, auth, plans, keys, opts.claude));
   app.route(`${base}/newsletter`, newsletterRoutes(config, auth, news, mail));
+  app.route(`${base}/downloads`, downloadRoutes(config, opts.github));
   app.route(`${base}/admin`, adminRoutes(config, auth, db, plans, news, sender, mail, deleteUser));
   return { app, auth, db, store, plans, news, sender, keys };
 }

@@ -12,6 +12,7 @@ import { SOURCE_URL } from '../source.ts';
 import { AuthDialog, type AuthMode } from './AuthDialog.tsx';
 import { LEGAL_PAGES, LegalPage, type LegalPageId } from './Legal.tsx';
 import { OpenSource } from './OpenSource.tsx';
+import { Downloads } from './Downloads.tsx';
 import { Newsletter } from './Newsletter.tsx';
 import { landingLang, setLandingLang, translator, type LandingKey, type Lang } from './strings.ts';
 
@@ -157,6 +158,7 @@ export function Landing() {
             {navLink('#features', 'nav.features')}
             {navLink('#firmware', 'nav.firmware')}
             {cloud && navLink('#cloud', 'nav.cloud')}
+            {navLink('#download', 'nav.download')}
             {navLink('#open-source', 'nav.free')}
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -308,6 +310,10 @@ export function Landing() {
               </div>
             </Section>
           )}
+
+          <Section id="download" className="py-12">
+            <Downloads t={t} cloud={cloud} />
+          </Section>
 
           <Section id="open-source" className="py-20">
             <OpenSource t={t} dailyCompiles={dailyCompiles} user={user} cloud={cloud} onSignUp={() => setDialog({ mode: 'signUp' })} />

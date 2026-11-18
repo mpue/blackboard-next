@@ -19,10 +19,10 @@ import { PlanStore } from './plans.ts';
 const ORIGIN = 'http://localhost:5173';
 const P = '/blackboard';
 
-async function setup(env: Record<string, string> = {}, claude?: ClaudeFactory) {
+async function setup(env: Record<string, string> = {}, claude?: ClaudeFactory, github?: typeof fetch) {
   const config = loadConfig({ DATA_DIR: mkdtempSync(join(tmpdir(), 'bb-')), ORIGIN, PUBLIC_PATH: P, MAX_PROJECT_MB: '1', ...env });
   const mails: Mail[] = [];
-  const server = await createServer(config, { file: ':memory:', mailer: async (m) => void mails.push(m), claude });
+  const server = await createServer(config, { file: ':memory:', mailer: async (m) => void mails.push(m), claude, github });
   const { app } = server;
   const call = async (path: string, init: RequestInit & { cookie?: string; json?: unknown } = {}) => {
     const headers = new Headers(init.headers);
@@ -483,4 +483,44 @@ test('plans from before everything was free become access levels', () => {
   assert.deepEqual(['a', 'b', 'c', 'd'].map((id) => plans.planOf(id).plan), ['blocked', 'standard', 'unlimited', 'standard']);
   assert.equal(plans.planOf('b').note, 'Stripe cus_1');
   assert.deepEqual(plans.settings(), { dailyCompiles: 40 });
+});
+
+test('downloads: the newest release on GitHub, asked once in a while, only the installers', async () => {
+  const asked: string[] = [];
+  let answer: Response = Response.json({}, { status: 404 });
+  const github = (async (url: string | URL | Request) => {
+    asked.push(String(url));
+    return answer.clone();
+  }) as typeof fetch;
+  const { call } = await setup({}, undefined, github);
+  // no release yet: the page links to the release list
+  const none = await call(`${P}/api/downloads`);
+  assert.equal(none.status, 404);
+  assert.equal(((await none.json()) as { url: string }).url, 'https://github.com/mpue/blackboard-next/releases');
+  assert.deepEqual(asked, ['https://api.github.com/repos/mpue/blackboard-next/releases/latest']);
+  assert.equal((await call(`${P}/api/downloads`)).status, 404);
+  assert.equal(asked.length, 1);
+});
+
+test('downloads: a release keeps the files people install', async () => {
+  const github = (async () =>
+    Response.json({
+      tag_name: 'v3.0.0',
+      html_url: 'https://github.com/mpue/blackboard-next/releases/tag/v3.0.0',
+      published_at: '2026-11-18T12:00:00Z',
+      draft: false,
+      assets: [
+        { name: 'BlackBoard_3.0.0_x64-setup.exe', browser_download_url: 'https://example.test/a.exe', size: 5 },
+        { name: 'BlackBoard_3.0.0_x64-setup.exe.sig', browser_download_url: 'https://example.test/a.sig', size: 1 },
+        { name: 'BlackBoard_3.0.0_universal.dmg', browser_download_url: 'https://example.test/b.dmg', size: 9 },
+        { name: 'BlackBoard_universal.app.tar.gz', browser_download_url: 'https://example.test/c.tgz', size: 8 },
+        { name: 'BlackBoard_3.0.0_amd64.AppImage', browser_download_url: 'https://example.test/d.AppImage', size: 7 },
+      ],
+    })) as typeof fetch;
+  const { call } = await setup({}, undefined, github);
+  const r = await call(`${P}/api/downloads`);
+  assert.equal(r.status, 200);
+  const rel = (await r.json()) as { version: string; assets: { name: string }[] };
+  assert.equal(rel.version, '3.0.0');
+  assert.deepEqual(rel.assets.map((a) => a.name), ['BlackBoard_3.0.0_x64-setup.exe', 'BlackBoard_3.0.0_universal.dmg', 'BlackBoard_3.0.0_amd64.AppImage']);
 });

@@ -65,6 +65,13 @@ function Privacy() {
         übertragen. Beim Aufruf der Seite verarbeitet unser Webserver technisch notwendige Verbindungsdaten (IP-Adresse, Zeitpunkt, abgerufene Adresse, Browserkennung), um die Seite
         auszuliefern und vor Missbrauch zu schützen (Art. 6 Abs. 1 lit. f DSGVO). Es gibt keine Werbung, keine Analyse- oder Tracking-Dienste und keine Einbindung fremder Server beim Aufruf.
       </P>
+      <H>Desktop-App und Downloads</H>
+      <P>
+        Die Desktop-App für Windows, macOS und Linux liegt auf GitHub (GitHub B.V., Prins Bernhardplein 200, 1097 JB Amsterdam, Niederlande; ein Unternehmen von GitHub, Inc., USA). Unser
+        Server fragt GitHub gelegentlich nach der neuesten Version; dabei werden keine Daten von dir übertragen. Erst wenn du auf einen Download klickst, lädst du die Datei direkt von
+        GitHub. Dabei verarbeitet GitHub deine IP-Adresse und Angaben deines Browsers nach seiner Datenschutzerklärung (docs.github.com/site-policy/privacy-policies), auch in den USA. Die
+        Desktop-App selbst arbeitet auf deinem Rechner; mit unserem Server verbindet sie sich nur, wenn du den Online-Compiler mit dem Schlüssel deines Kontos nutzt.
+      </P>
       <H>Nutzerkonto</H>
       <P>
         Für ein Konto speichern wir Name, E-Mail-Adresse, das Passwort (nur als sicherer Hash, nie im Klartext) und den Zeitpunkt der Registrierung. Für angemeldete Sitzungen speichern wir
