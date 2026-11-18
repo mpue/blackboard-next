@@ -1,6 +1,7 @@
 {
   "name": "blackboard-compiler",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "C/C++ to Intel HEX for the ATmega328P with arduino-cli, for the code editor of BlackBoard Next",
   "scripts": {

@@ -133,10 +133,10 @@ export function templateFiles(id: TemplateId, wire?: string): SourceFile[] {
 
 /**
  * Why there is no result: no connection or compiler, or the account – not
- * signed in ('login'), the desktop key wrong ('key'), the plan has no compiler
- * ('plan'), the launch phase is over ('payment'), today's compiles used up ('quota').
+ * signed in ('login'), the desktop key wrong ('key'), blocked from the compiler
+ * by an admin ('blocked'), today's compiles used up ('quota').
  */
-export type CompileProblem = 'offline' | 'unavailable' | 'rate' | 'busy' | 'rejected' | 'login' | 'key' | 'plan' | 'payment' | 'quota';
+export type CompileProblem = 'offline' | 'unavailable' | 'rate' | 'busy' | 'rejected' | 'login' | 'key' | 'blocked' | 'quota';
 
 export class CompileError extends Error {
   readonly problem: CompileProblem;
@@ -190,8 +190,7 @@ export async function compileSketch(files: SourceFile[], clock: number): Promise
     return used === null ? json : { ...json, usage: { used: Number(used), limit: limit === null ? null : Number(limit) } };
   }
   if (r.status === 401) throw new CompileError(json?.error === 'key' ? 'key' : 'login');
-  if (r.status === 402) throw new CompileError('payment');
-  if (r.status === 403 && json?.error === 'plan') throw new CompileError('plan');
+  if (r.status === 403 && json?.error === 'blocked') throw new CompileError('blocked');
   if (r.status === 429 && json?.error === 'quota') throw new CompileError('quota', '', { used: json.used ?? 0, limit: json.limit ?? 0 });
   if (r.status === 429) throw new CompileError('rate');
   if (r.status === 503 && json?.error === 'busy') throw new CompileError('busy');

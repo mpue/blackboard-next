@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { CheckCircle2, Loader2, LogOut, Mail, Trash2, X } from 'lucide-react';
 import { authClient, landingUrl, editorUrl, serverConfig } from '../account/auth.ts';
-import type { PlanSettings } from '../account/plans.ts';
 import { AccountPlan } from './AccountPlan.tsx';
 import type { Lang, T } from './strings.ts';
 
@@ -41,24 +40,20 @@ export function AuthDialog({
   mode: start,
   t,
   lang,
-  plans,
   token,
   next,
   onClose,
   onPrivacy,
   onTerms,
-  onPlans,
 }: {
   mode: AuthMode;
   t: T;
   lang: Lang;
-  plans: PlanSettings;
   token?: string;
   next?: 'app';
   onClose: () => void;
   onPrivacy: () => void;
   onTerms: () => void;
-  onPlans: () => void;
 }) {
   // a text with {terms} and {privacy} as links to those pages
   const withLinks = (key: 'auth.consent' | 'auth.googleNote') =>
@@ -217,7 +212,7 @@ export function AuthDialog({
                 <span className="block truncate text-slate-400">{session.data?.user.email}</span>
               </span>
             </div>
-            <AccountPlan t={t} lang={lang} plans={plans} onPlans={onPlans} />
+            <AccountPlan t={t} lang={lang} />
             <button className={primary} onClick={() => (location.href = editorUrl())}>
               {t('nav.editor')}
             </button>

@@ -27,7 +27,6 @@ export interface AdminUser {
   banned: boolean;
   banReason: string | null;
   plan: Plan;
-  paidUntil: number | null;
   note: string;
   projects: number;
   compilesToday: number;
@@ -89,7 +88,7 @@ const q = (params: Record<string, string | number>) => new URLSearchParams(Objec
 export const api = {
   stats: () => call<Stats>('stats'),
   users: (p: { q: string; plan: string; offset: number }) => call<{ total: number; users: AdminUser[] }>(`users?${q({ ...p, limit: 50 })}`),
-  updateUser: (id: string, patch: Partial<{ plan: Plan; paidUntil: number | null; note: string; role: 'admin' | 'user'; banned: boolean; banReason: string }>) =>
+  updateUser: (id: string, patch: Partial<{ plan: Plan; note: string; role: 'admin' | 'user'; banned: boolean; banReason: string }>) =>
     call<{ ok: boolean }>(`users/${id}`, json('PATCH', patch)),
   signOutUser: (id: string) => call<{ ok: boolean }>(`users/${id}/sign-out`, { method: 'POST' }),
   resetPassword: (id: string) => call<{ ok: boolean }>(`users/${id}/reset-password`, { method: 'POST' }),
@@ -118,4 +117,5 @@ export const when = (v: string | number | null | undefined, time = false) => {
   return Number.isNaN(d.getTime()) ? '–' : time ? d.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : d.toLocaleDateString('de-DE', { dateStyle: 'medium' });
 };
 
-export const PLAN_NAMES: Record<Plan, string> = { free: 'Free / Edu', pro: 'Professional', commercial: 'Commercial' };
+/** the access to online compiler and Claude */
+export const PLAN_NAMES: Record<Plan, string> = { standard: 'Standard', unlimited: 'Unbegrenzt', blocked: 'Gesperrt' };

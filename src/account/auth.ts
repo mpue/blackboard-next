@@ -4,7 +4,6 @@
 
 import { createAuthClient } from 'better-auth/react';
 import { apiUrl } from './api.ts';
-import type { PlanSettings } from './plans.ts';
 
 export { apiUrl };
 
@@ -15,7 +14,8 @@ export const useSession = authClient.useSession;
 export interface ServerConfig {
   google: boolean;
   maxProjectBytes: number;
-  plans?: PlanSettings;
+  /** compiles per account and day */
+  dailyCompiles?: number;
 }
 
 let config: Promise<ServerConfig | null> | undefined;

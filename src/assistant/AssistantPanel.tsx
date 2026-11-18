@@ -63,7 +63,7 @@ export function AssistantPanel() {
     );
   else if (info === 'none') body = <Notice text={t('ai.none')} />;
   else if (info === 'login') body = <Notice text={t('ai.login')} login />;
-  else if (!info.access.ok) body = <Notice text={t(info.access.reason === 'payment' ? 'ai.payment' : 'ai.plan')} plans />;
+  else if (!info.access.ok) body = <Notice text={t('ai.blocked')} />;
   else if (!info.key || keyForm) body = <KeyForm info={info} />;
   else body = <Conversation info={info} />;
 
@@ -103,7 +103,7 @@ function Header({ ready }: { ready: boolean }) {
   );
 }
 
-function Notice({ text, login, plans }: { text: string; login?: boolean; plans?: boolean }) {
+function Notice({ text, login }: { text: string; login?: boolean }) {
   const t = useT();
   return (
     <div className="grid gap-3 p-4 text-[12.5px] leading-relaxed">
@@ -119,11 +119,6 @@ function Notice({ text, login, plans }: { text: string; login?: boolean; plans?:
             {t('code.signIn')}
           </Button>
         </div>
-      )}
-      {plans && (
-        <a className="inline-flex h-8 w-fit items-center gap-1.5 rounded-md border border-line px-3 font-medium hover:bg-hover" href={landingUrl('#pricing')} target="_blank" rel="noreferrer">
-          <ExternalLink size={14} /> {t('code.plans')}
-        </a>
       )}
     </div>
   );

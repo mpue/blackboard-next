@@ -1,6 +1,6 @@
 // The admin page's API (only for admins, see isAdmin): the accounts with their
-// plan, blocking and deleting them, the plan settings (prices, the end of the
-// free start, Stripe links) and the newsletter (subscribers, issues, sending).
+// access to compiler and Claude, blocking and deleting them, the daily compiles
+// and the newsletter (subscribers, issues, sending).
 
 import type { DatabaseSync } from 'node:sqlite';
 import { Hono } from 'hono';
@@ -24,7 +24,6 @@ export interface AdminUser {
   banned: boolean;
   banReason: string | null;
   plan: Plan;
-  paidUntil: number | null;
   note: string;
   projects: number;
   compilesToday: number;
@@ -79,13 +78,13 @@ export function adminRoutes(
     const n = (sql: string, ...args: (string | number)[]) => (db.prepare(sql).get(...args) as { n: number }).n;
     const week = Date.now() - 7 * 24 * 3600_000;
     const created = db.prepare('select createdAt from user').all() as unknown as { createdAt: string }[];
-    const plan = (p: Plan) => n(`select count(*) as n from user u left join userPlan p on p.userId = u.id where coalesce(p.plan, 'pro') = ?`, p);
+    const plan = (p: Plan) => n(`select count(*) as n from user u left join userPlan p on p.userId = u.id where coalesce(p.plan, 'standard') = ?`, p);
     return c.json({
       users: created.length,
       newUsers: created.filter((u) => new Date(u.createdAt).getTime() >= week).length,
       verified: n('select count(*) as n from user where emailVerified = 1'),
       banned: n('select count(*) as n from user where banned = 1'),
-      plans: { free: plan('free'), pro: plan('pro'), commercial: plan('commercial') },
+      plans: { standard: plan('standard'), unlimited: plan('unlimited'), blocked: plan('blocked') },
       projects: n('select count(*) as n from project'),
       compilesToday: n('select coalesce(sum(count), 0) as n from compileUsage where day = ?', today()),
       compilesByDay: plans.usageByDay(14),
@@ -103,12 +102,12 @@ export function adminRoutes(
     const offset = Math.max(Number(c.req.query('offset')) || 0, 0);
     const limit = Math.min(Math.max(Number(c.req.query('limit')) || 50, 1), 200);
     const like = `%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
-    const where = `where (u.name like ? escape '\\' or u.email like ? escape '\\') and (? = '' or coalesce(p.plan, 'pro') = ?)`;
+    const where = `where (u.name like ? escape '\\' or u.email like ? escape '\\') and (? = '' or coalesce(p.plan, 'standard') = ?)`;
     const total = (db.prepare(`select count(*) as n from user u left join userPlan p on p.userId = u.id ${where}`).get(like, like, plan, plan) as { n: number }).n;
     const rows = db
       .prepare(
         `select u.id, u.name, u.email, u.emailVerified, u.image, u.createdAt, u.role, u.banned, u.banReason,
-          p.plan, p.paidUntil, p.note,
+          p.plan, p.note,
           (select count(*) from project where ownerId = u.id) as projects,
           (select coalesce(sum(count), 0) from compileUsage where userId = u.id and day = ?) as compilesToday,
           (select coalesce(sum(count), 0) from compileUsage where userId = u.id) as compilesTotal,
@@ -124,7 +123,7 @@ export function adminRoutes(
       emailVerified: !!r.emailVerified,
       banned: !!r.banned,
       admin: isAdmin(config, { email: r.email, emailVerified: r.emailVerified, role: r.role }),
-      plan: (PLANS.includes(r.plan as Plan) ? r.plan : r.plan === null ? 'pro' : 'free') as Plan,
+      plan: (PLANS.includes(r.plan as Plan) ? r.plan : 'standard') as Plan,
       note: r.note ?? '',
       providers: r.providers ? r.providers.split(',') : [],
     }));
@@ -135,14 +134,12 @@ export function adminRoutes(
     const me = c.get('user');
     const u = userRow(c.req.param('id'));
     if (!u) return c.json({ error: 'not found' }, 404);
-    const b = (await c.req.json().catch(() => ({}))) as { plan?: unknown; paidUntil?: unknown; note?: unknown; role?: unknown; banned?: unknown; banReason?: unknown };
-    if (b.plan !== undefined || b.paidUntil !== undefined || b.note !== undefined) {
+    const b = (await c.req.json().catch(() => ({}))) as { plan?: unknown; note?: unknown; role?: unknown; banned?: unknown; banReason?: unknown };
+    if (b.plan !== undefined || b.note !== undefined) {
       const p = plans.planOf(u.id);
       if (b.plan !== undefined && !PLANS.includes(b.plan as Plan)) return c.json({ error: 'plan' }, 400);
-      if (b.paidUntil !== undefined && b.paidUntil !== null && !(typeof b.paidUntil === 'number' && Number.isFinite(b.paidUntil))) return c.json({ error: 'paidUntil' }, 400);
       plans.setPlan(u.id, {
         plan: (b.plan as Plan) ?? p.plan,
-        paidUntil: b.paidUntil === undefined ? p.paidUntil : (b.paidUntil as number | null),
         note: b.note === undefined ? p.note : String(b.note).slice(0, 500),
       });
     }
@@ -190,7 +187,7 @@ export function adminRoutes(
     return c.json({ ok: true });
   });
 
-  // ---- plans ----
+  // ---- daily compiles ----
 
   app.get('/settings', (c) => c.json(plans.settings()));
   app.put('/settings', async (c) => {

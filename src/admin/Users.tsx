@@ -1,5 +1,5 @@
-// The accounts: search, plan filter, and per account the plan, payment, admin
-// rights, blocking, mails and deleting.
+// The accounts: search, filter by access, and per account the access to
+// compiler and Claude, admin rights, blocking, mails and deleting.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Ban, KeyRound, LogOut, Mail, Search, Shield, Trash2, UserCheck } from 'lucide-react';
@@ -28,20 +28,15 @@ function Badges({ u }: { u: AdminUser }) {
   );
 }
 
-const planTone = (p: Plan) => (p === 'commercial' ? 'emerald' : p === 'pro' ? 'indigo' : 'slate');
-
-/** milliseconds <-> the value of a date field (end of that day) */
-const toDay = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString('sv-SE') : '');
-const fromDay = (day: string) => (day ? new Date(`${day}T23:59:59`).getTime() : null);
+const planTone = (p: Plan) => (p === 'unlimited' ? 'emerald' : p === 'standard' ? 'indigo' : 'slate');
 
 function UserPanel({ user: u, self, onClose, onChanged, say }: { user: AdminUser; self: string; onClose: () => void; onChanged: () => void; say: (s: string) => void }) {
   const [plan, setPlan] = useState<Plan>(u.plan);
-  const [paid, setPaid] = useState(toDay(u.paidUntil));
   const [note, setNote] = useState(u.note);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState('');
   const isSelf = u.id === self;
-  const dirty = plan !== u.plan || paid !== toDay(u.paidUntil) || note !== u.note;
+  const dirty = plan !== u.plan || note !== u.note;
 
   const act = async (what: string, f: () => Promise<unknown>, done: string, close = false) => {
     setBusy(what);
@@ -76,7 +71,7 @@ function UserPanel({ user: u, self, onClose, onChanged, say }: { user: AdminUser
     >
       <div className="grid gap-5 md:grid-cols-2">
         <div className="grid content-start gap-4">
-          <Field label="Tarif">
+          <Field label="Zugang zu Online-Compiler und Claude" hint="Standard: mit Tageslimit (Reiter „Compiler“). Unbegrenzt: ohne Tageslimit. Gesperrt: weder Compiler noch Claude; das Konto selbst bleibt nutzbar.">
             <select className={input} value={plan} onChange={(e) => setPlan(e.target.value as Plan)}>
               {(Object.keys(PLAN_NAMES) as Plan[]).map((p) => (
                 <option key={p} value={p}>
@@ -85,20 +80,14 @@ function UserPanel({ user: u, self, onClose, onChanged, say }: { user: AdminUser
               ))}
             </select>
           </Field>
-          <Field label="Bezahlt bis" hint="Nach einer Zahlung über Stripe hier das Ende des bezahlten Zeitraums eintragen. Professional braucht das nach der kostenlosen Startphase.">
-            <div className="flex gap-2">
-              <input type="date" className={`${input} flex-1`} value={paid} onChange={(e) => setPaid(e.target.value)} />
-              {paid && <Button onClick={() => setPaid('')}>Leeren</Button>}
-            </div>
-          </Field>
-          <Field label="Notiz" hint="Nur für dich, z. B. die Stripe-Kundennummer.">
+          <Field label="Notiz" hint="Nur für dich, z. B. warum das Konto unbegrenzt oder gesperrt ist.">
             <textarea className={textarea} rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
           </Field>
           <Button
             variant="primary"
             disabled={!dirty}
             busy={busy === 'plan'}
-            onClick={() => void act('plan', () => api.updateUser(u.id, { plan, paidUntil: fromDay(paid), note }), 'Tarif gespeichert.')}
+            onClick={() => void act('plan', () => api.updateUser(u.id, { plan, note }), 'Zugang gespeichert.')}
           >
             Speichern
           </Button>
@@ -227,9 +216,9 @@ export function Users({ self, say }: { self: string; say: (s: string) => void })
               setPlan(e.target.value);
               setOffset(0);
             }}
-            aria-label="Nach Tarif filtern"
+            aria-label="Nach Zugang filtern"
           >
-            <option value="">Alle Tarife</option>
+            <option value="">Jeder Zugang</option>
             {(Object.keys(PLAN_NAMES) as Plan[]).map((p) => (
               <option key={p} value={p}>
                 {PLAN_NAMES[p]}
@@ -244,7 +233,7 @@ export function Users({ self, say }: { self: string; say: (s: string) => void })
           <thead className="text-[12px] uppercase tracking-wide text-slate-500">
             <tr className="border-b border-white/10">
               <th className="py-2 pr-3 font-medium">Konto</th>
-              <th className="py-2 pr-3 font-medium">Tarif</th>
+              <th className="py-2 pr-3 font-medium">Zugang</th>
               <th className="py-2 pr-3 text-right font-medium">Übers. heute</th>
               <th className="py-2 pr-3 text-right font-medium">Projekte</th>
               <th className="py-2 pr-3 font-medium">Registriert</th>
@@ -268,7 +257,6 @@ export function Users({ self, say }: { self: string; say: (s: string) => void })
                 </td>
                 <td className="py-2.5 pr-3">
                   <Badge tone={planTone(u.plan)}>{PLAN_NAMES[u.plan]}</Badge>
-                  {u.paidUntil && <div className="mt-0.5 text-[11.5px] text-slate-500">bis {when(u.paidUntil)}</div>}
                 </td>
                 <td className="py-2.5 pr-3 text-right tabular-nums">{u.compilesToday}</td>
                 <td className="py-2.5 pr-3 text-right tabular-nums">{u.projects}</td>

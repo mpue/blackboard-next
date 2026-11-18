@@ -13,6 +13,8 @@ import { createServer } from './main.ts';
 import type { Mail } from './mail.ts';
 import Anthropic from '@anthropic-ai/sdk';
 import type { ClaudeFactory } from './assistant.ts';
+import { DatabaseSync } from 'node:sqlite';
+import { PlanStore } from './plans.ts';
 
 const ORIGIN = 'http://localhost:5173';
 const P = '/blackboard';
@@ -170,9 +172,9 @@ test('compile: only with an account and a plan that has it, counted per day, the
     assert.equal(anon.status, 401);
     assert.equal(((await anon.json()) as { error: string }).error, 'login');
 
-    // a new account is Professional: free of charge in the start phase, a daily limit
+    // every account may compile, a number of times per day
     const ada = await user('Ada', 'ada@example.com');
-    server.plans.saveSettings({ ...server.plans.settings(), proDailyCompiles: 2, proFreeUntil: '2999-01-01' });
+    server.plans.saveSettings({ dailyCompiles: 2 });
     const ok = await compile({ cookie: ada });
     assert.equal(ok.status, 200);
     assert.equal(((await ok.json()) as { hex: string }).hex, ':00000001FF\n');
@@ -184,18 +186,15 @@ test('compile: only with an account and a plan that has it, counted per day, the
     assert.equal(quota.status, 429);
     assert.equal(((await quota.json()) as { error: string }).error, 'quota');
     const me = (await (await call(`${P}/api/me`, { cookie: ada })).json()) as { plan: string; admin: boolean; compile: { ok: boolean; used: number; limit: number } };
-    assert.deepEqual([me.plan, me.admin, me.compile.ok, me.compile.used, me.compile.limit], ['pro', false, true, 2, 2]);
+    assert.deepEqual([me.plan, me.admin, me.compile.ok, me.compile.used, me.compile.limit], ['standard', false, true, 2, 2]);
 
-    // after the free start Professional needs a payment
+    // an admin can block an account from the compiler, or lift its daily limit
     const id = ((await (await call(`${P}/api/auth/get-session`, { cookie: ada })).json()) as { user: { id: string } }).user.id;
-    server.plans.saveSettings({ ...server.plans.settings(), proFreeUntil: '2000-01-01' });
-    assert.equal((await compile({ cookie: ada })).status, 402);
-    server.plans.setPlan(id, { plan: 'pro', paidUntil: Date.now() + 86_400_000, note: '' });
-    assert.equal((await compile({ cookie: ada })).status, 429);
-    // Free has none, Commercial has no daily limit
-    server.plans.setPlan(id, { plan: 'free', paidUntil: null, note: '' });
-    assert.equal(((await (await compile({ cookie: ada })).json()) as { error: string }).error, 'plan');
-    server.plans.setPlan(id, { plan: 'commercial', paidUntil: null, note: '' });
+    server.plans.setPlan(id, { plan: 'blocked', note: '' });
+    const no = await compile({ cookie: ada });
+    assert.equal(no.status, 403);
+    assert.equal(((await no.json()) as { error: string }).error, 'blocked');
+    server.plans.setPlan(id, { plan: 'unlimited', note: '' });
     const unlimited = await compile({ cookie: ada });
     assert.equal(unlimited.status, 200);
     assert.equal(unlimited.headers.get('x-compile-limit'), null);
@@ -269,14 +268,13 @@ async function fakeAnthropic() {
   return { claude, requests, close: () => fake.close() };
 }
 
-test('assistant: Professional and up keep their own API key, encrypted, and talk to Claude through the server', async () => {
+test('assistant: accounts keep their own API key, encrypted, and talk to Claude through the server', async () => {
   const fake = await fakeAnthropic();
   try {
     const { call, user, server } = await setup({}, fake.claude);
     const A = `${P}/api/assistant`;
     assert.equal((await call(A)).status, 401);
     const ada = await user('Ada', 'ada@example.com');
-    server.plans.saveSettings({ ...server.plans.settings(), proFreeUntil: '2999-01-01' });
     const state = (await (await call(A, { cookie: ada })).json()) as { access: { ok: boolean }; key: null; models: string[] };
     assert.deepEqual(state, { access: { ok: true }, key: null, models: ['opus', 'sonnet'] });
 
@@ -321,12 +319,12 @@ test('assistant: Professional and up keep their own API key, encrypted, and talk
     assert.ok((sent.body.tools as { name: string }[]).some((t) => t.name === 'place_part'));
     assert.ok((await call(A, { cookie: ada }).then((x) => x.json()) as { key: { lastUsedAt: number } }).key.lastUsedAt > 0);
 
-    // only for Professional and up
+    // not for accounts an admin has blocked
     const id = ((await (await call(`${P}/api/auth/get-session`, { cookie: ada })).json()) as { user: { id: string } }).user.id;
-    server.plans.setPlan(id, { plan: 'free', paidUntil: null, note: '' });
+    server.plans.setPlan(id, { plan: 'blocked', note: '' });
     assert.equal((await chat(ada)).status, 403);
     assert.equal((await put(GOOD_KEY)).status, 403);
-    server.plans.setPlan(id, { plan: 'commercial', paidUntil: null, note: '' });
+    server.plans.setPlan(id, { plan: 'unlimited', note: '' });
     assert.equal((await chat(ada)).status, 200);
     // other sites may not use the session
     assert.equal((await call(`${A}/messages`, { method: 'POST', cookie: ada, headers: { origin: 'https://evil.example' }, json: { messages: [] } })).status, 403);
@@ -352,24 +350,24 @@ test('admin: only admins, accounts with plan, blocking and deleting, the plan se
   const list = (await (await call(`${P}/api/admin/users?q=ada`, { cookie: boss })).json()) as { total: number; users: { id: string; email: string; plan: string; admin: boolean; providers: string[] }[] };
   assert.equal(list.total, 1);
   const a = list.users[0];
-  assert.deepEqual([a.email, a.plan, a.admin, a.providers], ['ada@example.com', 'pro', false, ['credential']]);
+  assert.deepEqual([a.email, a.plan, a.admin, a.providers], ['ada@example.com', 'standard', false, ['credential']]);
   const stats = (await (await call(`${P}/api/admin/stats`, { cookie: boss })).json()) as { users: number; plans: Record<string, number> };
   assert.equal(stats.users, 2);
-  assert.equal(stats.plans.pro, 2);
+  assert.equal(stats.plans.standard, 2);
 
-  // plan and payment
+  // the access to compiler and Claude
   assert.equal((await call(`${P}/api/admin/users/${a.id}`, { method: 'PATCH', cookie: boss, json: { plan: 'gold' } })).status, 400);
-  assert.equal((await call(`${P}/api/admin/users/${a.id}`, { method: 'PATCH', cookie: boss, json: { plan: 'commercial', paidUntil: 1_900_000_000_000, note: 'Stripe cus_1' } })).status, 200);
-  const me = (await (await call(`${P}/api/me`, { cookie: ada })).json()) as { plan: string; paidUntil: number };
-  assert.deepEqual([me.plan, me.paidUntil], ['commercial', 1_900_000_000_000]);
-  assert.equal(((await (await call(`${P}/api/admin/users?plan=commercial`, { cookie: boss })).json()) as { total: number }).total, 1);
+  assert.equal((await call(`${P}/api/admin/users/${a.id}`, { method: 'PATCH', cookie: boss, json: { plan: 'unlimited', note: 'Schule' } })).status, 200);
+  const me = (await (await call(`${P}/api/me`, { cookie: ada })).json()) as { plan: string; compile: { limit: number | null } };
+  assert.deepEqual([me.plan, me.compile.limit], ['unlimited', null]);
+  assert.equal(((await (await call(`${P}/api/admin/users?plan=unlimited`, { cookie: boss })).json()) as { total: number }).total, 1);
 
-  // the settings, checked
-  assert.equal((await call(`${P}/api/admin/settings`, { method: 'PUT', cookie: boss, json: { proCheckoutUrl: 'javascript:alert(1)' } })).status, 400);
-  const s = await call(`${P}/api/admin/settings`, { method: 'PUT', cookie: boss, json: { proCheckoutUrl: 'https://buy.stripe.com/test_pro', proDailyCompiles: 80 } });
+  // the daily compiles, checked
+  assert.equal((await call(`${P}/api/admin/settings`, { method: 'PUT', cookie: boss, json: { dailyCompiles: -1 } })).status, 400);
+  const s = await call(`${P}/api/admin/settings`, { method: 'PUT', cookie: boss, json: { dailyCompiles: 80 } });
   assert.equal(s.status, 200);
-  const cfg = (await (await call(`${P}/api/config`)).json()) as { plans: { proCheckoutUrl: string; proDailyCompiles: number; proFreeUntil: string } };
-  assert.deepEqual([cfg.plans.proCheckoutUrl, cfg.plans.proDailyCompiles, cfg.plans.proFreeUntil], ['https://buy.stripe.com/test_pro', 80, '2027-02-01']);
+  const cfg = (await (await call(`${P}/api/config`)).json()) as { dailyCompiles: number };
+  assert.equal(cfg.dailyCompiles, 80);
 
   // blocked: signed out, cannot sign in again; the admin cannot block himself
   assert.equal((await call(`${P}/api/admin/users/${a.id}`, { method: 'PATCH', cookie: boss, json: { banned: true, banReason: 'Spam' } })).status, 200);
@@ -401,7 +399,7 @@ test('admin: only admins, accounts with plan, blocking and deleting, the plan se
   assert.equal(((await (await call(`${P}/api/admin/users`, { cookie: boss })).json()) as { total: number }).total, 1);
   assert.equal((await call(`${P}/api/me`, { cookie: ada2 })).status, 401);
   // from another site: refused
-  assert.equal((await call(`${P}/api/admin/users/${bossId}`, { method: 'PATCH', cookie: boss, headers: { origin: 'https://evil.example' }, json: { plan: 'free' } })).status, 403);
+  assert.equal((await call(`${P}/api/admin/users/${bossId}`, { method: 'PATCH', cookie: boss, headers: { origin: 'https://evil.example' }, json: { plan: 'blocked' } })).status, 403);
 });
 
 test('newsletter: double opt-in, one-click unsubscribe, from the account, issues sent in the background', async () => {
@@ -471,4 +469,18 @@ test('newsletter: double opt-in, one-click unsubscribe, from the account, issues
   // deleting the account ends the subscription
   await call(`${P}/api/auth/delete-user`, { method: 'POST', cookie: ada, json: { password: 'geheim-123' } });
   assert.deepEqual(server.news.counts(), { active: 0, pending: 0 });
+});
+
+test('plans from before everything was free become access levels', () => {
+  const db = new DatabaseSync(':memory:');
+  new PlanStore(db);
+  const add = db.prepare('insert into userPlan (userId, plan, paidUntil, note, updatedAt) values (?, ?, ?, ?, 0)');
+  add.run('a', 'free', null, '');
+  add.run('b', 'pro', 1_900_000_000_000, 'Stripe cus_1');
+  add.run('c', 'commercial', null, '');
+  db.prepare(`insert into setting (key, value) values ('plans', ?)`).run(JSON.stringify({ proFreeUntil: '2027-02-01', proPrice: 6, proDailyCompiles: 40, commercialPrice: 29 }));
+  const plans = new PlanStore(db);
+  assert.deepEqual(['a', 'b', 'c', 'd'].map((id) => plans.planOf(id).plan), ['blocked', 'standard', 'unlimited', 'standard']);
+  assert.equal(plans.planOf('b').note, 'Stripe cus_1');
+  assert.deepEqual(plans.settings(), { dailyCompiles: 40 });
 });

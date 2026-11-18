@@ -133,9 +133,8 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   hover. *Upload* (Ctrl+Enter) compiles on the server, puts the HEX onto the chip and
   starts the live simulation; *Verify* (Ctrl+B) only compiles. Errors are marked in the
   text, memory use is shown, and the HEX and the source can be saved. The source is
-  stored in the chip next to its HEX. The online compiler needs an account with a plan
-  that includes it (see *Plans*); the panel says so before the first compile and shows
-  today's compiles
+  stored in the chip next to its HEX. The online compiler needs a free account (see *Free and
+  open source*); the panel says so before the first compile and shows today's compiles
 - Coupled to ngspice through the operating point: outputs drive the circuit through
   their 25 Ω drivers, pull-ups are 35 kΩ, inputs read the node voltages (Schmitt
   trigger levels), A0–A5 feed the ADC, the chip resets below 2.7 V. PWM pins are
@@ -181,7 +180,7 @@ admin rights are needed: the simulation runs **NGSpice compiled to WebAssembly**
   deletes, and runs the DC operating point or a transient analysis in ngspice to check
   currents and voltages before it answers. Its progress notes and every step show in the
   panel; all changes of one answer undo with one click (one undo step)
-- Needs an account with Professional or Individual Commercial and the user's own
+- Needs a (free) account and the user's own
   Anthropic API key (entered in the panel or the account dialog). Claude Opus 5.5 by
   default, Claude Sonnet 5.5 as the faster choice per conversation
 
@@ -269,7 +268,7 @@ and the libraries LiquidCrystal, Servo and Stepper (EEPROM, Wire, SPI and Softwa
 come with the core). `POST /compile` takes `{ files: [{ name, content }], clock }` and
 answers with the HEX, the memory use and gcc's messages. A program without a `.ino` file
 is plain C/C++ with its own `main()`. The API passes `/api/compile` on to signed-in
-accounts whose plan has the compiler, counts the compiles per day (`server/plans.ts`) and
+accounts that are not blocked from it, counts the compiles per day (`server/plans.ts`) and
 allows at most `MAX_COMPILES` per account in ten minutes. The desktop app compiles on the
 public server with the account's key (`Authorization: Bearer bbk_…`, made in the account
 on the web, stored only as a hash).
@@ -323,27 +322,19 @@ default `https://pueski.de` and `/blackboard`). The secrets of the API live in
 database in `$DEPLOY_DIR/data`. `scripts/set-smtp.sh` writes the mail settings into it, asks
 only for the password and restarts the API. The live instance runs at https://pueski.de/blackboard/.
 
-### Plans
+### Free and open source
 
-- **Free / Edu**: every feature, without an account, except the online compiler and Claude
-- **Professional**: the online compiler with a daily limit (60) and Claude with the user's
-  own Anthropic API key. Free of charge with an account until the day before
-  `proFreeUntil` (1 February 2027), then 6 € per month
-- **Individual Commercial**: commercial use, the compiler without a daily limit, Claude,
-  29 € per month
-
-New accounts get Professional. Prices, the end of the free start, the daily limit and the
-Stripe payment links are settings of the admin page (stored in the database, served with
-`/api/config`); a signed-in user's id and address go along with the link as
-`client_reference_id` and `prefilled_email`. After a payment the admin sets the plan and
-"paid until" of the account by hand.
+Everything is free for everyone. The editor works without an account; the online compiler
+and Claude need a free one. Every account compiles up to a number of times per day (60, a
+setting of the admin page, served with `/api/config`); admins can give an account unlimited
+access or block it from compiler and Claude.
 
 ### Admin page and newsletter
 
 `./?admin` is the admin page, for accounts in `ADMIN_EMAILS` (server.env, once the address
-is confirmed) or with the role `admin`: an overview, the accounts (plan, paid until, note,
+is confirmed) or with the role `admin`: an overview, the accounts (access to compiler and Claude, note,
 admin rights, blocking, sign-out everywhere, password and confirmation mails, deleting with
-all projects), the newsletter and the plan settings. Blocking uses Better Auth's admin
+all projects), the newsletter and the daily compiles. Blocking uses Better Auth's admin
 plugin: a blocked account cannot sign in and its desktop key stops working.
 
 The newsletter has double opt-in: the landing page sends a mail with a confirmation link
@@ -384,7 +375,7 @@ server/                    accounts, plans, cloud projects, newsletter, admin AP
                            Auth, SQLite), /api/compile, /api/assistant (Claude)
 compiler/                  C/C++ -> Intel HEX for the ATmega328P (arduino-cli, own container)
 src/landing/               landing page, sign-in dialogs, plans, newsletter, legal pages
-src/admin/                 admin page (?admin): accounts, newsletter, plan settings
+src/admin/                 admin page (?admin): accounts, newsletter, daily compiles
 src/account/               auth client, plans, cloud projects in the editor
 src/io/                    XML reader/writer, legacy BoardBean format, .bb archives, KiCad
 src/model/                 document model, item operations, engineering values
@@ -421,7 +412,12 @@ BlackBoard 1.x so `plot v(5)` in existing schematics still shows the same signal
 - The NGSpice engine (~20 MB) is loaded on the first simulation and cached for
   offline use.
 
-© 2026 Matthias Püski. All rights reserved.
+## Licence
+
+BlackBoard Next is free software: © 2026 Matthias Püski and contributors, licensed under the
+GNU Affero General Public License, version 3 ([LICENSE](LICENSE)). Run a changed version as a
+web service and its users may ask for its source, as for the original at
+https://github.com/mpue/blackboard-next (linked in the app).
 
 Third-party components keep their own licences: the part library is partly
 CC BY 3.0 (Gerd Bartelt, Andreas Kraemer); simulation: ngspice (BSD-3) via eecircuit-engine (MIT);

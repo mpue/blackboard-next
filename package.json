@@ -3,7 +3,7 @@
   "private": true,
   "version": "3.0.0",
   "description": "BlackBoard Circuit Designer – portable rebuild (web, PWA, Tauri desktop)",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "library": "node scripts/build-library.ts",

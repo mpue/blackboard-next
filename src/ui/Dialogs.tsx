@@ -11,7 +11,7 @@ import { useT, type I18nKey } from '../i18n/i18n.ts';
 import { commands, MOD, type Command } from '../editor/commands.ts';
 import { openFromDisk, openSample } from '../editor/fileActions.ts';
 import { createSymbolFromSelection } from '../editor/symbolActions.ts';
-import { isTauri, openViaInput } from '../platform/files.ts';
+import { openViaInput } from '../platform/files.ts';
 import { dataUrl } from '../io/bbfile.ts';
 import { Button, Check, Dialog, Field, Kbd, NumberInput, Select, cx } from './primitives.tsx';
 import { Logo } from './Logo.tsx';
@@ -19,6 +19,7 @@ import { buildBenchDemo } from '../spice/benchDemo.ts';
 import { setLiveMode, setLiveValues } from '../store/live.ts';
 import { mm, toMm } from '../pcb/units.ts';
 import { DesignRulesDialog } from './DesignRulesDialog.tsx';
+import { SOURCE_URL } from '../source.ts';
 
 // the cloud dialog (accounts) and the footprint editor are only loaded when opened
 const CloudDialog = lazy(() => import('./CloudDialog.tsx').then((m) => ({ default: m.CloudDialog })));
@@ -308,9 +309,9 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
           <p>{t('about.text')}</p>
           <p>{t('about.compat')}</p>
           <p>
-            {t('about.plans')}{' '}
-            <a className="underline" href={isTauri() ? 'https://pueski.de/blackboard/#pricing' : new URL('./#pricing', document.baseURI).href} target="_blank" rel="noreferrer">
-              {t('about.pricing')}
+            {t('about.free')}{' '}
+            <a className="underline" href={SOURCE_URL} target="_blank" rel="noreferrer">
+              {t('about.source')}
             </a>
           </p>
           <p className="text-muted">{t('about.credits')}</p>

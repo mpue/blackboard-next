@@ -1,6 +1,6 @@
 // Who may use the online compiler (server/plans.ts), as the code panel shows
-// it: before the first compile already, with the way on – sign in, the plans,
-// or in the desktop app the key of the account.
+// it: before the first compile already, with the way on – sign in, or in the
+// desktop app the key of the account.
 
 import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, KeyRound, LogIn, UserPlus } from 'lucide-react';
@@ -11,7 +11,7 @@ import { isTauri } from '../platform/files.ts';
 import { toast } from '../store/store.ts';
 import { useT, type I18nKey } from '../i18n/i18n.ts';
 
-const ACCOUNT_PROBLEMS: CompileProblem[] = ['login', 'key', 'plan', 'payment', 'quota'];
+const ACCOUNT_PROBLEMS: CompileProblem[] = ['login', 'key', 'blocked', 'quota'];
 export const isAccountProblem = (p: CompileProblem | undefined): p is CompileProblem => !!p && ACCOUNT_PROBLEMS.includes(p);
 
 export interface CompileAccess {
@@ -55,11 +55,10 @@ export function problemText(t: ReturnType<typeof useT>, p: CompileProblem, usage
 const button = 'flex h-7 items-center gap-1.5 rounded-md border border-line px-2 text-[12px] hover:bg-hover';
 const primary = 'flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-[12px] font-medium text-white hover:opacity-90 dark:text-slate-950';
 
-/** the way on from an account problem */
+/** the way on from an account problem: none when the account is blocked or today's compiles are used up */
 export function AccessActions({ problem, onKey }: { problem: CompileProblem; onKey: () => void }) {
   const t = useT();
   const [key, setKey] = useState('');
-  const pricing = isTauri() ? `${PUBLIC_SITE}#pricing` : landingUrl('#pricing');
 
   if (isTauri() && (problem === 'login' || problem === 'key'))
     return (
@@ -100,11 +99,5 @@ export function AccessActions({ problem, onKey }: { problem: CompileProblem; onK
         </button>
       </div>
     );
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      <a className={button} href={pricing} target="_blank" rel="noreferrer">
-        <ExternalLink size={12} /> {t('code.plans')}
-      </a>
-    </div>
-  );
+  return null;
 }

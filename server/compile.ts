@@ -60,7 +60,7 @@ export function compileRoutes(config: Config, auth: Auth, db: DatabaseSync, plan
     if (u === 'key') return c.json({ error: 'key' }, 401);
     if (!u) return c.json({ error: 'login' }, 401);
     const access = compileAccess(plans.planOf(u.id), isAdmin(config, u), plans.settings());
-    if (!access.ok) return c.json({ error: access.reason }, access.reason === 'payment' ? 402 : 403);
+    if (!access.ok) return c.json({ error: access.reason }, 403);
     const used = plans.used(u.id);
     if (access.limit !== null && used >= access.limit) return c.json({ error: 'quota', used, limit: access.limit }, 429);
 

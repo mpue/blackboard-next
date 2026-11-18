@@ -1,17 +1,17 @@
-// The plan part of the account dialog: what the plan allows, today's compiles,
-// the way to pay, the newsletter, the desktop app's key, the Anthropic API key
-// for Claude and, for admins, the way to the admin page.
+// The access part of the account dialog: what the account may do, today's
+// compiles, the newsletter, the desktop app's key, the Anthropic API key for
+// Claude and, for admins, the way to the admin page.
 
 import { useEffect, useState } from 'react';
 import { Check, Copy, Cpu, ExternalLink, KeyRound, Loader2, Shield, Sparkles } from 'lucide-react';
 import { adminUrl } from '../account/auth.ts';
-import { checkoutUrl, createCompileKey, euro, fetchMe, lastFreeDay, longDate, proFree, removeCompileKey, setOwnNewsletter, type Me, type PlanSettings } from '../account/plans.ts';
+import { createCompileKey, fetchMe, removeCompileKey, setOwnNewsletter, type Me } from '../account/plans.ts';
 import { AssistantError, fetchAssistant, removeAssistantKey, saveAssistantKey, type KeyInfo } from '../assistant/api.ts';
 import type { Lang, T } from './strings.ts';
 
 const small = 'flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/10 px-2.5 text-[12.5px] hover:bg-white/5 disabled:opacity-60';
 
-export function AccountPlan({ t, lang, plans, onPlans }: { t: T; lang: Lang; plans: PlanSettings; onPlans: () => void }) {
+export function AccountPlan({ t, lang }: { t: T; lang: Lang }) {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [key, setKey] = useState('');
   const [copied, setCopied] = useState(false);
@@ -39,19 +39,7 @@ export function AccountPlan({ t, lang, plans, onPlans }: { t: T; lang: Lang; pla
     }
   };
   const date = (ms: number) => new Date(ms).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US');
-  const name = me.plan === 'free' ? t('plan.free.name') : me.plan === 'pro' ? t('plan.pro.name') : t('plan.com.name');
-  const freeNow = proFree(plans);
-  const text =
-    me.plan === 'free'
-      ? t('account.planFree')
-      : me.plan === 'commercial'
-        ? t('account.planCommercial')
-        : me.compile.ok
-          ? freeNow && !me.paidUntil
-            ? t('account.planProFree', { last: longDate(lastFreeDay(plans), lang), date: longDate(plans.proFreeUntil, lang), price: euro(plans.proPrice, lang) })
-            : t('account.planPro')
-          : t('account.planPayment');
-  const pay = me.plan === 'pro' && !me.compile.ok && plans.proCheckoutUrl ? checkoutUrl(plans.proCheckoutUrl, me) : '';
+  const text = me.plan === 'blocked' ? t('account.accessBlocked') : me.plan === 'unlimited' ? t('account.accessUnlimited') : t('account.accessStandard');
 
   return (
     <div className="grid min-w-0 gap-3">
@@ -59,24 +47,13 @@ export function AccountPlan({ t, lang, plans, onPlans }: { t: T; lang: Lang; pla
         <div className="flex items-center gap-2">
           <Cpu size={16} className="text-indigo-300" />
           <span className="text-[12px] text-slate-400">{t('account.plan')}</span>
-          <span className="font-semibold text-white">{name}</span>
-          <button type="button" className="ml-auto text-[12.5px] font-medium text-indigo-300 hover:text-indigo-200" onClick={onPlans}>
-            {t('account.plans')}
-          </button>
+          <span className="font-semibold text-white">{t(`account.level.${me.plan}`)}</span>
         </div>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-400">
-          {text}
-          {me.paidUntil && me.plan !== 'free' ? ` ${t('account.planPaid', { date: date(me.paidUntil) })}` : ''}
-        </p>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-slate-400">{text}</p>
         {me.compile.ok && (
           <p className="mt-1 text-[12.5px] text-slate-500">
             {me.compile.limit === null ? t('account.todayUnlimited', { used: String(me.compile.used) }) : t('account.today', { used: String(me.compile.used), limit: String(me.compile.limit) })}
           </p>
-        )}
-        {pay && (
-          <a href={pay} className="mt-2.5 flex h-9 items-center justify-center rounded-lg bg-indigo-500 text-[13.5px] font-semibold text-white hover:bg-indigo-400">
-            {t('account.subscribe')}
-          </a>
         )}
       </div>
 

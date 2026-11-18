@@ -1,15 +1,17 @@
 // The landing page of the web version: what BlackBoard does, the way into the
-// editor (no account needed), the plans, the newsletter and the account (cloud
-// projects, sharing, plan). The links of the newsletter mails land here too.
+// editor (no account needed), free and open source, the newsletter and the
+// account (cloud projects, sharing, compiler). The links of the newsletter
+// mails land here too.
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, AlertCircle, ArrowRight, CircuitBoard, Cloud, Cpu, Gauge, Grid3x3, Lock, LogIn, Share2, UserPlus, Waves, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertCircle, ArrowRight, CircuitBoard, Cloud, Code2, Cpu, Gauge, Grid3x3, Lock, LogIn, Share2, UserPlus, Waves, CheckCircle2 } from 'lucide-react';
 import { Logo } from '../ui/Logo.tsx';
 import { authClient, editorUrl, serverConfig } from '../account/auth.ts';
-import { confirmNewsletter, DEFAULT_PLANS, unsubscribeNewsletter, type PlanSettings } from '../account/plans.ts';
+import { confirmNewsletter, DEFAULT_DAILY_COMPILES, unsubscribeNewsletter } from '../account/plans.ts';
+import { SOURCE_URL } from '../source.ts';
 import { AuthDialog, type AuthMode } from './AuthDialog.tsx';
 import { LEGAL_PAGES, LegalPage, type LegalPageId } from './Legal.tsx';
-import { Pricing } from './Pricing.tsx';
+import { OpenSource } from './OpenSource.tsx';
 import { Newsletter } from './Newsletter.tsx';
 import { landingLang, setLandingLang, translator, type LandingKey, type Lang } from './strings.ts';
 
@@ -72,14 +74,12 @@ export function Landing() {
   const [banner, setBanner] = useState<{ text: string; ok: boolean } | null>(() =>
     params.has('verified')
       ? { text: t('auth.verified'), ok: true }
-      : params.has('subscribed')
-        ? { text: t('pricing.thanks'), ok: true }
-        : params.has('authError')
-          ? { text: t('err.generic', { message: params.get('error') ?? 'Google' }), ok: false }
-          : null,
+      : params.has('authError')
+        ? { text: t('err.generic', { message: params.get('error') ?? 'Google' }), ok: false }
+        : null,
   );
   const [cloud, setCloud] = useState(true);
-  const [plans, setPlans] = useState<PlanSettings>(DEFAULT_PLANS);
+  const [dailyCompiles, setDailyCompiles] = useState(DEFAULT_DAILY_COMPILES);
   const session = authClient.useSession();
   const user = session.data?.user;
 
@@ -92,7 +92,7 @@ export function Landing() {
   useEffect(() => {
     void serverConfig().then((c) => {
       setCloud(!!c);
-      if (c?.plans) setPlans(c.plans);
+      if (c?.dailyCompiles !== undefined) setDailyCompiles(c.dailyCompiles);
     });
     // the links in the newsletter mails (the page posts them, so link scanners in mail programs do not)
     const token = params.get('token') ?? '';
@@ -157,7 +157,7 @@ export function Landing() {
             {navLink('#features', 'nav.features')}
             {navLink('#firmware', 'nav.firmware')}
             {cloud && navLink('#cloud', 'nav.cloud')}
-            {navLink('#pricing', 'nav.pricing')}
+            {navLink('#open-source', 'nav.free')}
           </div>
           <div className="ml-auto flex items-center gap-2">
             {cloud &&
@@ -188,7 +188,7 @@ export function Landing() {
       </nav>
 
       {page !== 'home' ? (
-        <LegalPage page={page} lang={lang} plans={plans} />
+        <LegalPage page={page} lang={lang} dailyCompiles={dailyCompiles} />
       ) : (
         <main>
           {/* hero */}
@@ -309,8 +309,8 @@ export function Landing() {
             </Section>
           )}
 
-          <Section id="pricing" className="py-20">
-            <Pricing t={t} lang={lang} plans={plans} user={user} onSignUp={() => setDialog({ mode: 'signUp' })} onAgb={() => open('agb')} />
+          <Section id="open-source" className="py-20">
+            <OpenSource t={t} dailyCompiles={dailyCompiles} user={user} cloud={cloud} onSignUp={() => setDialog({ mode: 'signUp' })} />
           </Section>
 
           {cloud && (
@@ -335,6 +335,9 @@ export function Landing() {
           <span className="flex items-center gap-2">
             <Logo size={18} /> BlackBoard Next · © 2026 Matthias Püski
           </span>
+          <a href={SOURCE_URL} className="flex items-center gap-1.5 hover:text-slate-300" target="_blank" rel="noreferrer">
+            <Code2 size={15} /> {t('footer.source')}
+          </a>
           <span className="ml-auto flex flex-wrap gap-5">
             <button className="hover:text-slate-300" onClick={() => open('impressum')}>
               {t('footer.imprint')}
@@ -344,9 +347,6 @@ export function Landing() {
             </button>
             <button className="hover:text-slate-300" onClick={() => open('nutzungsbedingungen')}>
               {t('footer.terms')}
-            </button>
-            <button className="hover:text-slate-300" onClick={() => open('agb')}>
-              {t('footer.agb')}
             </button>
             <button className="hover:text-slate-300" onClick={switchLang}>
               {t('footer.language')}
@@ -362,15 +362,9 @@ export function Landing() {
           next={next}
           t={t}
           lang={lang}
-          plans={plans}
           onClose={() => setDialog(null)}
           onPrivacy={() => open('datenschutz')}
           onTerms={() => open('nutzungsbedingungen')}
-          onPlans={() => {
-            setDialog(null);
-            if (page !== 'home') open('home');
-            setTimeout(() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }), 0);
-          }}
         />
       )}
       {banner && (

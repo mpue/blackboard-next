@@ -1,4 +1,4 @@
-// The admin page (?admin): overview, accounts, newsletter and plan settings.
+// The admin page (?admin): overview, accounts, newsletter and the daily compiles.
 // Only for admins; the server checks every call (server/admin.ts). Written in
 // German only: the operator is its one audience.
 
@@ -17,7 +17,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Übersicht' },
   { id: 'users', label: 'Konten' },
   { id: 'newsletter', label: 'Newsletter' },
-  { id: 'plans', label: 'Tarife' },
+  { id: 'plans', label: 'Compiler' },
 ];
 const asTab = (h: string): Tab => (TABS.some((t) => t.id === h) ? (h as Tab) : 'overview');
 
@@ -47,7 +47,7 @@ function Overview({ stats }: { stats: Stats }) {
         <Stat label="Newsletter" value={stats.subscribers.active} sub={`${stats.subscribers.pending} nicht bestätigt`} />
       </div>
       <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr]">
-        <Card title="Tarife">
+        <Card title="Zugang zu Compiler und Claude">
           <ul className="grid gap-3">
             {(Object.keys(PLAN_NAMES) as (keyof typeof PLAN_NAMES)[]).map((p) => (
               <li key={p} className="grid gap-1">
@@ -57,7 +57,7 @@ function Overview({ stats }: { stats: Stats }) {
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className={`h-full rounded-full ${p === 'commercial' ? 'bg-emerald-500' : p === 'pro' ? 'bg-indigo-500' : 'bg-slate-500'}`}
+                    className={`h-full rounded-full ${p === 'unlimited' ? 'bg-emerald-500' : p === 'standard' ? 'bg-indigo-500' : 'bg-slate-500'}`}
                     style={{ width: `${stats.users ? (stats.plans[p] / stats.users) * 100 : 0}%` }}
                   />
                 </div>

@@ -228,7 +228,7 @@ async function run() {
     else {
       const err = e instanceof AssistantError ? e : new AssistantError('server', (e as Error).message);
       push({ id: nextId(), kind: 'error', error: err.kind, message: err.message !== err.kind ? err.message : undefined });
-      set({ canRetry: !['key', 'nokey', 'login', 'plan', 'payment', 'messages', 'large'].includes(err.kind) });
+      set({ canRetry: !['key', 'nokey', 'login', 'blocked', 'messages', 'large'].includes(err.kind) });
       if (err.kind === 'key' || err.kind === 'nokey') set({ keyForm: true });
     }
   } finally {

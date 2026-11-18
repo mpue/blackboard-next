@@ -1,31 +1,19 @@
-// The plans as the server knows them (server/plans.ts): Free for everyone,
-// Professional and Commercial with the online compiler. Also the signed-in
-// user's own plan, the desktop app's compile key and the newsletter.
+// What an account may do beyond the editor, as the server knows it
+// (server/plans.ts): every account compiles online and uses Claude, a number
+// of compiles per day; admins can lift the limit or block an account. Also the
+// signed-in user's own access, the desktop app's compile key and the newsletter.
 
 import { apiUrl } from './api.ts';
 
-export type Plan = 'free' | 'pro' | 'commercial';
+export type Plan = 'standard' | 'unlimited' | 'blocked';
 
 export interface PlanSettings {
-  /** first day (YYYY-MM-DD) on which Professional costs money */
-  proFreeUntil: string;
-  proPrice: number;
-  proDailyCompiles: number;
-  commercialPrice: number;
-  /** Stripe payment links; '' = none yet */
-  proCheckoutUrl: string;
-  commercialCheckoutUrl: string;
+  /** compiles per account and day with the standard access */
+  dailyCompiles: number;
 }
 
-/** what the price list shows when there is no server (static hosting) */
-export const DEFAULT_PLANS: PlanSettings = {
-  proFreeUntil: '2027-02-01',
-  proPrice: 6,
-  proDailyCompiles: 60,
-  commercialPrice: 29,
-  proCheckoutUrl: '',
-  commercialCheckoutUrl: 'https://buy.stripe.com/4gM4gzdxz6ac9ht0Sfdby01',
-};
+/** what the landing page shows when there is no server (static hosting) */
+export const DEFAULT_DAILY_COMPILES = 60;
 
 export type NewsletterStatus = 'pending' | 'active' | null;
 
@@ -35,8 +23,7 @@ export interface Me {
   email: string;
   admin: boolean;
   plan: Plan;
-  paidUntil: number | null;
-  compile: { ok: true; limit: number | null; used: number } | { ok: false; reason: 'plan' | 'payment'; limit: null; used: number };
+  compile: { ok: true; limit: number | null; used: number } | { ok: false; reason: 'blocked'; limit: null; used: number };
   key: { createdAt: number; lastUsedAt: number | null } | null;
   newsletter: NewsletterStatus;
 }
@@ -59,24 +46,3 @@ export const subscribeNewsletter = (email: string, lang: string) => call<{ ok: b
 export const confirmNewsletter = (token: string) => call<{ ok: boolean }>('newsletter/confirm', json('POST', { token }));
 export const unsubscribeNewsletter = (token: string) => call<{ ok: boolean }>('newsletter/unsubscribe', json('POST', { token }));
 export const setOwnNewsletter = (subscribed: boolean, lang: string) => call<{ status: NewsletterStatus }>('newsletter/me', json('PUT', { subscribed, lang }));
-
-/** Is Professional still free of charge (German date)? */
-export const proFree = (s: PlanSettings, now = Date.now()) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(now) < s.proFreeUntil;
-
-/** "1. Februar 2027" / "February 1, 2027" */
-export const longDate = (iso: string | number, lang: string) =>
-  new Date(typeof iso === 'string' ? `${iso}T12:00:00` : iso).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-
-/** the day before `proFreeUntil`: the last free one */
-export const lastFreeDay = (s: PlanSettings) => new Date(new Date(`${s.proFreeUntil}T12:00:00`).getTime() - 86_400_000).getTime();
-
-export const euro = (n: number, lang: string) => `${n.toLocaleString(lang === 'de' ? 'de-DE' : 'en-US', { maximumFractionDigits: 2 })} €`;
-
-/** a Stripe payment link with the account, so the payment belongs to it */
-export function checkoutUrl(base: string, user?: { id: string; email: string }) {
-  if (!base || !user) return base;
-  const u = new URL(base);
-  u.searchParams.set('client_reference_id', user.id);
-  u.searchParams.set('prefilled_email', user.email);
-  return u.href;
-}

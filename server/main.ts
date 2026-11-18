@@ -1,4 +1,4 @@
-// The BlackBoard server: accounts with their plans, cloud projects, the way to
+// The BlackBoard server: accounts with their access, cloud projects, the way to
 // the compiler and to Claude, the newsletter and the admin page's API, under
 // <PUBLIC_PATH>/api. The app itself stays static (nginx); this only answers
 // /api, with its data in one SQLite file in DATA_DIR.
@@ -22,7 +22,7 @@ export async function createServer(config: Config, opts: { mailer?: Mailer; file
   const db = new DatabaseSync(opts.file ?? join(config.dataDir, 'blackboard.db'));
   db.exec('pragma journal_mode = wal; pragma busy_timeout = 5000;');
   const mail = opts.mailer ?? createMailer(config);
-  // a deleted account takes its projects, plan, compiles, keys and subscription along
+  // a deleted account takes its projects, access, compiles, keys and subscription along
   const deleteUser = (user: { id: string; email: string }) => {
     store.deleteUser(user.id);
     plans.deleteUser(user.id);
@@ -41,8 +41,8 @@ export async function createServer(config: Config, opts: { mailer?: Mailer; file
   // "/api/projects/" and "/api/projects" are the same
   const app = new Hono({ strict: false });
   app.get(`${base}/health`, (c) => c.json({ ok: true }));
-  // what the sign-in dialog and the price list can offer
-  app.get(`${base}/config`, (c) => c.json({ google: !!config.google, maxProjectBytes: config.maxProjectBytes, plans: plans.settings() }));
+  // what the sign-in dialog and the landing page can offer
+  app.get(`${base}/config`, (c) => c.json({ google: !!config.google, maxProjectBytes: config.maxProjectBytes, dailyCompiles: plans.settings().dailyCompiles }));
   app.on(['GET', 'POST'], `${base}/auth/*`, (c) => auth.handler(c.req.raw));
   app.route(`${base}/projects`, projectRoutes(config, auth, store, mail));
   app.route(`${base}/compile`, compileRoutes(config, auth, db, plans));

@@ -1,5 +1,5 @@
 // Claude as design assistant in the schematic editor (src/assistant/).
-// Accounts with Professional or Commercial keep their own Anthropic API key
+// Every account (unless an admin blocked it) keeps its own Anthropic API key
 // here: it is stored encrypted (AES-256-GCM with a key derived from the
 // session secret) and never leaves the server again, only its last characters
 // are shown. The editor keeps the conversation and executes the tools on the
@@ -139,7 +139,7 @@ export function assistantRoutes(config: Config, auth: Auth, plans: PlanStore, ke
     await next();
   });
 
-  const access = (u: User) => assistantAccess(plans.planOf(u.id), isAdmin(config, u), plans.settings());
+  const access = (u: User) => assistantAccess(plans.planOf(u.id), isAdmin(config, u));
 
   // may the account use Claude, and is there a key
   app.get('/', (c) => {
@@ -151,7 +151,7 @@ export function assistantRoutes(config: Config, auth: Auth, plans: PlanStore, ke
   app.put('/key', async (c) => {
     const u = c.get('user');
     const a = access(u);
-    if (!a.ok) return c.json({ error: a.reason }, a.reason === 'payment' ? 402 : 403);
+    if (!a.ok) return c.json({ error: a.reason }, 403);
     const { key } = (await c.req.json().catch(() => ({}))) as { key?: unknown };
     const apiKey = typeof key === 'string' ? key.trim() : '';
     if (!KEY_RE.test(apiKey)) return c.json({ error: 'format' }, 400);
@@ -174,7 +174,7 @@ export function assistantRoutes(config: Config, auth: Auth, plans: PlanStore, ke
   app.post('/messages', bodyLimit({ maxSize: MAX_BODY, onError: (c) => c.json({ error: 'large' }, 413) }), async (c) => {
     const u = c.get('user');
     const a = access(u);
-    if (!a.ok) return c.json({ error: a.reason }, a.reason === 'payment' ? 402 : 403);
+    if (!a.ok) return c.json({ error: a.reason }, 403);
     const apiKey = keys.get(u.id);
     if (!apiKey) return c.json({ error: 'nokey' }, 409);
     const body = (await c.req.json().catch(() => ({}))) as { model?: unknown; messages?: unknown };

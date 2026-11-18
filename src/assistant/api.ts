@@ -15,7 +15,7 @@ export interface KeyInfo {
 }
 
 export interface AssistantInfo {
-  access: { ok: true } | { ok: false; reason: 'plan' | 'payment' };
+  access: { ok: true } | { ok: false; reason: 'blocked' };
   key: KeyInfo | null;
   models: ModelChoice[];
 }

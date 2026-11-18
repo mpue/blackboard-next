@@ -1,9 +1,11 @@
-// Legal notice (Impressum, § 5 DDG) and privacy policy of the web version.
-// German law asks for them in German; the English version only points there.
-// The texts describe what the BlackBoard server actually stores (server/).
+// Legal notice (Impressum, § 5 DDG), privacy policy and terms of use of the
+// web version. German law asks for them in German; the English version only
+// points there. The texts describe what the BlackBoard server actually stores
+// (server/). The program itself is open source: its licence is the AGPL, the
+// terms only cover the service run at pueski.de.
 
 import type { ReactNode } from 'react';
-import { lastFreeDay, longDate, type PlanSettings } from '../account/plans.ts';
+import { SOURCE_URL } from '../source.ts';
 import type { Lang } from './strings.ts';
 
 /** Operator of the site */
@@ -67,19 +69,19 @@ function Privacy() {
       <P>
         Für ein Konto speichern wir Name, E-Mail-Adresse, das Passwort (nur als sicherer Hash, nie im Klartext) und den Zeitpunkt der Registrierung. Für angemeldete Sitzungen speichern wir
         zusätzlich IP-Adresse und Browserkennung der Sitzung, um Missbrauch zu erkennen. Die Verarbeitung dient der Bereitstellung des Kontos (Art. 6 Abs. 1 lit. b DSGVO). Zur Bestätigung
-        der E-Mail-Adresse, zum Zurücksetzen des Passworts und um dich über geteilte Projekte zu informieren, senden wir E-Mails an deine Adresse. Zum Konto gehört außerdem der Tarif
-        (Free / Edu, Professional oder Individual Commercial) mit dem Zeitraum, für den er bezahlt ist.
+        der E-Mail-Adresse, zum Zurücksetzen des Passworts und um dich über geteilte Projekte zu informieren, senden wir E-Mails an deine Adresse. Zum Konto gehört außerdem sein Zugang
+        zum Online-Compiler und zu Claude (Standard, unbegrenzt oder gesperrt) mit einer Notiz des Administrators.
       </P>
       <H>Online-Compiler</H>
       <P>
         Wenn du im Code-Editor „Prüfen“ oder „Hochladen“ wählst, schickt der Editor deinen Quelltext an unseren Server. Er wird dort in einem abgeschotteten Container ohne
         Internetzugang übersetzt; Quelltext und Ergebnis werden danach sofort gelöscht und nicht gespeichert. Wir speichern nur, wie oft dein Konto an einem Tag übersetzt hat, um das
-        Tageslimit deines Tarifs einzuhalten. Für die Desktop-App kannst du einen Schlüssel erzeugen; wir speichern ihn nur als Hash, zusammen mit dem Zeitpunkt der Erzeugung und der
+        Tageslimit einzuhalten. Für die Desktop-App kannst du einen Schlüssel erzeugen; wir speichern ihn nur als Hash, zusammen mit dem Zeitpunkt der Erzeugung und der
         letzten Nutzung. Die Verarbeitung dient der Bereitstellung des Online-Compilers (Art. 6 Abs. 1 lit. b DSGVO).
       </P>
       <H>Claude als Entwurfsassistent</H>
       <P>
-        Mit Professional oder Individual Commercial kannst du im Editor Claude als Entwurfsassistenten nutzen. Dafür hinterlegst du deinen eigenen API-Schlüssel von Anthropic. Wir
+        Mit einem Konto kannst du im Editor Claude als Entwurfsassistenten nutzen. Dafür hinterlegst du deinen eigenen API-Schlüssel von Anthropic. Wir
         speichern ihn verschlüsselt, zeigen ihn nie wieder an (nur seine letzten vier Zeichen) und speichern dazu den Zeitpunkt der Hinterlegung und der letzten Nutzung. Stellst du Claude
         eine Frage, schickt der Editor deine Nachricht, eine Beschreibung des Schaltplans, an dem Claude arbeitet, und die Ergebnisse von Claudes Arbeitsschritten (etwa Simulationswerte)
         über unseren Server mit deinem Schlüssel an Anthropic, den Anbieter von Claude. Unser Server speichert diese Inhalte nicht; er leitet sie nur weiter und zählt die Anfragen, um
@@ -106,14 +108,6 @@ function Privacy() {
         Projekte, die du in der Cloud speicherst, liegen auf unserem Server, bis du sie oder dein Konto löschst. Teilst du ein Projekt, sehen die Personen, mit denen du es teilst, das Projekt
         sowie deinen Namen und deine E-Mail-Adresse; du siehst umgekehrt Name und E-Mail-Adresse der Personen, mit denen du teilst. Freigaben kannst du jederzeit zurücknehmen.
       </P>
-      <H>Abonnement und Zahlung</H>
-      <P>
-        Für ein kostenpflichtiges Abo (Professional nach der kostenlosen Startphase, Individual Commercial) wirst du zu unserem Zahlungsdienstleister Stripe (Stripe Payments Europe, Limited, 1 Grand Canal Street Lower, Grand Canal Dock, Dublin, D02 H210,
-        Irland) weitergeleitet. Stripe verarbeitet deine Zahlungsdaten selbst; wir erhalten Name, E-Mail-Adresse, Rechnungsadresse und den Status der Zahlung, aber keine vollständigen
-        Kartendaten. Bist du angemeldet, geben wir Stripe die interne Kennung deines Kontos mit, damit das Abo deinem Konto zugeordnet werden kann. Die Verarbeitung dient der Durchführung
-        des Vertrags (Art. 6 Abs. 1 lit. b DSGVO); Rechnungsdaten bewahren wir so lange auf, wie es das Steuerrecht vorschreibt. Für die Verarbeitung bei Stripe gilt dessen
-        Datenschutzerklärung (stripe.com/de/privacy).
-      </P>
       <H>Cookies</H>
       <P>
         Wir setzen nur technisch notwendige Cookies: ein Sitzungs-Cookie, solange du angemeldet bist, und kurzlebige Cookies während einer Anmeldung mit Google. Dafür ist keine Einwilligung
@@ -121,7 +115,7 @@ function Privacy() {
       </P>
       <H>Speicherdauer</H>
       <P>
-        Kontodaten, Tarif, die Zahl der Übersetzungen und Projekte speichern wir, bis du dein Konto löschst. Sitzungen laufen nach spätestens sieben Tagen ohne Nutzung ab. Links in
+        Kontodaten, Zugang, die Zahl der Übersetzungen und Projekte speichern wir, bis du dein Konto löschst. Sitzungen laufen nach spätestens sieben Tagen ohne Nutzung ab. Links in
         Bestätigungs- und Passwort-Mails gelten eine Stunde. Newsletter-Adressen speichern wir, bis du dich abmeldest.
       </P>
       <H>Deine Rechte</H>
@@ -137,8 +131,9 @@ function Privacy() {
 const address = () => `${OPERATOR.name}, ${OPERATOR.address.join(', ')}`;
 const Stand = () => <p className="mt-2 text-[13px] text-slate-500">Stand: November 2026</p>;
 
-/** Terms of use: everyone, with or without account (the plans and the rules for commercial use) */
-function Terms({ plans }: { plans: PlanSettings }) {
+/** Terms of use of the service: everyone, with or without account */
+function Terms({ dailyCompiles }: { dailyCompiles: number }) {
+  const source = SOURCE_URL.replace(/^https:\/\//, '');
   return (
     <>
       <h1 className="text-[28px] font-bold text-white">Nutzungsbedingungen</h1>
@@ -146,45 +141,41 @@ function Terms({ plans }: { plans: PlanSettings }) {
       <H>§ 1 Geltungsbereich</H>
       <P>
         Diese Nutzungsbedingungen gelten für die Nutzung von BlackBoard – der Web-App, der installierbaren App und der Desktop-Anwendung – und des BlackBoard-Kontos. Anbieter ist {address()}{' '}
-        (siehe Impressum). Für das kostenpflichtige Abo Individual Commercial gelten zusätzlich die AGB.
+        (siehe Impressum).
       </P>
-      <H>§ 1a Tarife und Online-Compiler</H>
+      <H>§ 1a Online-Compiler und Claude</H>
       <P>
-        (1) Alle Funktionen von BlackBoard stehen ohne Konto und in jedem Tarif zur Verfügung – mit Ausnahme des Online-Compilers, der im Code-Editor C- und C++-Quelltext auf dem Server des
-        Anbieters übersetzt, und von Claude als Entwurfsassistent (Absatz 5). HEX-Dateien aus anderen Werkzeugen lassen sich immer laden.
+        (1) Alle Funktionen von BlackBoard stehen ohne Konto zur Verfügung – mit Ausnahme des Online-Compilers, der im Code-Editor C- und C++-Quelltext auf dem Server des Anbieters
+        übersetzt, und von Claude als Entwurfsassistent (Absatz 4). Beide brauchen ein kostenloses Konto. HEX-Dateien aus anderen Werkzeugen lassen sich immer laden.
       </P>
       <P>
-        (2) Professional: Mit einem Konto ist der Online-Compiler enthalten, derzeit mit bis zu {plans.proDailyCompiles} Übersetzungen pro Tag. Bis zum {longDate(lastFreeDay(plans), 'de')}{' '}
-        ist Professional kostenlos. Ab dem {longDate(plans.proFreeUntil, 'de')} kostet Professional {plans.proPrice} € im Monat; der Online-Compiler steht dann nur mit einem bezahlten Abo
-        zur Verfügung. Über die Bedingungen des Abos informiert der Anbieter die Kontoinhaber rechtzeitig vorher per E-Mail. Ohne Abo bleiben Konto, Cloud-Projekte und alle anderen
-        Funktionen erhalten.
+        (2) Jedes Konto kann den Online-Compiler nutzen, derzeit mit bis zu {dailyCompiles} Übersetzungen pro Tag. Der Anbieter kann diese Zahl ändern, einzelnen Konten mehr erlauben oder
+        ein Konto bei Missbrauch vom Online-Compiler und von Claude ausschließen.
       </P>
-      <P>(3) Individual Commercial enthält den Online-Compiler ohne Tageslimit (siehe AGB).</P>
       <P>
-        (4) Zum Schutz des Dienstes darf der Anbieter technische Grenzen setzen, etwa für die Zahl der Übersetzungen in kurzer Zeit, die Größe des Quelltexts und die Dauer einer
+        (3) Zum Schutz des Dienstes darf der Anbieter technische Grenzen setzen, etwa für die Zahl der Übersetzungen in kurzer Zeit, die Größe des Quelltexts und die Dauer einer
         Übersetzung. Der Schlüssel für die Desktop-App ist wie ein Passwort geheim zu halten.
       </P>
       <P>
-        (5) Claude als Entwurfsassistent: Mit Professional (solange der Online-Compiler enthalten ist) oder Individual Commercial kannst du einen eigenen API-Schlüssel von Anthropic
-        hinterlegen und Claude im Editor Schaltungen entwerfen, ändern und prüfen lassen. Die Nutzung von Claude rechnet Anthropic direkt mit dir ab; dafür gelten die Bedingungen von
-        Anthropic. Der Anbieter leitet die Anfragen nur weiter und darf ihre Zahl zum Schutz des Dienstes begrenzen. Claudes Antworten und Änderungen am Schaltplan entstehen automatisch
-        und können Fehler enthalten: Prüfe sie, bevor du eine Schaltung aufbaust, besonders bei Netzspannung, hohen Strömen und Akkus.
+        (4) Claude als Entwurfsassistent: Mit einem Konto kannst du einen eigenen API-Schlüssel von Anthropic hinterlegen und Claude im Editor Schaltungen entwerfen, ändern und prüfen
+        lassen. Die Nutzung von Claude rechnet Anthropic direkt mit dir ab; dafür gelten die Bedingungen von Anthropic. Der Anbieter leitet die Anfragen nur weiter und darf ihre Zahl zum
+        Schutz des Dienstes begrenzen. Claudes Antworten und Änderungen am Schaltplan entstehen automatisch und können Fehler enthalten: Prüfe sie, bevor du eine Schaltung aufbaust,
+        besonders bei Netzspannung, hohen Strömen und Akkus.
       </P>
-      <H>§ 2 Nutzungsrecht</H>
-      <P>(1) Der Anbieter räumt dir ein einfaches, nicht übertragbares Recht ein, BlackBoard nach diesen Bedingungen zu nutzen.</P>
+      <H>§ 2 Kostenlose Nutzung und Open Source</H>
+      <P>(1) Die Nutzung von BlackBoard und des Kontos ist kostenlos – privat, in Schule, Ausbildung und Studium und auch gewerblich.</P>
       <P>
-        (2) Free / Edu: Kostenlos ist die Nutzung für private Zwecke ohne Erwerbsabsicht sowie für Schule, Ausbildung, Studium, Lehre und nicht kommerzielle Forschung an
-        Bildungseinrichtungen.
+        (2) BlackBoard ist Open Source. Der Quellcode steht unter der GNU Affero General Public License, Version 3 (AGPL-3.0), unter{' '}
+        <a className="text-indigo-300" href={SOURCE_URL} target="_blank" rel="noreferrer">
+          {source}
+        </a>
+        . Für das Kopieren, Verändern und Weitergeben des Programms gilt allein diese Lizenz; diese Nutzungsbedingungen regeln nur den Dienst, den der Anbieter betreibt (Web-App, Konto,
+        Cloud-Projekte, Online-Compiler und die Weiterleitung an Claude).
       </P>
       <P>
-        (3) Gewerbliche Nutzung: Wer BlackBoard im Zusammenhang mit einer gewerblichen oder selbstständigen beruflichen Tätigkeit nutzt – etwa für Produktentwicklung, Auftragsarbeiten oder
-        Beratung, auch als Beschäftigte eines Unternehmens für dessen Zwecke –, braucht für jede Person, die BlackBoard so nutzt, ein Abo Individual Commercial.
+        (3) Bestandteile Dritter (Bauteilbibliothek, Simulator, Emulatoren) stehen unter ihren eigenen Lizenzen; sie sind in der App unter „Über BlackBoard“ genannt.
       </P>
-      <P>
-        (4) Nicht erlaubt ist, BlackBoard zu verändern, zu dekompilieren oder weiterzuverbreiten, soweit das Gesetz es nicht ausdrücklich erlaubt (§§ 69d, 69e UrhG), sowie Grenzen oder
-        Schutzmaßnahmen des Dienstes zu umgehen. Bestandteile Dritter (Bauteilbibliothek, Simulator, Emulatoren) stehen unter ihren eigenen Lizenzen; sie sind in der App unter „Über
-        BlackBoard“ genannt.
-      </P>
+      <P>(4) Nicht erlaubt ist, Grenzen oder Schutzmaßnahmen des Dienstes zu umgehen.</P>
       <H>§ 3 Konto</H>
       <P>(1) Für den Editor brauchst du kein Konto. Das Konto ist kostenlos; du brauchst es für Projekte in der Cloud, zum Teilen, für den Online-Compiler und für Claude.</P>
       <P>(2) Deine Angaben müssen zutreffen. Halte dein Passwort geheim. Jedes Konto gehört einer Person.</P>
@@ -237,112 +228,14 @@ function Terms({ plans }: { plans: PlanSettings }) {
   );
 }
 
-/** Terms of sale of the subscription "Individual Commercial" (businesses only) */
-function Agb() {
-  return (
-    <>
-      <h1 className="text-[28px] font-bold text-white">Allgemeine Geschäftsbedingungen für das Abo „Individual Commercial“</h1>
-      <Stand />
-      <H>§ 1 Geltungsbereich und Kunden</H>
-      <P>(1) Diese AGB gelten für Verträge über das Abo Individual Commercial zwischen {address()} („Anbieter“) und seinen Kunden.</P>
-      <P>
-        (2) Das Abo richtet sich ausschließlich an Unternehmer im Sinne von § 14 BGB, juristische Personen des öffentlichen Rechts und öffentlich-rechtliche Sondervermögen. Mit dem
-        Abschluss bestätigt der Kunde, in Ausübung seiner gewerblichen oder selbstständigen beruflichen Tätigkeit zu handeln. Mit Verbrauchern schließt der Anbieter keine Verträge über das
-        Abo.
-      </P>
-      <P>(3) Ergänzend gelten die Nutzungsbedingungen. Abweichende Bedingungen des Kunden gelten nur, wenn der Anbieter ihnen ausdrücklich in Textform zustimmt.</P>
-      <H>§ 2 Vertragsschluss</H>
-      <P>(1) Die Darstellung auf der Website ist kein bindendes Angebot. Der Kunde gibt sein Angebot auf der Bezahlseite des Zahlungsdienstleisters Stripe ab („Abonnieren“).</P>
-      <P>(2) Der Vertrag kommt zustande, wenn die erste Zahlung erfolgreich ist. Der Kunde erhält dann eine Bestätigung per E-Mail.</P>
-      <P>(3) Vertragssprache ist Deutsch.</P>
-      <H>§ 3 Leistungen</H>
-      <P>
-        (1) Das Abo gibt einer natürlichen Person (Lizenznehmer) das Recht, BlackBoard für gewerbliche Zwecke zu nutzen – in der Web-App, als installierte App und als Desktop-Anwendung,
-        mit dem jeweils aktuellen Funktionsumfang. Lizenznehmer ist die beim Abschluss angegebene Person. Ein Wechsel der Person ist zum nächsten Abrechnungsmonat möglich; der Kunde teilt
-        ihn in Textform mit.
-      </P>
-      <P>(2) Die Lizenz ist an die Person gebunden. Nutzen mehrere Personen BlackBoard gewerblich, braucht jede ein eigenes Abo.</P>
-      <P>
-        (3) Die Cloud-Funktionen stehen nach den Nutzungsbedingungen zur Verfügung. Der Anbieter bemüht sich um eine hohe Verfügbarkeit, schuldet aber keine bestimmte; Wartungen kündigt er
-        nach Möglichkeit vorher an. Der Editor selbst arbeitet auch ohne Verbindung zum Server.
-      </P>
-      <P>(4) Das Abo enthält den Online-Compiler des Code-Editors ohne Tageslimit; technische Grenzen zum Schutz des Dienstes nach den Nutzungsbedingungen bleiben unberührt.</P>
-      <P>
-        (5) Der Anbieter entwickelt BlackBoard weiter. Schränkt eine Änderung den Kern der Leistung – Entwurf, Simulation und Platinen – wesentlich ein, kann der Kunde mit sofortiger
-        Wirkung kündigen.
-      </P>
-      <H>§ 4 Preise und Zahlung</H>
-      <P>
-        (1) Das Abo kostet 29 € pro Monat. Der Anbieter ist Kleinunternehmer im Sinne von § 19 UStG; Umsatzsteuer wird nicht berechnet. Entfällt diese Regelung, kommt die gesetzliche
-        Umsatzsteuer hinzu; der Anbieter kündigt das mindestens vier Wochen vorher in Textform an.
-      </P>
-      <P>(2) Der Betrag ist monatlich im Voraus fällig und wird über Stripe mit der beim Abschluss gewählten Zahlungsart eingezogen. Rechnungen erhält der Kunde per E-Mail.</P>
-      <P>(3) Schlägt eine Zahlung fehl, ruht das Recht zur gewerblichen Nutzung, bis der offene Betrag bezahlt ist.</P>
-      <P>
-        (4) Preisänderungen kündigt der Anbieter mindestens sechs Wochen vor ihrem Wirksamwerden in Textform an. Der Kunde kann bis dahin zum Zeitpunkt des Wirksamwerdens kündigen; darauf
-        weist der Anbieter in der Ankündigung hin.
-      </P>
-      <H>§ 5 Laufzeit und Kündigung</H>
-      <P>(1) Das Abo läuft jeweils einen Monat und verlängert sich automatisch um einen weiteren Monat.</P>
-      <P>
-        (2) Beide Seiten können jederzeit zum Ende des laufenden Abrechnungsmonats kündigen, der Kunde über das Kundenportal von Stripe oder in Textform per E-Mail an {OPERATOR.email}.
-      </P>
-      <P>(3) Das Recht zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt.</P>
-      <P>
-        (4) Mit dem Ende des Abos endet das Recht zur gewerblichen Nutzung; Konto und Cloud-Projekte bleiben nach den Nutzungsbedingungen erhalten. Kündigt der Kunde nach § 3 Abs. 5,
-        erstattet der Anbieter den bereits bezahlten Betrag für die Zeit danach anteilig.
-      </P>
-      <H>§ 6 Mängel</H>
-      <P>(1) Der Anbieter sorgt dafür, dass BlackBoard während der Laufzeit im Wesentlichen wie beschrieben funktioniert, und behebt gemeldete Mängel in angemessener Frist.</P>
-      <P>(2) Der Kunde meldet Mängel unverzüglich in Textform mit einer nachvollziehbaren Beschreibung.</P>
-      <P>
-        (3) Ergebnisse von Simulation, Emulation, Design-Regel-Prüfung und Autorouter sind Modellrechnungen. Sie ersetzen keine eigene Prüfung, Messung, Normprüfung oder Abnahme; ob sie
-        für einen bestimmten Zweck genügen, prüft der Kunde selbst. Abweichungen zwischen Modell und realer Schaltung sind kein Mangel.
-      </P>
-      <H>§ 7 Haftung</H>
-      <P>
-        (1) Der Anbieter haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit, bei Verletzung des Lebens, des Körpers oder der Gesundheit, nach dem Produkthaftungsgesetz und im Umfang
-        einer übernommenen Garantie.
-      </P>
-      <P>
-        (2) Bei leichter Fahrlässigkeit haftet der Anbieter nur für die Verletzung wesentlicher Vertragspflichten – solcher, deren Erfüllung die ordnungsgemäße Durchführung des Vertrags
-        erst ermöglicht und auf deren Einhaltung der Kunde regelmäßig vertrauen darf –, und dann begrenzt auf den bei Vertragsschluss vorhersehbaren, vertragstypischen Schaden.
-      </P>
-      <P>
-        (3) Für den Verlust von Daten haftet der Anbieter nur in Höhe des Aufwands, der bei regelmäßiger Datensicherung durch den Kunden für ihre Wiederherstellung nötig gewesen wäre.
-      </P>
-      <P>(4) Die verschuldensunabhängige Haftung für Mängel, die bei Vertragsschluss schon vorhanden waren (§ 536a Abs. 1 BGB), ist ausgeschlossen.</P>
-      <P>(5) Diese Regeln gelten auch für gesetzliche Vertreter und Erfüllungsgehilfen des Anbieters.</P>
-      <H>§ 8 Daten</H>
-      <P>
-        Der Anbieter verarbeitet personenbezogene Daten nach der Datenschutzerklärung. Cloud-Projekte sollen keine personenbezogenen Daten Dritter enthalten; eine Verarbeitung im Auftrag des
-        Kunden (Art. 28 DSGVO) ist nicht Gegenstand des Vertrags.
-      </P>
-      <H>§ 9 Änderungen dieser AGB</H>
-      <P>
-        Der Anbieter kann diese AGB mit Wirkung für die Zukunft ändern, soweit das für den Kunden zumutbar ist, etwa bei geänderter Rechtslage oder neuen Funktionen. Er teilt Änderungen
-        mindestens sechs Wochen vor ihrem Wirksamwerden in Textform mit. Widerspricht der Kunde bis dahin nicht, gelten sie als angenommen; auf diese Folge und auf sein Recht, bis dahin zu
-        kündigen, weist der Anbieter in der Mitteilung hin.
-      </P>
-      <H>§ 10 Schlussbestimmungen</H>
-      <P>(1) Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts.</P>
-      <P>
-        (2) Ist der Kunde Kaufmann, juristische Person des öffentlichen Rechts oder öffentlich-rechtliches Sondervermögen, ist Gerichtsstand für alle Streitigkeiten aus dem Vertrag
-        Emmendingen.
-      </P>
-      <P>(3) Ist eine Bestimmung unwirksam, bleibt der Vertrag im Übrigen wirksam; an ihre Stelle treten die gesetzlichen Vorschriften (§ 306 BGB).</P>
-    </>
-  );
-}
-
-export const LEGAL_PAGES = ['impressum', 'datenschutz', 'agb', 'nutzungsbedingungen'] as const;
+export const LEGAL_PAGES = ['impressum', 'datenschutz', 'nutzungsbedingungen'] as const;
 export type LegalPageId = (typeof LEGAL_PAGES)[number];
 
-export function LegalPage({ page, lang, plans }: { page: LegalPageId; lang: Lang; plans: PlanSettings }) {
+export function LegalPage({ page, lang, dailyCompiles }: { page: LegalPageId; lang: Lang; dailyCompiles: number }) {
   return (
     <article className="mx-auto max-w-[760px] px-5 py-14 text-[15px]">
       {lang === 'en' && <p className="mb-6 rounded-lg bg-white/5 p-3 text-[13px] text-slate-400">The legal texts are binding in German; here is the German text.</p>}
-      {page === 'impressum' ? <Imprint /> : page === 'datenschutz' ? <Privacy /> : page === 'agb' ? <Agb /> : <Terms plans={plans} />}
+      {page === 'impressum' ? <Imprint /> : page === 'datenschutz' ? <Privacy /> : <Terms dailyCompiles={dailyCompiles} />}
     </article>
   );
 }

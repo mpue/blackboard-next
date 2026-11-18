@@ -1,4 +1,4 @@
-// The signed-in user's own plan: what it allows, today's compiles, and the key
+// The signed-in user's own access: what it allows, today's compiles, and the key
 // with which the desktop app compiles for the account.
 
 import { Hono } from 'hono';
@@ -32,7 +32,6 @@ export function meRoutes(config: Config, auth: Auth, plans: PlanStore, news: New
       email: u.email,
       admin,
       plan: p.plan,
-      paidUntil: p.paidUntil,
       compile: access.ok ? { ok: true, limit: access.limit, used: plans.used(u.id) } : { ok: false, reason: access.reason, limit: null, used: 0 },
       key: plans.keyInfo(u.id) ?? null,
       newsletter: news.byEmail(u.email)?.status ?? null,
