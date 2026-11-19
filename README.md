@@ -368,7 +368,9 @@ npm run tauri build   # installers in src-tauri/target/release/bundle/
 
 Ready-made installers for Windows (`.exe`, `.msi`), macOS (universal `.dmg`) and Linux
 (`.AppImage`, `.deb`, `.rpm`) come from GitHub Actions (`.github/workflows/desktop.yml`):
-raise the version in `src-tauri/tauri.conf.json`, then push a tag such as `v3.0.1`. The
+raise the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json`,
+add a `<release>` to `src-tauri/linux/de.pueski.blackboard.metainfo.xml` (what Linux software
+centres show: icon, description, developer), then push a tag such as `v3.0.2`. The
 workflow drafts a release, builds the three systems and publishes the release once all
 of them succeeded. The landing page offers the newest release for download; the API asks
 GitHub for it (`/api/downloads`, cached, `DOWNLOADS_REPO`), so visitors' browsers do not.

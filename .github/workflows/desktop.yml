@@ -4,7 +4,9 @@
 #
 #   git tag v3.0.1 && git push origin v3.0.1
 #
-# The version comes from src-tauri/tauri.conf.json, so raise it there first.
+# The version comes from src-tauri/tauri.conf.json, so raise it there first
+# (and in Cargo.toml, package.json and the <release> list of
+# src-tauri/linux/de.pueski.blackboard.metainfo.xml).
 # The release stays a draft until all three systems are built; only then do
 # visitors see it.
 

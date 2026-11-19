@@ -1,8 +1,8 @@
 [package]
 name = "blackboard"
-version = "3.0.0"
+version = "3.0.1"
 description = "BlackBoard Circuit Designer"
-authors = ["Matthias Pueski"]
+authors = ["Matthias Püski <blackboard@pueski.de>"]
 license = "AGPL-3.0-only"
 publish = false
 edition = "2021"

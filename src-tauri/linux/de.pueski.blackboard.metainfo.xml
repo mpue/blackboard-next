@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- What software centres (GNOME Software, KDE Discover …) show for the
+     installed app: name, icon, description, developer and licence. Add a
+     <release> for every new version. -->
+<component type="desktop-application">
+  <id>de.pueski.blackboard</id>
+  <name>BlackBoard</name>
+  <summary>Perfboard, stripboard, schematic and PCB designer</summary>
+  <summary xml:lang="de">Lochraster, Streifenraster, Schaltpläne und Platinen</summary>
+  <developer id="de.pueski">
+    <name>Matthias Püski</name>
+  </developer>
+  <developer_name>Matthias Püski</developer_name>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <description>
+    <p>
+      BlackBoard plans perfboards, stripboards, schematics and printed circuit boards, with real
+      SPICE simulation (NGSpice), lab instruments and microcontrollers (ATmega328P, ESP32) that run
+      their real firmware. Free and open source.
+    </p>
+    <p xml:lang="de">
+      BlackBoard plant Lochraster, Streifenraster, Schaltpläne und Platinen – mit echter
+      SPICE-Simulation (NGSpice), Messgeräten wie im Labor und Mikrocontrollern (ATmega328P, ESP32),
+      die ihre Firmware wirklich ausführen. Kostenlos und Open Source.
+    </p>
+  </description>
+  <launchable type="desktop-id">BlackBoard.desktop</launchable>
+  <icon type="stock">blackboard</icon>
+  <url type="homepage">https://pueski.de/blackboard/</url>
+  <url type="vcs-browser">https://github.com/mpue/blackboard-next</url>
+  <url type="bugtracker">https://github.com/mpue/blackboard-next/issues</url>
+  <categories>
+    <category>Development</category>
+    <category>Electronics</category>
+  </categories>
+  <provides>
+    <binary>blackboard</binary>
+    <mediatype>application/x-blackboard</mediatype>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="3.0.1" date="2026-11-19"/>
+    <release version="3.0.0" date="2026-11-18"/>
+  </releases>
+</component>
