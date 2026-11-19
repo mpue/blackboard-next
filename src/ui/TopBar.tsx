@@ -11,6 +11,7 @@ import { useLive } from '../store/live.ts';
 import { useLearn } from '../learn/state.ts';
 import { useView3d } from './Board3DHost.tsx';
 import { isSchematicDoc } from '../model/types.ts';
+import { isTauri } from '../platform/files.ts';
 
 type MenuEntry = Command | 'sep' | { radio: string; checked: boolean; run: () => void };
 
@@ -192,7 +193,8 @@ export function TopBar() {
         {[commands.grid, commands.snap, commands.magnet, commands.mirror].map(quick)}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <AccountButton />
+        {/* the desktop app has no account server */}
+        {!isTauri() && <AccountButton />}
         <AssistantButton />
         <IconButton icon={commands.learn.icon!} label={`${t('learn.title')} (F1)`} active={learnOpen} onClick={() => runCommand(commands.learn)} />
         <IconButton icon={Languages} className="max-sm:hidden" label={t('view.language')} onClick={() => updateSettings({ lang: lang === 'de' ? 'en' : 'de' })} />

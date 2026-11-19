@@ -1,7 +1,7 @@
 {
   "name": "blackboard-next",
   "private": true,
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "BlackBoard Circuit Designer – portable rebuild (web, PWA, Tauri desktop)",
   "license": "AGPL-3.0-only",
   "type": "module",

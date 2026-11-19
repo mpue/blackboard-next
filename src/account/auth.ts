@@ -7,7 +7,13 @@ import { apiUrl } from './api.ts';
 
 export { apiUrl };
 
-export const authClient = createAuthClient({ baseURL: apiUrl('auth') });
+// Better Auth only takes http(s) addresses, and the desktop app's pages are
+// tauri://localhost on Linux and macOS: an exception there kept the editor from
+// starting. The desktop app has no account server and shows no account button,
+// so it gets an address that never resolves (.invalid).
+const authBase = /^https?:/.test(apiUrl('auth')) ? apiUrl('auth') : 'http://desktop.invalid/api/auth';
+
+export const authClient = createAuthClient({ baseURL: authBase });
 
 export const useSession = authClient.useSession;
 
